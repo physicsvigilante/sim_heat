@@ -1,0 +1,15 @@
+# SIM_HEAT contribution and review boundaries
+
+Source of truth for shared two-ChatGPT coordination: [review_sandbox/PROTOCOL.md](https://github.com/physicsvigilante/review_sandbox/blob/main/PROTOCOL.md) and [REVIEW-RISK-POLICY.md](https://github.com/physicsvigilante/review_sandbox/blob/main/REVIEW-RISK-POLICY.md). The central repository stores **review requests, prompts, and reviewer findings only**. This project repository owns Modelica, Python, tests, CI, original inputs, and native evidence.
+
+Read [docs/H1_IMPLEMENTATION_CONTRACT.md](docs/H1_IMPLEMENTATION_CONTRACT.md), [docs/H1_OFFLINE_AMENDMENT.md](docs/H1_OFFLINE_AMENDMENT.md), and [qualification/h1_c1/FREEZE.md](qualification/h1_c1/FREEZE.md) before changing physics, authoring grammar, numerical/error limits, observation semantics, or native provenance. Earlier reports and failed attempts are immutable historical records, not automatically current acceptance.
+
+**Risk classification:** docs/process R0; bounded non-semantic UI or glue R1; physics, numerical methods, runtime controller, result semantics, provenance or qualification R2. First integration of H1 into `main` is R2. R2 demands pinned CI, negative/refusal controls, real native and independent reference evidence relevant to the changed scope, and one independent-in-context Chat B review. A green test suite does not lower risk by itself.
+
+**Workflow:** Chat A completes implementation, local checks and current-commit CI, opens a draft source PR, and records exact base/head SHA, acceptance scope and artifact links. Only then publish `review_sandbox/projects/sim_heat/pr-<number>/REQUEST.md`, `REVIEWER-PROMPT-01.md`, `STATUS.md` and provide the user a short ready-to-paste prompt. Chat B reads the pinned source/CI and commits a **new** `reviews/review-<NN>-chat-b.md` to the hub. Chat A never invents or writes Chat B's report.
+
+On the owner's "Review complete", fetch the exact central report and reproduce findings. Fix confirmed bugs with regression evidence and a new source head/CI; targeted re-review only when necessary. Keep earlier review files unchanged. **Merge only with explicit owner approval**, then verify post-merge CI and update the hub record.
+
+**Execution and preservation:** no automatic OpenModelica native jobs from standard CI. Never trust source/model parameters, values, missing outputs, aliases, or statuses just because validation succeeded. Use the generic admitted grammar, reference preparation, source pins and signed-flow/energy checks. No arrangement-specific solver fallback, reference-filled native fields, or fabricated independent evidence. Existing `diagnostic_only`/`nativeQualified=false` meanings are not silently promoted.
+
+Historical one-shot cloud-runner files and workflows live on unmerged experiment branches; do not restore or enable those production triggers merely for convenience. The C1 external-author experiment remains a separately selected, independently recorded claim.
