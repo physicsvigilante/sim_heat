@@ -3,10 +3,26 @@ import {validateIndex,validateCase,readingsAt,unitOf,signDescription,flowDescrip
         firstSignChange,energyTotal,hashHex,parseNativeCsv} from './core.mjs';
 const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg';
 let catalog=[],current=null,rows=[],selected=0,chosen=null,timer=null,markTemperature=()=>{},markObservation=()=>{};
+let caseEpoch=0,importEpoch=0; // invalidates asynchronous case loads and native imports
 const fmt=(n,d=2)=>Number(n).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 const signed=(n,d=2)=>(n>0?'+':'')+fmt(n,d);
 function make(tag,attrs={},txt){const el=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,String(v));if(txt!==undefined)el.textContent=txt;return el;}
-function err(message){stop();rows=[];current=null;$('error').textContent='Evidence refused: '+message;$('error').classList.add('active');for(const id of ['time-slider','play','reset','reversal','observation','native-import'])$(id).disabled=true;for(const id of ['network','temperature-chart','observation-chart'])$(id).replaceChildren();$('sample-note').textContent='No evidence displayed';$('current-value').textContent='—';}
+function clearEvidence(){
+  stop();current=null;rows=[];selected=0;chosen=null;
+  markTemperature=()=>{};markObservation=()=>{};
+  for(const id of ['time-slider','play','reset','reversal','observation','native-import'])$(id).disabled=true;
+  $('time-slider').min='0';$('time-slider').max='0';$('time-slider').value='0';
+  for(const id of ['network','temperature-chart','observation-chart',
+    'temp-legend','energy-readouts','observation'])$(id).replaceChildren();
+  for(const id of ['graph-count','time-label','time-start','time-stop','field-unit',
+    'current-value','current-direction','model-id','native-run','check-count','csv-sha'])$(id).textContent='—';
+  for(const id of ['reversal-note','field-title','selection-description','import-description',
+    'import-status'])$(id).textContent='No verified evidence available';
+  $('sample-note').textContent='No evidence displayed';
+  $('native-run').removeAttribute('href');
+  $('import-status').className='help';$('native-import').value='';
+}
+function err(message){clearEvidence();$('error').textContent='Evidence refused: '+message;$('error').classList.add('active');}
 function ok(){ $('error').textContent='';$('error').classList.remove('active'); }
 function stop(){if(timer){clearInterval(timer);timer=null;}$('play').textContent='▶ Play';}
 async function getJSON(url,expected){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error('Missing data '+url);const bytes=await response.arrayBuffer();if(expected && await hashHex(bytes)!==expected)throw new Error('Case digest differs from source catalog');return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
@@ -26,8 +42,53 @@ function draw(){if(!current||!rows.length)return;const row=readingsAt({...curren
 function setSample(i){selected=Math.max(0,Math.min(rows.length-1,i));draw();}
 function updateRows(full,mode){stop();rows=full;selected=0;$('time-slider').max=String(rows.length-1);$('time-slider').disabled=false;for(const id of ['play','reset','observation','native-import'])$(id).disabled=false;$('sample-note').textContent=rows.length+' saved points displayed of '+current.source.canonicalSamples+' canonical native samples · '+mode;$('time-start').textContent=fmt(current.analysis.start,0)+' s';$('time-stop').textContent=fmt(current.analysis.stop,0)+' s';const flags=current.graph.edges.map(edge=>({edge,cross:firstSignChange(rows,edge)})).filter(r=>r.cross);$('reversal').disabled=!flags.length;$('reversal-note').textContent=flags.length?flags.map(r=>`${r.edge.id}: sign change bracket ${fmt(r.cross.from,1)} to ${fmt(r.cross.to,1)} s`).join(' · '):'No signed rod reversal among the displayed saved samples.';
 const palette=['#c87857','#368e85','#678ab4','#9b7da3','#7c967a','#bd9d53'];const series=current.graph.nodes.map((n,i)=>({field:n.temperature,color:palette[i%palette.length],label:n.id}));const legend=$('temp-legend');legend.replaceChildren();series.forEach(s=>{const span=document.createElement('span'),bar=document.createElement('i');bar.className='line-icon';bar.style.background=s.color;span.append(bar,document.createTextNode(s.label));legend.append(span);});markTemperature=chart('temperature-chart',series,rows,262);chooseField(chosen?.field||current.graph.edges[0]?.flow||current.graph.nodes[0].temperature);setSample(0);}
-async function switchCase(entry){stop();ok();for(const id of ['case-select','time-slider','play','reset','reversal','observation','native-import'])$(id).disabled=true;rows=[];current=null;try{const source=await getJSON(entry.file,entry.sha256);const parsed=validateCase(source,entry);current=parsed;chosen=null;const selector=$('observation');selector.replaceChildren();for(const item of availableFields(parsed)){const option=document.createElement('option');option.value=item.field;option.textContent=item.label+' ('+unitOf(item.field)+')';selector.append(option);}
-$('model-id').textContent=parsed.modelName;$('native-run').textContent='#'+parsed.source.runId;$('native-run').href='https://github.com/physicsvigilante/sim_heat/actions/runs/'+parsed.source.runId;$('check-count').textContent=parsed.source.checksPassed+' passed; diagnostic_only';$('csv-sha').textContent=parsed.source.csvSha256.slice(0,20)+'…';$('import-description').textContent=`Original ${parsed.source.canonicalSamples.toLocaleString('en-US')} native samples: download case file ${parsed.source.archiveEntry} from artifact #${parsed.source.artifactId}, and import only the exact original CSV verified by SHA-256.`;$('import-status').textContent='No import yet. Source file stays in this browser.';$('case-select').disabled=false;updateRows(parsed.rowObjects,'source-bundled preview');}catch(e){err(e.message);$('case-select').disabled=false;}}
+async function switchCase(entry){
+  // An older request cannot re-populate the new case or re-label its source.
+  const generation=++caseEpoch;++importEpoch;
+  clearEvidence();ok();$('sample-note').textContent='Loading source-linked case…';
+  $('case-select').disabled=true;
+  try{
+    const source=await getJSON(entry.file,entry.sha256);
+    if(generation!==caseEpoch)return;
+    const parsed=validateCase(source,entry);
+    if(generation!==caseEpoch)return;
+    current=parsed;chosen=null;
+    const selector=$('observation');
+    for(const item of availableFields(parsed)){
+      const option=document.createElement('option');
+      option.value=item.field;option.textContent=item.label+' ('+unitOf(item.field)+')';
+      selector.append(option);
+    }
+    $('model-id').textContent=parsed.modelName;
+    $('native-run').textContent='#'+parsed.source.runId;
+    $('native-run').href='https://github.com/physicsvigilante/sim_heat/actions/runs/'+parsed.source.runId;
+    $('check-count').textContent=parsed.source.checksPassed+' passed; diagnostic_only';
+    $('csv-sha').textContent=parsed.source.csvSha256.slice(0,20)+'…';
+    $('import-description').textContent=`Original ${parsed.source.canonicalSamples.toLocaleString('en-US')} native samples: download case file ${parsed.source.archiveEntry} from artifact #${parsed.source.artifactId}, and import only the exact original CSV verified by SHA-256.`;
+    $('import-status').textContent='No import yet. Source file stays in this browser.';
+    updateRows(parsed.rowObjects,'source-bundled preview');
+  }catch(e){if(generation===caseEpoch)err(e.message);}
+  finally{if(generation===caseEpoch)$('case-select').disabled=false;}
+}
 $('case-select').addEventListener('change',()=>{const entry=catalog.find(x=>x.id===$('case-select').value);if(entry)switchCase(entry);});$('observation').addEventListener('change',()=>chooseField($('observation').value));$('time-slider').addEventListener('input',()=>{stop();setSample(Number($('time-slider').value));});$('reset').addEventListener('click',()=>{stop();setSample(0);});$('play').addEventListener('click',()=>{if(timer){stop();return;}if(selected===rows.length-1)setSample(0);$('play').textContent='Ⅱ Pause';const stride=Math.max(1,Math.floor(rows.length/320));timer=setInterval(()=>{setSample(Math.min(selected+stride,rows.length-1));if(selected>=rows.length-1)stop();},90);});$('reversal').addEventListener('click',()=>{stop();for(const edge of current.graph.edges){const b=firstSignChange(rows,edge);if(b){chooseField(edge.flow);setSample(b.index);return;}}});
-$('native-import').addEventListener('change',async e=>{stop();const file=e.target.files?.[0];if(!file||!current)return;try{if(file.size>20*1024*1024)throw Error('Native CSV exceeds size limit');const bytes=await file.arrayBuffer();const saved=await parseNativeCsv(bytes,current);updateRows(saved,'SHA-256 verified full native CSV');$('import-status').className='help good';$('import-status').textContent='Exact native CSV verified; all '+saved.length+' saved samples are available.';}catch(ex){$('import-status').className='help bad';$('import-status').textContent='File refused: '+ex.message;}e.target.value='';});
-async function start(){try{const index=await getJSON('data/index.json');catalog=validateIndex(index);const select=$('case-select');select.replaceChildren();for(const c of catalog){const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.title;select.append(opt);}select.disabled=false;await switchCase(catalog[0]);}catch(ex){err(ex.message);}}start();
+$('native-import').addEventListener('change',async e=>{
+  stop();const file=e.target.files?.[0];if(!file||!current)return;
+  const generation=caseEpoch,request=++importEpoch,sourceCase=current;
+  const stillSelected=()=>generation===caseEpoch && request===importEpoch && current===sourceCase;
+  try{
+    if(file.size>20*1024*1024)throw Error('Native CSV exceeds size limit');
+    const bytes=await file.arrayBuffer();
+    if(!stillSelected())return;
+    const saved=await parseNativeCsv(bytes,sourceCase);
+    if(!stillSelected())return;
+    updateRows(saved,'SHA-256 verified full native CSV');
+    $('import-status').className='help good';
+    $('import-status').textContent='Exact native CSV verified; all '+saved.length+' saved samples are available.';
+  }catch(ex){
+    if(stillSelected()){
+      $('import-status').className='help bad';
+      $('import-status').textContent='File refused: '+ex.message;
+    }
+  }finally{if(request===importEpoch)e.target.value='';}
+});
+async function start(){try{const index=await getJSON('data/index.json');catalog=validateIndex(index);const select=$('case-select');select.replaceChildren();for(const c of catalog){const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.title;select.append(opt);}select.disabled=false;await switchCase(catalog[0]);}catch(ex){++caseEpoch;++importEpoch;err(ex.message);$('case-select').disabled=true;}}start();

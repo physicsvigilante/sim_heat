@@ -56,6 +56,9 @@ export function validateCase(input, catalogEntry) {
        input.columns[0]==='time'&&new Set(input.columns).size===input.columns.length,
        'Duplicate or missing native channel');
   const columns=new Set(input.columns), names=new Set(), required=new Set(['time']);
+  // Port ownership is structural evidence, not an arbitrary free-form label.
+  // Each declared Modelica connector belongs to one and only one ideal node.
+  const portOwner=new Map(), ownerFields=new Set();
   function observe(name,suffix,kind) {
     need(typeof name==='string' && name.endsWith(suffix) && columns.has(name),
          `Missing ${kind} native observation`);
@@ -69,20 +72,57 @@ export function validateCase(input, catalogEntry) {
     need(ID.test(node.id)&&!names.has(node.id)&&['body','boundary','junction'].includes(node.kind),
          'Duplicate/invalid node');
     names.add(node.id);
-    need(Array.isArray(node.ports)&&node.ports.length>0&&node.ports.every(x=>typeof x==='string'),
-         'Node missing connection ports');
-    observe(node.temperature, node.kind==='junction' ? (node.temperature.endsWith('.T_a')?'.T_a':'.T_b'):'.T', 'temperature');
-    if(node.kind==='body')observe(node.energy,'.dU','energy');
-    if(node.kind==='boundary')observe(node.power,'.Q_to_network','boundary power');
+    need(Array.isArray(node.ports)&&node.ports.length>0,'Node missing connection ports');
+    for (const port of node.ports) {
+      need(typeof port==='string' &&
+           (/^[A-Za-z][A-Za-z0-9_]*\.port$/.test(port) ||
+            /^[A-Za-z][A-Za-z0-9_]*\.port_[ab]$/.test(port)),
+           'Malformed native connector port');
+      need(!portOwner.has(port),'Duplicate native connector owner');
+      portOwner.set(port,node.id);
+    }
+    const namedPorts=node.ports.filter(p=>p.endsWith('.port'));
+    need(node.kind==='junction' ? namedPorts.length===0 :
+         namedPorts.length===1 && namedPorts[0]===node.id+'.port',
+         'Physical node port owner mismatch');
+    if(node.kind==='junction') {
+      const sensor=node.temperature.match(/^([A-Za-z][A-Za-z0-9_]*)\.T_([ab])$/);
+      need(sensor && node.ports.includes(sensor[1]+'.port_'+sensor[2]),
+           'Junction temperature must come from a connected native rod end');
+      observe(node.temperature, '.T_'+sensor[2], 'junction temperature');
+    } else {
+      need(node.temperature===node.id+'.T','Temperature channel belongs to wrong node');
+      observe(node.temperature,'.T','temperature');
+    }
+    if(node.kind==='body') {
+      need(node.energy===node.id+'.dU','Body energy belongs to wrong node');
+      observe(node.energy,'.dU','energy');
+    }
+    if(node.kind==='boundary') {
+      need(node.power===node.id+'.Q_to_network','Boundary power belongs to wrong node');
+      observe(node.power,'.Q_to_network','boundary power');
+    }
+    for(const name of [node.temperature,node.energy,node.power].filter(Boolean)) {
+      need(!ownerFields.has(name),'Native quantity assigned to multiple owners');
+      ownerFields.add(name);
+    }
   }
   const edgeIds=new Set();
   for(const edge of edges) {
     keys(edge,['id','from','to','flow'],'edge');
     need(ID.test(edge.id)&&!edgeIds.has(edge.id)&& names.has(edge.from)&&names.has(edge.to)&&
          edge.from!==edge.to, 'Bad rod connection');
+    need(!names.has(edge.id),'Rod cannot be a physical node owner');
     edgeIds.add(edge.id);
     need(edge.flow===edge.id+'.Q_flow','Rod flow orientation mismatch');
+    need(portOwner.get(edge.id+'.port_a')===edge.from &&
+         portOwner.get(edge.id+'.port_b')===edge.to,
+         'Rod port_a/port_b connections disagree with signed flow direction');
     observe(edge.flow,'.Q_flow','rod flow');
+  }
+  for(const port of portOwner.keys())if(port.endsWith('.port_a')||port.endsWith('.port_b')) {
+    need(edgeIds.has(port.slice(0,port.lastIndexOf('.'))),
+         'Graph contains undeclared native rod endpoint');
   }
   need(required.size===columns.size && [...columns].every(c=>required.has(c)),
        'Unattributed/unsupported sample channel');
@@ -122,9 +162,15 @@ export function flowDescription(q, edge) {
   return q>0 ? `${edge.from} → ${edge.to}` : q<0 ? `${edge.to} → ${edge.from}` : 'Zero at this sample';
 }
 export function firstSignChange(rows, edge) {
-  for(let i=1;i<rows.length;i++){
-    const a=rows[i-1][edge.flow],b=rows[i][edge.flow];
-    if((a<0&&b>=0)||(a>0&&b<=0))return {from:rows[i-1].time,to:rows[i].time,index:i};
+  // Zero contact alone is not reversal: require opposite nonzero signs in
+  // actually recorded samples, even when zero samples intervene.
+  let previous=null;
+  for(let i=0;i<rows.length;i++) {
+    const sign=Math.sign(rows[i][edge.flow]);
+    if(!sign)continue;
+    if(previous && previous.sign!==sign)
+      return {from:rows[previous.index].time,to:rows[i].time,index:i};
+    previous={index:i,sign};
   }
   return null;
 }

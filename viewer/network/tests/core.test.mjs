@@ -96,6 +96,44 @@ test('case refuses fake qualification, missing node/edge/field, stale time and c
   for(const change of mutations){assert.throws(edit(c,change));}
 });
 
+test('F-03: repinned catalog cannot misattribute physical owner fields or rod endpoints',()=>{
+  const [d1,d2,bridge]=cases();
+  const negatives=[
+    [d1,x=>{x.graph.edges[0].from='body';x.graph.edges[0].to='reservoir';}],
+    [d1,x=>{x.graph.nodes.find(n=>n.id==='body').ports.push('rod.port_a');}],
+    [d1,x=>{x.graph.nodes.find(n=>n.id==='body').ports=['body.port'];}],
+    [d1,x=>{x.graph.nodes.find(n=>n.id==='body').ports.push('phantom.port_a');}],
+    [d1,x=>{x.graph.nodes.find(n=>n.id==='body').ports[0]='reservoir.port';}],
+    [d2,x=>{const [a,b]=x.graph.nodes;[a.temperature,b.temperature]=[b.temperature,a.temperature];}],
+    [d2,x=>{const [a,b]=x.graph.nodes;[a.energy,b.energy]=[b.energy,a.energy];}],
+    [bridge,x=>{const a=x.graph.nodes.find(n=>n.id==='heated'),b=x.graph.nodes.find(n=>n.id==='cooled');[a.power,b.power]=[b.power,a.power];}],
+    [bridge,x=>{x.graph.nodes[0].ports.push(x.graph.nodes[1].ports[0]);}],
+    [bridge,x=>{x.graph.edges[0].to=x.graph.edges[0].from;}],
+    [bridge,x=>{x.graph.nodes[0].temperature='bridge.T_a';}],
+  ];
+  for(const [c,change] of negatives)assert.throws(edit(c,change),'Invalid owner/rod mapping accepted');
+  const c=structuredClone(d1);delete c.rowObjects;
+  c.graph.nodes[0].ports=['body.port'];
+  c.graph.nodes[1].ports=['reservoir.port','rod.port_a'];
+  c.graph.nodes.push({id:'junction_2',kind:'junction',ports:['rod.port_b'],temperature:'rod.T_b'});
+  c.graph.edges[0].to='junction_2';
+  c.columns.push('rod.T_b');c.samples.forEach(row=>row.push(312));
+  const meta=index.cases.find(x=>x.id===c.id);
+  assert.doesNotThrow(()=>validateCase(c,meta));
+  c.graph.nodes[2].temperature='rod.T_a';
+  assert.throws(()=>validateCase(c,meta),/Junction temperature/);
+});
+
+test('F-04: a zero touch alone is not a recorded reversal',()=>{
+  const rod={flow:'rod.Q_flow'},rows=values=>values.map((q,i)=>({time:i,'rod.Q_flow':q}));
+  for(const values of [[1,0,1],[-1,0,-1],[0,0,1,1],[1,0,0,1],[0,0,0]])
+    assert.equal(firstSignChange(rows(values),rod),null,values.join(','));
+  assert.deepEqual(firstSignChange(rows([1,0,-1]),rod),{from:0,to:2,index:2});
+  assert.deepEqual(firstSignChange(rows([-1,1]),rod),{from:0,to:1,index:1});
+  assert.deepEqual(firstSignChange(rows([-1,0,0,1]),rod),{from:0,to:3,index:3});
+  assert.deepEqual(firstSignChange(rows([0,-1,0,1]),rod),{from:1,to:3,index:3});
+});
+
 test('full CSV parser verifies exact original hash before interpreting data',async()=>{
   const c=cases()[0],meta=index.cases[0];
   const buf=new TextEncoder().encode('time,body.T\n0,300\n');

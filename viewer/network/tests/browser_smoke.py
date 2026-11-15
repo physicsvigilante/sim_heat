@@ -6,8 +6,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 import argparse
+import csv
+import hashlib
+import io
 import json
 import shutil
+from tempfile import TemporaryDirectory
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +87,19 @@ def run(evidence:Path):
             expect(page.locator('#error')).to_contain_text('Case digest differs from source catalog')
             assert page.locator('#current-value').inner_text()=='—'
             assert page.locator('#time-slider').is_disabled()
+            # F-01: a refused case must clear every previous evidence panel.
+            for field in ('time-label','graph-count','model-id','check-count',
+                          'csv-sha','field-unit','current-direction','time-start','time-stop'):
+                assert page.locator('#'+field).inner_text()=='—',field
+            assert page.locator('#native-run').inner_text()=='—'
+            assert page.locator('#native-run').get_attribute('href') is None
+            assert page.locator('#energy-readouts').inner_text()==''
+            assert page.locator('#temp-legend').inner_text()==''
+            assert page.locator('#network').locator('*').count()==0
+            assert page.locator('#observation option').count()==0
+            assert 'No evidence displayed' in page.locator('#sample-note').inner_text()
+            assert 'No verified evidence' in page.locator('#reversal-note').inner_text()
+            assert 'No verified evidence' in page.locator('#import-status').inner_text()
             page.screenshot(path=str(evidence/'refusal.png'),full_page=True,animations='disabled')
             page.unroute('**/data/D2.json',tampered)
             page.reload(wait_until='networkidle')
@@ -94,9 +111,81 @@ def run(evidence:Path):
             page.locator('#reversal').click()
             assert numeric_time(page)==1730.0
             page.screenshot(path=str(evidence/'mobile.png'),full_page=True,animations='disabled')
+            # F-02: Test-only synthetic full D1 fixture, with its own
+            # temporary, re-hashed D1 bundle/catalog. It exercises real
+            # WebCrypto + native CSV parsing, NOT an independent native result.
+            with TemporaryDirectory() as scratch:
+                case=json.loads((ROOT/'data/D1.json').read_text())
+                index=json.loads((ROOT/'data/index.json').read_text())
+                cols=case['columns']
+                selected={row[0]:row for row in case['samples']}
+                a=case['analysis'];step=(a['stop']-a['start'])/a['intervals']
+                buf=io.StringIO(newline='');writer=csv.writer(buf,lineterminator='\n')
+                writer.writerow(cols)
+                for i in range(a['intervals']+1):
+                    t=a['start']+i*step
+                    last=selected.get(t,[t]+[0.0]*(len(cols)-1))
+                    writer.writerow([str(v) for v in last])
+                writer.writerow([str(v) for v in last])
+                csv_data=buf.getvalue().encode('utf-8')
+                fixture=Path(scratch)/'SYNTHETIC-ONLY-D1-race.csv';fixture.write_bytes(csv_data)
+                case['source']['csvSha256']=hashlib.sha256(csv_data).hexdigest()
+                case_bytes=(json.dumps(case,sort_keys=True,separators=(',',':'))+'\n').encode('utf-8')
+                index['cases'][0]['sha256']=hashlib.sha256(case_bytes).hexdigest()
+                index_bytes=(json.dumps(index,sort_keys=True,separators=(',',':'))+'\n').encode('utf-8')
+                test=browser.new_page(viewport={'width':1260,'height':830})
+                test.on('pageerror',lambda exc:errors.append(str(exc)))
+                test.route('**/data/index.json',lambda route:route.fulfill(
+                    status=200,content_type='application/json',body=index_bytes))
+                test.route('**/data/D1.json',lambda route:route.fulfill(
+                    status=200,content_type='application/json',body=case_bytes))
+                test.add_init_script("""(()=>{
+                  const original=SubtleCrypto.prototype.digest;
+                  window.__heldNative={armed:false,pending:false,done:false,release:null,expected:0};
+                  SubtleCrypto.prototype.digest=function(algo,bytes){
+                    if(window.__heldNative.armed && algo==='SHA-256'
+                       && bytes.byteLength===window.__heldNative.expected){
+                      window.__heldNative.armed=false;
+                      window.__heldNative.pending=true;
+                      return new Promise((resolve,reject)=>{
+                        window.__heldNative.release=()=>{
+                          Promise.resolve(original.call(this,algo,bytes)).then(value=>{
+                            resolve(value);window.__heldNative.done=true;
+                          },reject);
+                        };
+                      });
+                    }
+                    return original.call(this,algo,bytes);
+                  };
+                })();""")
+                test.goto(f'http://127.0.0.1:{http.server_port}/index.html',wait_until='networkidle')
+                expect(test.locator('#model-id')).to_have_text('H1_D1')
+                # Positive control: a correctly repinned synthetic fixture
+                # passes the real SHA-256, grid, duplicate and preview checks.
+                test.locator('#native-import').set_input_files(str(fixture))
+                expect(test.locator('#sample-note')).to_contain_text('1001 saved points')
+                expect(test.locator('#import-status')).to_contain_text('Exact native CSV verified')
+                test.reload(wait_until='networkidle')
+                expect(test.locator('#model-id')).to_have_text('H1_D1')
+                test.evaluate('(size)=>{window.__heldNative.expected=size;window.__heldNative.armed=true}',len(csv_data))
+                test.locator('#native-import').set_input_files(str(fixture))
+                test.wait_for_function('window.__heldNative.pending && window.__heldNative.release')
+                test.locator('#case-select').select_option('H1_D2')
+                expect(test.locator('#model-id')).to_have_text('H1_D2')
+                expect(test.locator('#sample-note')).to_contain_text('21 saved points')
+                test.evaluate('window.__heldNative.release()')
+                test.wait_for_function('window.__heldNative.done')
+                test.wait_for_timeout(100)
+                expect(test.locator('#model-id')).to_have_text('H1_D2')
+                assert test.locator('#sample-note').inner_text().startswith('21 saved points')
+                assert test.locator('#energy-readouts .record-field').count()==3
+                assert 'NaN' not in test.locator('#energy-readouts').inner_text()
+                assert 'Exact native CSV verified' not in test.locator('#import-status').inner_text()
+                test.screenshot(path=str(evidence/'import-race.png'),full_page=True,animations='disabled')
+                test.close()
             assert not errors,errors
             browser.close()
-            print('PASS: 3 data-only cases; topology; signed directions; data-only switching; desktop/mobile; keyboard; negative SHA; screenshots')
+            print('PASS: D1/D2/bridge, refusal clears old J/W/model, async import isolated, synthetic CSV positive-control SHA, desktop/mobile, screenshots')
     finally:
         http.shutdown();http.server_close();thread.join(timeout=3)
 
