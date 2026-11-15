@@ -19,6 +19,7 @@ from scipy.io import loadmat
 from scipy.io.matlab import matfile_version
 
 from .decoder import decode_csv
+from .policy import match_grid
 from .model import Refusal, require
 
 MAX_BYTES = 20 * 1024 * 1024
@@ -51,10 +52,14 @@ def _text_rows(a: np.ndarray, what: str) -> list[str]:
 
 
 def _orientation(raw: np.ndarray) -> bool:
-    """Return True for stored binTrans format; reject malformed/ambiguous header."""
-    candidates = []
-    for trans in (False, True):
-        a = raw.T if trans else raw
+    """Read the binTrans flag. Native OMC leaves Aclass rows untransposed.
+
+    The Aclass flag specifies metadata orientation but is not proof that every
+    individual data matrix is stored transposed. Inspect numeric matrix
+    candidates separately using the predeclared result grid.
+    """
+    formats = set()
+    for a in (raw, raw.T):
         if a.ndim != 2 or a.shape[0] != 4:
             continue
         try:
@@ -62,11 +67,9 @@ def _orientation(raw: np.ndarray) -> bool:
         except (Refusal, UnicodeError):
             continue
         if rows[0] == 'Atrajectory' and rows[1] == '1.1' and rows[2] == '' and rows[3] in ('binTrans', 'binNormal'):
-            if trans == (rows[3] == 'binTrans'):
-                candidates.append(trans)
-    require(len(candidates) == 1, 'mat_schema', 'unrecognized or inconsistent Aclass orientation')
-    return candidates[0]
-
+            formats.add(rows[3])
+    require(len(formats) == 1, 'mat_schema', 'unrecognized or ambiguous Aclass orientation')
+    return formats.pop() == 'binTrans'
 
 def _real_data(a: np.ndarray, key: str) -> np.ndarray:
     require(a.ndim == 2 and a.size <= MAX_SIGNALS * MAX_POINTS, 'mat_schema', f'invalid {key} size')
@@ -102,11 +105,13 @@ def decode_mat_bytes(raw: bytes, required: tuple[str, ...], grid: tuple[float, .
     info = _matrix(variables, 'dataInfo', trans)
     require(info.ndim == 2 and info.shape == (len(names), 4) and
             info.dtype.kind in ('i', 'u'), 'mat_schema', 'invalid dataInfo table')
-    data1 = _real_data(_matrix(variables, 'data_1', trans), 'data_1')
-    data2 = _real_data(_matrix(variables, 'data_2', trans), 'data_2')
-    require(data1.shape[1] in (1, 2), 'mat_schema', 'unsupported time-invariant parameter layout')
-    require(2 <= data2.shape[1] <= MAX_POINTS and 1 <= data2.shape[0] <= MAX_SIGNALS,
-            'mat_schema', 'invalid sampled variable matrix')
+    # MAT v4 implementations differ in the physical array orientations:
+    # observed OMC 1.27.0 binTrans stores metadata transposed while data_1
+    # and data_2 are *already* canonical after SciPy loadmat. Synthetic
+    # binTrans fixtures also exercise transposed numeric storage. Select
+    # only a layout proven by both dataInfo and planned time-grid semantics.
+    raw1 = _matrix(variables, 'data_1', False)
+    raw2 = _matrix(variables, 'data_2', False)
     require('time' not in required and set(required) <= set(names),
             'result_schema', 'missing required MAT variable: ' + ', '.join(sorted(set(required) - set(names))))
 
@@ -114,26 +119,52 @@ def decode_mat_bytes(raw: bytes, required: tuple[str, ...], grid: tuple[float, .
     time_rec = info[index['time']]
     require((int(time_rec[0]) == 0 or (int(time_rec[0]) == 2 and abs(int(time_rec[1])) == 1)) and
             abs(int(time_rec[1])) in (0, 1), 'mat_schema', 'time not recorded as abscissa')
-    times = data2[0, :].tolist()
-    # All dataInfo references, including unused native variables, should remain structurally sound.
-    for name, rec in zip(names, info):
-        channel, signed = int(rec[0]), int(rec[1])
-        require(channel in (0, 1, 2), 'mat_schema', f'bad channel for {name}')
-        if channel == 0:
-            require(name == 'time' and abs(signed) <= 1, 'mat_schema', 'unexpected abscissa')
+    possibilities = []
+    orientation_failures = []
+    for flip in (False, True):
+        data1 = raw1.T if flip else raw1
+        data2 = raw2.T if flip else raw2
+        try:
+            _real_data(data1, 'data_1')
+            _real_data(data2, 'data_2')
+            require(data1.shape[1] in (1, 2), 'mat_schema', 'unsupported time-invariant parameter layout')
+            require(2 <= data2.shape[1] <= MAX_POINTS and 1 <= data2.shape[0] <= MAX_SIGNALS,
+                    'mat_schema', 'invalid sampled variable matrix')
+            for name, rec in zip(names, info):
+                channel, signed = int(rec[0]), int(rec[1])
+                require(channel in (0, 1, 2), 'mat_schema', f'bad channel for {name}')
+                if channel == 0:
+                    require(name == 'time' and abs(signed) <= 1, 'mat_schema', 'unexpected abscissa')
+                    continue
+                limit = data1.shape[0] if channel == 1 else data2.shape[0]
+                require(1 <= abs(signed) <= limit, 'mat_schema', f'out-of-range alias index {name}')
+            require(all(int(info[index[k], 0]) in (1, 2) for k in required),
+                    'mat_schema', 'required output mapped to nonvalue abscissa')
+            if data1.shape[1] == 2:
+                parameter_rows = {abs(int(info[index[k], 1])) - 1 for k in required
+                                  if int(info[index[k], 0]) == 1}
+                for j in parameter_rows:
+                    require(data1[j, 0] == data1[j, 1], 'parameter_inconsistent',
+                            f'time-invariant MAT data_1 endpoints differ at row {j+1}')
+            times = data2[0, :].tolist()
+            canonical_times = []
+            for t in times:
+                if not canonical_times or t != canonical_times[-1]:
+                    canonical_times.append(t)
+            match_grid(grid, tuple(canonical_times), maximum_shift=maximum_shift)
+            possibilities.append((flip, data1, data2, times))
+        except Refusal as exc:
+            orientation_failures.append(exc)
             continue
-        limit = data1.shape[0] if channel == 1 else data2.shape[0]
-        require(1 <= abs(signed) <= limit, 'mat_schema', f'out-of-range alias index {name}')
-    require(all(int(info[index[k], 0]) in (1, 2) for k in required),
-            'mat_schema', 'required output mapped to nonvalue abscissa')
-    # A MAT file may use data_1 row 1 for start/stop *time*, which is not
-    # a parameter. Check equality only for rows that back required outputs.
-    if data1.shape[1] == 2:
-        parameter_rows = {abs(int(info[index[k], 1])) - 1 for k in required
-                          if int(info[index[k], 0]) == 1}
-        for j in parameter_rows:
-            require(data1[j, 0] == data1[j, 1], 'parameter_inconsistent',
-                    f'time-invariant MAT data_1 endpoints differ at row {j+1}')
+    if not possibilities:
+        # When the untransposed layout gets as far as a substantive
+        # validation error, preserve that diagnostic instead of disguising
+        # it as an orientation failure. No values are repaired.
+        for exc in orientation_failures:
+            if exc.code != 'mat_schema':
+                raise exc
+    require(len(possibilities) == 1, 'mat_schema', 'no unique validated MAT numeric orientation')
+    numeric_flip, data1, data2, times = possibilities[0]
     columns = {'time': tuple(float(t) for t in times)}
     channels = defaultdict(list)
     for name, rec in zip(names, info):
@@ -172,6 +203,7 @@ def decode_mat_bytes(raw: bytes, required: tuple[str, ...], grid: tuple[float, .
         'rawMatSha256': hashlib.sha256(raw).hexdigest(),
         'rawSizeBytes': len(raw),
         'matOrientation': 'binTrans' if trans else 'binNormal',
+        'numericMatricesTransposedOnRead': bool(numeric_flip),
         'columnProvenance': provenance,
         'canonicalCsvSha256': hashlib.sha256(text.encode('utf-8')).hexdigest(),
         'canonicalCsv': text,
