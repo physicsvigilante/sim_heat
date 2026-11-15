@@ -170,16 +170,11 @@ def run(evidence:Path):
                 expect(test.locator('#model-id')).to_have_text('H1_D1')
                 test.evaluate('(size)=>{window.__heldNative.expected=size;window.__heldNative.armed=true}',len(csv_data))
                 test.locator('#native-import').set_input_files(str(fixture))
-                try:
-                    test.wait_for_function('window.__heldNative.pending && window.__heldNative.release',timeout=4000)
-                except Exception:
-                    print('DIAGNOSTIC import hold state:',test.evaluate("""()=>({
-                      hold:window.__heldNative,
-                      model:document.querySelector('#model-id')?.textContent,
-                      importStatus:document.querySelector('#import-status')?.textContent,
-                      samples:document.querySelector('#sample-note')?.textContent
-                    })"""))
-                    raise
+                # A boolean predicate is required. Returning the release
+                # function itself causes Playwright to evaluate it as a callback.
+                test.wait_for_function("""()=>window.__heldNative.pending === true &&
+                    window.__heldNative.done === false &&
+                    typeof window.__heldNative.release === 'function'""")
                 test.locator('#case-select').select_option('H1_D2')
                 expect(test.locator('#model-id')).to_have_text('H1_D2')
                 expect(test.locator('#sample-note')).to_contain_text('21 saved points')
