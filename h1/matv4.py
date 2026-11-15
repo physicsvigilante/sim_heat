@@ -71,6 +71,7 @@ def _orientation(raw: np.ndarray) -> bool:
     require(len(formats) == 1, 'mat_schema', 'unrecognized or ambiguous Aclass orientation')
     return formats.pop() == 'binTrans'
 
+
 def _real_data(a: np.ndarray, key: str) -> np.ndarray:
     require(a.ndim == 2 and a.size <= MAX_SIGNALS * MAX_POINTS, 'mat_schema', f'invalid {key} size')
     require(a.dtype == np.dtype('float64'), 'mat_precision', f'{key} must contain double precision native data')
