@@ -11,6 +11,12 @@ make an implementation author independent. If the selector and author are the
 same agent, disclose that too; do not claim independent task selection or blind
 interpretation. No tool-generated identity should be treated as authenticated.
 
+Already exposed minimal layouts include a one-body/one-reservoir link, an isolated
+two-body single link and its numerical variants, the discussed three-body branch,
+a symmetric three-body triangle, a two-body path with a massless middle junction,
+and a boundary-only three-spoke junction. This is an exclusion/exposure list, not
+a set of worked examples or a proposed C1 topology. Do not merely copy one of them.
+
 1. Select ONE modest transient physical teaching scenario with at least two bodies
    and materially different connections from the already developed examples.
    Do not use the previously discussed three-body branching proposal. Do not
