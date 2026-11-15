@@ -44,7 +44,7 @@
     "stopTime": 20000,
     "intervals": 2000,
     "solver": "dassl",
-    "tolerance": 1e-8
+    "tolerance": 1e-08
   },
   "provenance": [
     {
