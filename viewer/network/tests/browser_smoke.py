@@ -39,10 +39,16 @@ def run(evidence:Path):
 
             page.locator('#case-select').select_option('H1_D2')
             expect(page.locator('#model-id')).to_have_text('H1_D2')
+            expect(page.locator('#sample-note')).to_contain_text('21 saved points')
+            expect(page.locator('#time-slider')).to_be_enabled()
+            expect(page.locator('#time-label')).to_have_text('0 s')
             assert page.locator('#energy-readouts .record-field').count()==3
             assert page.locator('#reversal').is_disabled()
-            page.locator('#time-slider').focus();page.keyboard.press('ArrowRight')
-            assert page.locator('#time-label').inner_text()=='468.75 s'
+            page.locator('#time-slider').focus()
+            expect(page.locator('#time-slider')).to_be_focused()
+            page.keyboard.press('ArrowRight')
+            expect(page.locator('#time-slider')).to_have_value('1')
+            expect(page.locator('#time-label')).to_have_text('468.75 s')
             page.screenshot(path=str(evidence/'D2.png'),full_page=True,animations='disabled')
 
             page.locator('#case-select').select_option('DEV_BRIDGE')
