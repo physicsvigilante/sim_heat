@@ -141,8 +141,9 @@ def run(evidence:Path):
                     status=200,content_type='application/json',body=case_bytes))
                 test.add_init_script("""(()=>{
                   const original=SubtleCrypto.prototype.digest;
-                  window.__heldNative={armed:false,pending:false,done:false,release:null,expected:0};
+                  window.__heldNative={armed:false,pending:false,done:false,release:null,expected:0,seen:[]};
                   SubtleCrypto.prototype.digest=function(algo,bytes){
+                    window.__heldNative.seen.push([String(algo),bytes.byteLength,window.__heldNative.armed]);
                     if(window.__heldNative.armed && algo==='SHA-256'
                        && bytes.byteLength===window.__heldNative.expected){
                       window.__heldNative.armed=false;
@@ -169,7 +170,16 @@ def run(evidence:Path):
                 expect(test.locator('#model-id')).to_have_text('H1_D1')
                 test.evaluate('(size)=>{window.__heldNative.expected=size;window.__heldNative.armed=true}',len(csv_data))
                 test.locator('#native-import').set_input_files(str(fixture))
-                test.wait_for_function('window.__heldNative.pending && window.__heldNative.release')
+                try:
+                    test.wait_for_function('window.__heldNative.pending && window.__heldNative.release',timeout=4000)
+                except Exception:
+                    print('DIAGNOSTIC import hold state:',test.evaluate("""()=>({
+                      hold:window.__heldNative,
+                      model:document.querySelector('#model-id')?.textContent,
+                      importStatus:document.querySelector('#import-status')?.textContent,
+                      samples:document.querySelector('#sample-note')?.textContent
+                    })"""))
+                    raise
                 test.locator('#case-select').select_option('H1_D2')
                 expect(test.locator('#model-id')).to_have_text('H1_D2')
                 expect(test.locator('#sample-note')).to_contain_text('21 saved points')
