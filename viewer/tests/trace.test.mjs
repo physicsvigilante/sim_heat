@@ -40,7 +40,7 @@ test("false qualification, missing fields, nonfinite values, interpolation and d
     p=>{p.data[2][0]=1725;},
     p=>{p.data[3][0]=1720;},
     p=>{p.data[0][4]=null;},
-    p=>{p.data[0][3]=8;},
+    p=>{p.data[2][3]=8;},
   ];
   for(const change of variants){const p=structuredClone(raw);change(p);assert.throws(()=>validatePreview(p));}
 });
