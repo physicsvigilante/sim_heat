@@ -1,0 +1,90 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "H1_S1",
+  "model": {
+    "path": "model.mo",
+    "sha256": "3228323714b2f886279aa90c46c1c49c9143e2d8b9c6de032389c750b6848f1c"
+  },
+  "mode": "steady",
+  "requests": [
+    {
+      "id": "junction",
+      "op": "temperature",
+      "target": "copper.port_b"
+    },
+    {
+      "id": "flow",
+      "op": "heatFlow",
+      "target": "copper"
+    }
+  ],
+  "analysis": {},
+  "provenance": [
+    {
+      "target": "hot.T",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "cold.T",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "copper.k",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "copper.L",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "copper.d",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "steel.k",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "steel.L",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "steel.d",
+      "kind": "source_given",
+      "locator": "01_heat.pdf page 2, Illustration 123",
+      "note": "Source fact with explicit authored unit conversion."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md sections 2 and 7",
+      "note": "Constant properties; uniform finite bodies where present; storage-free rods; no unmodeled external exchange. Source fidelity requires human review."
+    },
+    {
+      "target": "copper.k",
+      "kind": "unit_convention",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7 H1-S1",
+      "note": "4184 J per kcal explicitly adopted; the source calorie convention is unspecified."
+    },
+    {
+      "target": "steel.k",
+      "kind": "unit_convention",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7 H1-S1",
+      "note": "4184 J per kcal explicitly adopted; the source calorie convention is unspecified."
+    }
+  ]
+}

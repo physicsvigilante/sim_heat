@@ -1,0 +1,56 @@
+{
+  "stage": "offline_validation",
+  "nativeExecuted": false,
+  "admitted": false,
+  "modelSha256": "2731672b5f2d55654a886506d7ff6014e511986f1609bb431bfc5fa12f4fd30d",
+  "studySha256": "42db543c18e673f5400e13bd18340df9c35e62927abbc9a67a833dea42919b94",
+  "nodes": [
+    [
+      "cold.port",
+      "rod.port_b"
+    ],
+    [
+      "hot.port",
+      "rod.port_a"
+    ]
+  ],
+  "networks": [
+    [
+      0,
+      1
+    ]
+  ],
+  "scaledJunctionCondition": 1.0,
+  "requests": [
+    {
+      "id": "difference",
+      "status": "not_computed",
+      "unit": "K"
+    },
+    {
+      "id": "flow",
+      "status": "refused",
+      "code": "request",
+      "reason": "request: invalid/duplicate request ID"
+    }
+  ],
+  "internalExports": [
+    "cold.C",
+    "cold.Q_in",
+    "cold.T",
+    "cold.dU",
+    "hot.C",
+    "hot.Q_in",
+    "hot.T",
+    "hot.dU",
+    "rod.G",
+    "rod.Q_flow",
+    "rod.T_a",
+    "rod.T_b"
+  ],
+  "limits": [
+    "native runtime/export not qualified",
+    "source fidelity not established by parser",
+    "no numerical or physical-result acceptance"
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "record": "H1-R1R2-CORRECTIONS-20261115",
+  "baseCommit": "250779ec1e8ff5c6aa81d79b440e410436b65573",
+  "status": "author-tested corrective candidate; scoped independent recheck pending; not frozen",
+  "externalReview": {
+    "path": "docs/reviews/20261115_IMPLEMENTATION_REVIEW.md.gz",
+    "uncompressedSha256": "2f446181cb4ccd9a4f19647386d1caa86ba1cc39bc2492390193c7577d1455ab",
+    "highPrecisionEvidence": "reviewer-reported summary preserved; executable scripts and raw high-precision outputs not supplied, not reproduced here"
+  },
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41"
+  },
+  "testCommand": "python -B -m unittest discover -s h1/tests -v",
+  "testRuns": [
+    {
+      "path": "h1/evidence/r1r2/baseline_tests.log.gz",
+      "tests": 86,
+      "failures": 0,
+      "errors": 0,
+      "role": "unchanged reviewed baseline"
+    },
+    {
+      "path": "h1/evidence/r1r2/attempt01_tests.log.gz",
+      "tests": 86,
+      "failures": 0,
+      "errors": 0,
+      "role": "existing suite after correction"
+    },
+    {
+      "path": "h1/evidence/r1r2/attempt02_tests.log.gz",
+      "tests": 103,
+      "failures": 0,
+      "errors": 0,
+      "role": "initial focused regressions"
+    },
+    {
+      "path": "h1/evidence/r1r2/attempt03_tests.log.gz",
+      "tests": 105,
+      "failures": 0,
+      "errors": 0,
+      "role": "full successor suite, 19 new tests"
+    }
+  ],
+  "counterexample": {
+    "origin": "analytical/synthetic, not native",
+    "timeConstantSeconds": 5e-08,
+    "oldMaximumShift": 9.999999999998634e-11,
+    "newMaximumShift": 8.333333333333332e-18,
+    "limitingConstraint": "initial:body",
+    "oldFullShiftTemperatureDifferenceK": 0.11750629533269885,
+    "temperatureAllowanceK": 6.999999987633077e-05,
+    "oldErrorToAllowanceRatio": 1678.6613648613943,
+    "newWindowShiftedAnalyticalHistory": "passes all candidate checks including initial state, difference, body/network integrals"
+  },
+  "referenceArtifacts": {
+    "count": 7,
+    "summary": "h1/evidence/r1r2/REFERENCE_SUMMARY.json",
+    "storage": "reference_bundles/ in downloadable correction packet, not tracked repo files",
+    "allHistoricalColumnsAllowancesScalesGridsIntegralsUnchanged": true
+  },
+  "preservation": {
+    "baseTrackedFiles": 61,
+    "unchanged": 55,
+    "changedPaths": [
+      "h1/README.md",
+      "h1/decoder.py",
+      "h1/policy.py",
+      "h1/reference.py",
+      "h1/reference_cases/S1.json",
+      "h1/verification.py"
+    ],
+    "S1Change": "provenance string only; physical/reference numbers and authored cases unchanged",
+    "historicalEvidenceSourcesSpike": "unchanged"
+  },
+  "native": {
+    "versionQueries": 0,
+    "builds": 0,
+    "launches": 0,
+    "installations": 0
+  },
+  "gates": {
+    "R1": "implemented with 1-percent timing allocation; independent recheck pending",
+    "R2": "note corrected and successor seals generated; independent recheck pending",
+    "R3": "reported high-precision summary retained; executable accuracy evidence still pending",
+    "R4": "complete approved checker/runtime manifest pending",
+    "R5": "real compiler/export precision and aliases pending",
+    "R6": "focused regression cases added; author-tested"
+  },
+  "sha256": {
+    "docs/H1_REVIEW_CORRECTIONS.md": "8feb83d5e428f4901fb1e714dd904369c34a435b2956cbf62aa9f3912696be8c",
+    "docs/reviews/20261115_IMPLEMENTATION_REVIEW.md.gz": "6131c6b337459516fbd1faa2b196efb0bf946fdd0d77eb27cccd521a1d53d663",
+    "h1/README.md": "cf62babb579487d55866dcd5496b54b10e8e80568b846a64b599f94a3bdb75c0",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/evidence/r1r2/REFERENCE_SUMMARY.json": "5d2065812410cb2838aeece110de9f3139292e20dda17e3c9cbf472f8786228a",
+    "h1/evidence/r1r2/attempt01_tests.log.gz": "511885aac211e6686b7c1007fb5730958f377ff2c58356237bc6bce52ff65472",
+    "h1/evidence/r1r2/attempt02_tests.log.gz": "bcf66b22801be85f4bdc82aadc90db4b10484836de1a1cb1048ebc3f8859c522",
+    "h1/evidence/r1r2/attempt03_tests.log.gz": "a5f052ede0724cd62d138d4f5dc080f1fd4dcf3507c107ea42b10f0c688ceb1f",
+    "h1/evidence/r1r2/baseline_tests.log.gz": "6e0e18291a986636b37d339a82b0ea775be48fb4b01642da9e8b79f7c640c58a",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/reference_cases/S1.json": "47b1d9035230cb252a992a3fdcdbdf6fbefd350f901aacaaae9dae37b561635a",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/tests/test_review_corrections.py": "6ce3fa7b68016f3751e384bb829edf39d5e03cc4c537afc7c4f8bd4513e87de9",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648"
+  }
+}
