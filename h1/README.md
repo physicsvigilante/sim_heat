@@ -1,10 +1,28 @@
-# H1 offline implementation candidate - slices 1 and 2
+# H1 offline implementation candidate - slices 1 and 2, review corrections
 
 This starts the user-authorized offline implementation after the external review.
 It is **not accepted H1, native qualification, or a safe arbitrary-Modelica runner**.
 See [decision](../docs/H1_OFFLINE_DECISION.md), [amendment](../docs/H1_OFFLINE_AMENDMENT.md)
 and [external review](../docs/reviews/20261115_EXTERNAL_REVIEW.md).
 
+
+## Current correction: R1/R2 (author-tested; scoped recheck pending)
+
+See [correction record](../docs/H1_REVIEW_CORRECTIONS.md) and the preserved
+[external implementation review](../docs/reviews/20261115_IMPLEMENTATION_REVIEW.md.gz).
+`temporal.py` derives conservative whole-window rate bounds from independently
+supplied physical facts, not sampled/candidate derivatives. Reference bundles
+now use `sim_heat.reference_bundle/2` and contain a sealed sensitivity-aware
+matching window. Version 1 bundles remain historical and are not silently
+upgraded. Reprepare them into fresh files with the documented command below.
+No trajectory or energy allowance has been increased. CSV extra columns are
+explicitly reported as ignored, never used as physical evidence.
+
+The S1 reference provenance note is corrected without changing its physical
+numbers or any authored model/study. Regenerated reference identities and the
+baseline/new test runs are recorded under `evidence/r1r2/`. Native execution,
+checker freeze, reference-accuracy acceptance and the scoped independent recheck
+remain separate pending gates. This is not a new physics capability.
 
 ## Current addition: Slice 2 (offline, not accepted)
 

@@ -46,13 +46,26 @@ def time_allowance(grid: tuple[float, ...]) -> float:
     return epsilon
 
 
-def match_grid(grid: tuple[float, ...], times: tuple[float, ...]) -> None:
+def match_grid(grid: tuple[float, ...], times: tuple[float, ...], *,
+               maximum_shift: float | None = None) -> None:
     """One-to-one matching only, no interpolation or row repair."""
     epsilon = time_allowance(grid)
+    if maximum_shift is not None:
+        require(finite_number(maximum_shift) and 0 < maximum_shift <= epsilon,
+                'time_sensitivity', 'invalid reference-derived matching window')
+        require(8 * max(math.ulp(t) for t in grid) <= maximum_shift,
+                'time_resolution', 'sensitivity window below timestamp resolution')
+        epsilon = maximum_shift
     require(len(times) == len(grid), 'time_grid', 'missing or extra output samples')
     require(all(finite_number(t) for t in times), 'time_grid', 'nonfinite timestamp')
     require(all(b > a for a, b in zip(times, times[1:])), 'time_grid', 'unordered/duplicate samples')
-    require(all(abs(a - b) <= epsilon for a, b in zip(grid, times)), 'time_grid', 'sample outside matching allowance')
+    if maximum_shift is not None:
+        require(grid[0] <= times[0] and times[-1] <= grid[-1],
+                'time_sensitivity', 'sample outside reference time domain')
+    require(all(abs(a - b) <= epsilon for a, b in zip(grid, times)),
+            'time_sensitivity' if maximum_shift is not None else 'time_grid',
+            'sample outside sensitivity-aware matching allowance' if maximum_shift is not None
+            else 'sample outside matching allowance')
 
 
 def local_allowance(unit: str, reference_scale: float) -> float:

@@ -15,6 +15,8 @@ import numpy as np
 import scipy
 from scipy.linalg import expm, eigh
 
+from . import temporal
+
 
 class ReferenceError(ValueError):
     pass
@@ -338,15 +340,20 @@ def prepare(s):
             need(float(np.max(qerr)) <= 1e-4*max(1., energy_scale), 'reference grid quadrature too coarse: ' + key)
             quadrature[key] = (qerr + reference_budget + t*(allowances[key]/100)).tolist()
             integrated_crosscheck[key] = error
-    result = {'schema': 'sim_heat.reference_bundle/1', 'origin': 'analytical_reference_only',
+    try:
+        temporal_policy = temporal.make_policy(s, t, allowances)
+    except temporal.TemporalError as exc:
+        raise ReferenceError(str(exc)) from exc
+    result = {'schema': 'sim_heat.reference_bundle/2', 'origin': 'analytical_reference_only',
               'nativeQualified': False, 'spec': s, 'specSha256': fingerprint(s), 'grid': t.tolist(),
               'columns': {k: v.tolist() for k, v in primary.items()}, 'units': units,
               'owners': owners, 'networkEnvelopes': {k: list(v) for k, v in envelope.items()},
-              'scales': scales, 'allowances': allowances,
+              'scales': scales, 'allowances': allowances, 'temporalPolicy': temporal_policy,
               'flowIntegrals': {k: v.tolist() for k, v in integrals.items()}, 'quadratureAllowances': quadrature,
               'method': {'primary': 'affine augmented matrix exponential', 'crossCheck': 'capacity-scaled symmetric eigensystem',
                          'numpy': np.__version__, 'scipy': scipy.__version__, 'junctionConditions': conditions,
                          'implementationSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                         'temporalImplementationSha256': hashlib.sha256(Path(temporal.__file__).read_bytes()).hexdigest(),
                          'maximumDiscrepancies': crosscheck, 'integralDiscrepancies': integrated_crosscheck,
                          'errorClaim': 'sampled cross-check, not a certified bound or independent review'}}
     result['seal'] = fingerprint(result)

@@ -10,7 +10,8 @@ from .model import require
 from .policy import match_grid
 
 
-def decode_csv(text: str, required: tuple[str, ...], grid: tuple[float, ...]) -> dict:
+def decode_csv(text: str, required: tuple[str, ...], grid: tuple[float, ...], *,
+               maximum_shift: float | None = None) -> dict:
     require(len(text.encode('utf-8')) <= 20 * 1024 * 1024, 'resource_limit', 'CSV exceeds 20 MiB')
     require(len(required) == len(set(required)) and 'time' not in required,
             'result_schema', 'invalid required export set')
@@ -39,7 +40,8 @@ def decode_csv(text: str, required: tuple[str, ...], grid: tuple[float, ...]) ->
             require(values == canonical[-1], 'ambiguous_output', 'conflicting duplicate timestamp')
         else:
             canonical.append(values)
-    match_grid(grid, tuple(row[0] for row in canonical))
+    match_grid(grid, tuple(row[0] for row in canonical), maximum_shift=maximum_shift)
     return {'columns': {name: tuple(row[i] for row in canonical) for i, name in enumerate(names)},
             'duplicateRowsCollapsed': len(rows) - 1 - len(canonical),
+            'ignoredExtraColumns': [name for name in header if name not in names],
             'status': 'decoded_only', 'numericallyAccepted': False}

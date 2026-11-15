@@ -8,6 +8,7 @@ import math
 import numpy as np
 
 from . import reference as ref
+from . import temporal
 from .decoder import decode_csv
 from .model import require, Refusal, internal_exports
 from .policy import local_allowance
@@ -50,7 +51,7 @@ def _verify_bundle(study, bundle, expected_seal):
     except (ValueError, TypeError, OverflowError) as exc:
         raise Refusal('reference_identity', 'noncanonical reference bundle') from exc
     require(bundle.get('seal') == actual == expected_seal, 'reference_identity', 'unsealed/stale reference data')
-    require(bundle.get('schema') == 'sim_heat.reference_bundle/1'
+    require(bundle.get('schema') == 'sim_heat.reference_bundle/2'
             and bundle.get('origin') == 'analytical_reference_only'
             and bundle.get('nativeQualified') is False, 'reference_identity', 'invalid reference evidence label')
     spec = bundle['spec']
@@ -66,6 +67,12 @@ def _verify_bundle(study, bundle, expected_seal):
                 'reference_schema', 'invalid reference samples: ' + k)
         epsilon = bundle['allowances'].get(k)
         require(ref.number(epsilon, True), 'reference_schema', 'invalid reference allowance')
+    try:
+        temporal_policy = temporal.make_policy(spec, grid, bundle['allowances'])
+    except temporal.TemporalError as exc:
+        raise Refusal('time_sensitivity', str(exc)) from exc
+    require(bundle.get('temporalPolicy') == temporal_policy,
+            'time_sensitivity', 'missing or inconsistent sealed temporal policy')
     return spec, grid, required
 
 
@@ -96,7 +103,8 @@ def check_candidate(study: Study, bundle: dict, csv_text: str, receipt: dict,
             and receipt['referenceSeal'] == expected_reference_seal
             and receipt['csvSha256'] == hashlib.sha256(csv_text.encode('utf-8')).hexdigest(),
             'candidate_identity', 'stale/mismatched candidate identity')
-    decoded = decode_csv(csv_text, required, grid)
+    decoded = decode_csv(csv_text, required, grid,
+                         maximum_shift=bundle['temporalPolicy']['maximumShift'])
     values = {k: np.array(v, dtype=float) for k, v in decoded['columns'].items()}
     expected = {k: np.array(v, dtype=float) for k, v in bundle['columns'].items()}
     eps = bundle['allowances']; t = np.array(grid); checks = []
@@ -199,7 +207,13 @@ def check_candidate(study: Study, bundle: dict, csv_text: str, receipt: dict,
             'modelSha256': study.model_sha256, 'studySha256': study.sha256,
             'referenceSeal': expected_reference_seal, 'csvSha256': receipt['csvSha256'],
             'timeMeaning': 'physical_time' if spec['mode'] == 'transient' else 'algebraic_evaluation_index',
-            'duplicateRowsCollapsed': decoded['duplicateRowsCollapsed'], 'checks': checks, 'requests': observations,
+            'duplicateRowsCollapsed': decoded['duplicateRowsCollapsed'],
+            'ignoredExtraColumns': decoded['ignoredExtraColumns'],
+            'temporalAssociation': {'maximumShift': bundle['temporalPolicy']['maximumShift'],
+                'budgetFraction': bundle['temporalPolicy']['budgetFraction'],
+                'maximumObservedShift': max(abs(a-b) for a,b in zip(grid, decoded['columns']['time'])),
+                'quadratureGrid': 'planned grid; bounded timing effect, no interpolation'},
+            'checks': checks, 'requests': observations,
             'limits': ['no native provenance or compiler/export qualification', 'same-author reference data requires review',
                        'sampled algorithm cross-check is not a certified reference error bound',
                        'passing synthetic values do not establish any simulated trajectory']}
