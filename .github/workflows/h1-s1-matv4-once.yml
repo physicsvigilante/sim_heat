@@ -1,0 +1,53 @@
+name: H1 S1 one-shot MATv4 cloud qualification (unqualified)
+
+on:
+  push:
+    branches:
+      - experiment/h1-cloud-s1-matv4-once
+    paths:
+      - .github/workflows/h1-s1-matv4-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sim-heat-h1-s1-matv4-one-shot
+  cancel-in-progress: false
+
+jobs:
+  s1_matv4:
+    if: github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout pinned candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13.5'
+      - name: Install offline checker dependencies on ephemeral runner
+        run: python -m pip install --no-cache-dir --disable-pip-version-check numpy==2.3.5 scipy==1.17.0
+      - name: Reproduce offline MAT tests and seal unchanged S1 reference
+        run: python -B tools/h1_cloud_s1.py preflight
+      - name: Set up OpenModelica 1.27.0 with MSL 4.0.0
+        uses: OpenModelica/setup-openmodelica@419f31141aa79a22f7033def5626047dd3bb5069 # v1.2.0
+        with:
+          version: '1.27.0'
+          packages: |
+            omc
+          libraries: |
+            Modelica 4.0.0
+      - name: One MATv4 build and launch with diagnostic checker
+        run: python -B tools/h1_mat_s1.py
+      - name: Preserve all attempt evidence and failed outputs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: h1-s1-matv4-native-evidence
+          path: h1_cloud_s1_attempt/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 30

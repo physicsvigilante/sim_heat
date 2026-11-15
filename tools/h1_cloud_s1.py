@@ -81,7 +81,7 @@ def preflight():
                 raise RuntimeError(f'Pinned input mismatch: {rel}')
         if os.environ.get('GITHUB_ACTIONS') == 'true':
             # A one-shot workflow must never be silently run on a different ref.
-            if os.environ.get('GITHUB_REF') != 'refs/heads/experiment/h1-cloud-s1-1270-once' or \
+            if os.environ.get('GITHUB_REF') != 'refs/heads/experiment/h1-cloud-s1-matv4-once' or \
                     os.environ.get('GITHUB_EVENT_NAME') != 'push' or os.environ.get('GITHUB_RUN_ATTEMPT') != '1':
                 raise RuntimeError('Refused unexpected event/branch/attempt; no run')
         run_once([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', 'h1/tests', '-q'],
