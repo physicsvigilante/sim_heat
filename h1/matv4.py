@@ -3,6 +3,7 @@
 Converts *recorded* MAT data_1 parameters and data_2 trajectories (including
 signed aliases) to an auditable candidate CSV consumed by the existing checker.
 Does not import physical model laws, reference answers or estimate missing data.
+MAT channel uniqueness is NOT independent measurement or authentication.
 No output of this module implies native acceptance.
 """
 from __future__ import annotations
@@ -189,7 +190,10 @@ def decode_mat_bytes(raw: bytes, required: tuple[str, ...], grid: tuple[float, .
             'oneBasedRow': row_index + 1,
             'negatedAlias': signed < 0,
             'sharedChannelNames': sorted(channels[(channel, abs(signed))]),
-            'channelIsIndependentMeasurement': len(channels[(channel, abs(signed))]) == 1,
+            # A unique MAT table row is an indexing property only. It does
+            # NOT independently authenticate any physical measurement, and
+            # data_1 entries remain recorded native parameters.
+            'hasUniqueMATChannel': len(channels[(channel, abs(signed))]) == 1,
         }
     stream = StringIO(newline='')
     writer = csv.writer(stream, lineterminator='\n')
@@ -200,7 +204,7 @@ def decode_mat_bytes(raw: bytes, required: tuple[str, ...], grid: tuple[float, .
     # Reuse *same* numeric/time/duplicate policy as the published checker.
     decoded = decode_csv(text, required, grid, maximum_shift=maximum_shift)
     return {
-        'schema': 'sim_heat.matv4_adapter/1',
+        'schema': 'sim_heat.matv4_adapter/2',
         'rawMatSha256': hashlib.sha256(raw).hexdigest(),
         'rawSizeBytes': len(raw),
         'matOrientation': 'binTrans' if trans else 'binNormal',

@@ -41,7 +41,7 @@ That preparation is not independent validation or a native result. See [H1 imple
 
 ## Runtime and CI boundaries
 
-[`h2-h1-offline-ci.yml`](.github/workflows/h2-h1-offline-ci.yml) runs the current offline suite, arithmetic checks and a bridge study/reference smoke on pushes to its integration branch and to `main`. It cannot build or launch OpenModelica. **No historical one-shot native workflow is installed here as an active production trigger.** The reusable native batch helper is restricted to explicit pinned, host-checked execution plans and is **not** run by standard CI.
+[`h2-h1-offline-ci.yml`](.github/workflows/h2-h1-offline-ci.yml) runs the current offline suite, arithmetic checks and a bridge study/reference smoke on pushes to its integration branch and to `main`. It cannot build or launch OpenModelica. It installs pinned Python dependencies with `pip` on a network-capable GitHub runner; **offline means no physical/native simulation, not air-gapped execution or no dependency installation**. The separate pinned batch runner's SHA and GitHub environment guards do not sandbox or authenticate hostile Modelica input. **No historical one-shot native workflow is installed here as an active production trigger.** The reusable native batch helper is restricted to explicit pinned, host-checked execution plans and is **not** run by standard CI.
 
 The project is not yet an interactive viewer, general symbolic or inverse solver, or unrestricted physics authoring environment. Classroom usefulness and an independent-author transfer case remain untested. Read-only original source [01_heat.pdf](01_heat.pdf) is preserved; its inclusion does not grant redistribution rights or introduce a project license.
 

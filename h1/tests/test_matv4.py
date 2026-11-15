@@ -64,7 +64,7 @@ class MATv4Decoding(unittest.TestCase):
                 self.assertEqual(provenance['boundary.T']['origin'], 'mat_parameter')
                 self.assertEqual(provenance['rod.port_b.Q_flow']['matTable'], 'data_2')
                 self.assertTrue(provenance['rod.port_b.Q_flow']['negatedAlias'])
-                self.assertFalse(provenance['rod.port_a.Q_flow']['channelIsIndependentMeasurement'])
+                self.assertFalse(provenance['rod.port_a.Q_flow']['hasUniqueMATChannel'])
                 self.assertEqual(provenance['rod.port_b.Q_flow']['sharedChannelNames'],
                                  ['rod.Q_flow', 'rod.port_a.Q_flow', 'rod.port_b.Q_flow'])
                 self.assertFalse(result['nativeQualified'])
@@ -77,6 +77,35 @@ class MATv4Decoding(unittest.TestCase):
             decode_mat_bytes(data, required, grid)
         if expected:
             self.assertEqual(err.exception.code, expected)
+
+    def test_unique_mat_row_never_means_independent_measurement(self):
+        # Exact regression for Chat B F-01: a unique data_1 parameter and a
+        # unique data_2 solver series do NOT establish a physical measurement.
+        # Shared and signed data_2 aliases all index the same recorded row.
+        names = NAMES + ['sensor.Q_flow']
+        info = INFO + [[2, 3, 0, -1]]
+        d2 = D2 + [[4.5, 4.5, 4.5]]
+        for trans, native_layout in ((False, False), (True, False), (True, True)):
+            with self.subTest(trans=trans, native_layout=native_layout):
+                result = decode_mat_bytes(
+                    make_mat(names, info, D1, d2, trans=trans, native_layout=native_layout),
+                    tuple(names[1:]), (0., 1.)
+                )
+                self.assertEqual(result['schema'], 'sim_heat.matv4_adapter/2')
+                provenance = result['columnProvenance']
+                for key in ('boundary.T', 'rod.A'):
+                    self.assertEqual(provenance[key]['origin'], 'mat_parameter')
+                    self.assertTrue(provenance[key]['hasUniqueMATChannel'])
+                self.assertEqual(provenance['sensor.Q_flow']['origin'], 'mat_trajectory')
+                self.assertTrue(provenance['sensor.Q_flow']['hasUniqueMATChannel'])
+                self.assertEqual(provenance['sensor.Q_flow']['sharedChannelNames'], ['sensor.Q_flow'])
+                for key in ('rod.Q_flow', 'rod.port_a.Q_flow', 'rod.port_b.Q_flow'):
+                    self.assertFalse(provenance[key]['hasUniqueMATChannel'])
+                self.assertTrue(provenance['rod.port_b.Q_flow']['negatedAlias'])
+                for item in provenance.values():
+                    self.assertNotIn('channelIsIndependentMeasurement', item)
+                self.assertEqual(result['decoded']['columns']['sensor.Q_flow'], (4.5, 4.5))
+                self.assertFalse(result['nativeQualified'])
 
     def test_missing_value_no_formula_fallback(self):
         self.assert_refused(make_mat(NAMES[:-1], INFO[:-1], D1, D2), 'result_schema')
