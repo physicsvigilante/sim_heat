@@ -14,7 +14,7 @@ from pathlib import Path
 import platform
 import mpmath as mp
 
-EXPECTED_SEAL = 'd644302bebfa877e1739a70850a0b8f3bb878ef7bed93158b431ec2189f73ce2'
+LOCAL_REFERENCE_SEAL = 'd644302bebfa877e1739a70850a0b8f3bb878ef7bed93158b431ec2189f73ce2'
 ROOT = Path(__file__).resolve().parents[2]
 PINS = {
     'experiments/dev_bridge/TASK.md': '3f9a1e11af69227a2ffaf3353a2a59662cbb150a63bbae3da5fa9a889361873c',
@@ -47,12 +47,28 @@ def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
 
 
-def validate(bundle: dict) -> None:
+def validate(bundle: dict, attempt: dict, bundle_path: Path) -> None:
     for rel, pin in PINS.items():
         need(sha(ROOT / rel) == pin, 'fixed input changed: ' + rel)
     payload = {k: v for k, v in bundle.items() if k != 'seal'}
-    need(hashlib.sha256(canonical(payload)).hexdigest() == bundle['seal'] == EXPECTED_SEAL,
-         'predeclared reference seal mismatch')
+    need(hashlib.sha256(canonical(payload)).hexdigest() == bundle['seal'],
+         'reference payload seal mismatch')
+    # Bind to the artifact sealed by the frozen runner in THIS preparation.
+    # A same-version numerical library is not a cross-host bitwise promise.
+    need(attempt['status'] == 'prepared' and attempt['nativeQualified'] is False
+         and attempt['counts'] == {'buildModelCalls': 0, 'modelLaunches': 0, 'versionQueries': 0}
+         and len(attempt['cases']) == 1, 'not an unused pre-native preparation')
+    item = attempt['cases'][0]
+    need(item['study'] == 'h1/cases/DEV_BRIDGE/study.json'
+         and item['model'] == 'DevThermalBridge'
+         and item['referenceSeal'] == bundle['seal']
+         and item['referenceFileSha256'] == sha(bundle_path), 'prepared reference binding mismatch')
+    need(all(attempt['pins'].get(rel) == pin for rel, pin in PINS.items()),
+         'prepared physical source pins mismatch')
+    need(bundle['method']['implementationSha256'] == sha(ROOT / 'h1/reference.py')
+         and bundle['method']['temporalImplementationSha256'] == sha(ROOT / 'h1/temporal.py')
+         and bundle['method']['numpy'] == '2.3.5' and bundle['method']['scipy'] == '1.17.0',
+         'reference implementation/dependency identity mismatch')
     spec = bundle['spec']
     original = json.loads((ROOT / 'experiments/dev_bridge/reference/DEV_BRIDGE.json').read_bytes())
     need(spec == original, 'bundle reference input differs from fixed facts')
@@ -169,9 +185,12 @@ def evaluate(bundle: dict, interpretation: str, digits: int, indices: list[int])
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('--attempt', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    bundle = json.loads(args.bundle.read_bytes()); validate(bundle)
+    bundle = json.loads(args.bundle.read_bytes())
+    attempt = json.loads(args.attempt.read_bytes())
+    validate(bundle, attempt, args.bundle)
     primary, samples = evaluate(bundle, 'decimal_facts', 80, list(range(2001)))
     binary, _ = evaluate(bundle, 'exact_binary_input_facts', 80, list(range(2001)))
     selected = [0, 1, 100, 170, 173, 174, 200, 500, 1000, 2000]
@@ -183,7 +202,8 @@ def main() -> int:
               'status': 'passed' if primary['passed'] and binary['passed'] and higher['passed'] else 'failed',
               'authorIndependence': False, 'nativeExecuted': False, 'nativeQualified': False,
               'method': 'independently encoded two-by-two closed-form modal projectors and exact exponential integrals',
-              'referenceSeal': EXPECTED_SEAL, 'bundleSha256': sha(args.bundle),
+              'referenceSeal': bundle['seal'], 'bundleSha256': sha(args.bundle),
+              'preparedAttemptSha256': sha(args.attempt), 'localReferenceSealForContextOnly': LOCAL_REFERENCE_SEAL,
               'scriptSha256': sha(Path(__file__)), 'sourceSha256': PINS,
               'python': platform.python_version(), 'mpmath': mp.__version__,
               'runs': [primary, binary, higher], 'selected100DigitExpectedSamples': hi_samples,
@@ -194,7 +214,7 @@ def main() -> int:
                              'full sampled reference accuracy only for this fixed case and grid']}
     with args.out.open('x', encoding='utf-8') as f:
         f.write(json.dumps(record, sort_keys=True, indent=2, allow_nan=False)+'\n')
-    print(json.dumps({'status': record['status'], 'seal': EXPECTED_SEAL,
+    print(json.dumps({'status': record['status'], 'seal': bundle['seal'],
                       'maximumParameterAndValueRatio': max(r['maximumRatio'] for r in primary['quantities'].values()),
                       **primary['predictionOnly']}))
     return 0 if record['status'] == 'passed' else 1
