@@ -25,14 +25,18 @@ def chars(lines):
     return a
 
 
-def make_mat(names, inf, d1, d2, trans=False, v5=False):
+def make_mat(names, inf, d1, d2, trans=False, v5=False, native_layout=False):
     ac = chars(['Atrajectory', '1.1', '', 'binTrans' if trans else 'binNormal'])
     data = {'Aclass': ac, 'name': chars(names), 'description': chars(['native result'] * len(names)),
             'dataInfo': np.array(inf, dtype=np.int32),
             'data_1': np.array(d1, dtype=np.float64),
             'data_2': np.array(d2, dtype=np.float64)}
     if trans:
-        data = {k: v.T for k, v in data.items()}
+        # OMC 1.27.0 observed: Aclass already has four logical rows, while
+        # only name/description/dataInfo are transposed; numeric arrays are
+        # already canonical in SciPy. Older/synthetic layouts may transpose all.
+        keys = ('name', 'description', 'dataInfo') if native_layout else tuple(data)
+        data = {k: (v.T if k in keys else v) for k, v in data.items()}
     stream = io.BytesIO()
     savemat(stream, data, format='5' if v5 else '4')
     return stream.getvalue()
@@ -48,9 +52,10 @@ REQUIRED = tuple(NAMES[1:])
 
 class MATv4Decoding(unittest.TestCase):
     def test_normal_and_transposed_deduplicate(self):
-        for trans in (False, True):
-            with self.subTest(trans=trans):
-                result = decode_mat_bytes(make_mat(NAMES, INFO, D1, D2, trans=trans), REQUIRED, (0., 1.))
+        for trans, native_layout in ((False, False), (True, False), (True, True)):
+            with self.subTest(trans=trans, native_layout=native_layout):
+                result = decode_mat_bytes(make_mat(NAMES, INFO, D1, D2, trans=trans,
+                                                   native_layout=native_layout), REQUIRED, (0., 1.))
                 self.assertEqual(result['matOrientation'], 'binTrans' if trans else 'binNormal')
                 self.assertEqual(result['decoded']['duplicateRowsCollapsed'], 1)
                 self.assertEqual(result['decoded']['columns']['rod.port_b.Q_flow'], (-2.0, -2.0))
@@ -64,7 +69,8 @@ class MATv4Decoding(unittest.TestCase):
                                  ['rod.Q_flow', 'rod.port_a.Q_flow', 'rod.port_b.Q_flow'])
                 self.assertFalse(result['nativeQualified'])
                 self.assertEqual(result['rawMatSha256'], __import__('hashlib').sha256(
-                    make_mat(NAMES, INFO, D1, D2, trans=trans)).hexdigest())
+                    make_mat(NAMES, INFO, D1, D2, trans=trans,
+                             native_layout=native_layout)).hexdigest())
 
     def assert_refused(self, data, expected=None, required=REQUIRED, grid=(0., 1.)):
         with self.assertRaises(Refusal) as err:
@@ -74,6 +80,15 @@ class MATv4Decoding(unittest.TestCase):
 
     def test_missing_value_no_formula_fallback(self):
         self.assert_refused(make_mat(NAMES[:-1], INFO[:-1], D1, D2), 'result_schema')
+
+    def test_reject_single_precision_parameter_storage(self):
+        data = {'Aclass': chars(['Atrajectory','1.1','','binNormal']),
+                'name': chars(NAMES), 'description': chars(['native result']*len(NAMES)),
+                'dataInfo': np.array(INFO, dtype=np.int32),
+                'data_1': np.array(D1, dtype=np.float32),
+                'data_2': np.array(D2, dtype=np.float64)}
+        stream = io.BytesIO(); savemat(stream, data, format='4')
+        self.assert_refused(stream.getvalue(), 'mat_precision')
 
     def test_bad_signed_alias_index(self):
         info = [x[:] for x in INFO]; info[-1][1] = -9
@@ -117,7 +132,7 @@ class MATv4Decoding(unittest.TestCase):
         mat = {'Aclass': ac,'name':chars(NAMES),'description':chars(['desc']*len(NAMES)),
                'dataInfo': np.array(INFO,dtype=np.int32), 'data_1':np.array(D1), 'data_2':np.array(D2)}
         b = io.BytesIO();savemat(b,mat,format='4')
-        self.assert_refused(b.getvalue(), 'mat_schema')
+        self.assert_refused(b.getvalue(), 'result_schema')
 
     def test_complete_synthetic_s1_passes_existing_checker(self):
         study = load_study(ROOT/'h1/cases/S1/study.json', ROOT/'h1/cases')
