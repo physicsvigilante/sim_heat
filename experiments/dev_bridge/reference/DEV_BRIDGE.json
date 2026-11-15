@@ -1,0 +1,87 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "DEV_BRIDGE",
+  "mode": "transient",
+  "modelSha256": "a18b56dbf748bff1c6609970d0812489f800a46d2154d90921f3cb14cb933b2e",
+  "studySha256": "ec359796e1c1c8daa85a5d518dec658dadedd15470885ccf1f978c0ed6a2318f",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 20000,
+    "intervals": 2000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": "Checking-only physical SI bindings re-entered by same implementation-aware author from fixed DEV-BRIDGE-1 task; not independent review and not native output. Only a verification oracle; no production input substitution.",
+  "nodes": [
+    "heated",
+    "left",
+    "right",
+    "cooled"
+  ],
+  "bodies": {
+    "left": {
+      "node": "left",
+      "m": 1.3,
+      "c": 520.0,
+      "T_initial": 298.15
+    },
+    "right": {
+      "node": "right",
+      "m": 1.8,
+      "c": 680.0,
+      "T_initial": 328.15
+    }
+  },
+  "boundaries": {
+    "heated": {
+      "node": "heated",
+      "T": 353.15
+    },
+    "cooled": {
+      "node": "cooled",
+      "T": 283.15
+    }
+  },
+  "rods": {
+    "supplyLeft": {
+      "kind": "RodArea",
+      "a": "heated",
+      "b": "left",
+      "k": 80.0,
+      "L": 0.4,
+      "A": 0.001
+    },
+    "supplyRight": {
+      "kind": "RodArea",
+      "a": "heated",
+      "b": "right",
+      "k": 40.0,
+      "L": 0.5,
+      "A": 0.001
+    },
+    "rejectLeft": {
+      "kind": "RodArea",
+      "a": "left",
+      "b": "cooled",
+      "k": 60.0,
+      "L": 0.5,
+      "A": 0.001
+    },
+    "rejectRight": {
+      "kind": "RodArea",
+      "a": "right",
+      "b": "cooled",
+      "k": 100.0,
+      "L": 0.5,
+      "A": 0.001
+    },
+    "bridge": {
+      "kind": "RodArea",
+      "a": "left",
+      "b": "right",
+      "k": 120.0,
+      "L": 0.6,
+      "A": 0.001
+    }
+  }
+}
