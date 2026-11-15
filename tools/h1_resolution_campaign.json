@@ -1,0 +1,52 @@
+{
+  "basePlan": "tools/h1_d1d2_plan.json",
+  "basePlanSha256": "3ece2a2b2fb3b6910d74b006fcd425203f099136e4c93de2559474c7ea042ed2",
+  "branch": "experiment/h1-cloud-resolution-once",
+  "budget": {
+    "builds": 7,
+    "launches": 7,
+    "versionQueries": 4
+  },
+  "cases": {
+    "D1": {
+      "reference": "h1/reference_cases/D1.json",
+      "study": "h1/cases/D1/study.json"
+    },
+    "D2": {
+      "reference": "h1/reference_cases/D2.json",
+      "study": "h1/cases/D2/study.json"
+    },
+    "D2_K2": {
+      "reference": "h1/reference_cases/D2_K2.json",
+      "study": "h1/cases/D2_K2/study.json"
+    }
+  },
+  "extraPins": {
+    "h1/cases/D2_K2/model.mo": "8d57b06b2e46d7ccca44da784acc433f3297b94871e65ad590881d4fc75531e3",
+    "h1/cases/D2_K2/study.json": "ab3741a80e94b32a8f6d050f34baf9c773763fdd3ed6df71ccdcdbe2214a0d87",
+    "h1/reference_cases/D2_K2.json": "d4da4597c01cb175d6b0b02c10ec055a9653a9e56e2ffc6e0d74a6335a150b6f",
+    "h1/tests/test_companion_comparison.py": "fa9723ad3765b3ad911ca2c74491ae64c2aab70a5191f3cfc4e1d8d7f1d6af7b",
+    "h1/tests/test_resolution_campaign.py": "a7df3dc258d40862eee2848d1bd2cf6f75da1f485981f5fb2e3fe35f1626c1ae",
+    "tools/h1_compare_companions.py": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+    "tools/h1_resolution_campaign.py": "6415da48435b78a85412d7b1e4128185be167d9bee27882ab680dd276208c91b"
+  },
+  "groups": [
+    [
+      "D2_K2:primary"
+    ],
+    [
+      "D1:tight",
+      "D1:dense"
+    ],
+    [
+      "D2:tight",
+      "D2:dense"
+    ],
+    [
+      "D2_K2:tight",
+      "D2_K2:dense"
+    ]
+  ],
+  "output": "h1_resolution_attempt",
+  "schema": "sim_heat.resolution_campaign/1"
+}
