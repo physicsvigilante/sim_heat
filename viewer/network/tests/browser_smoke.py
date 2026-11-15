@@ -12,6 +12,10 @@ from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def numeric_time(page):
+    # Compare the saved physical timestamp, not a UI rounding/display style.
+    return float(page.locator('#time-label').inner_text().replace(',', '').split()[0])
+
 def run(evidence:Path):
     class Static(SimpleHTTPRequestHandler):
         def __init__(self,*args,**kwargs):
@@ -41,14 +45,14 @@ def run(evidence:Path):
             expect(page.locator('#model-id')).to_have_text('H1_D2')
             expect(page.locator('#sample-note')).to_contain_text('21 saved points')
             expect(page.locator('#time-slider')).to_be_enabled()
-            expect(page.locator('#time-label')).to_have_text('0 s')
+            assert numeric_time(page)==0.0
             assert page.locator('#energy-readouts .record-field').count()==3
             assert page.locator('#reversal').is_disabled()
             page.locator('#time-slider').focus()
             expect(page.locator('#time-slider')).to_be_focused()
             page.keyboard.press('ArrowRight')
             expect(page.locator('#time-slider')).to_have_value('1')
-            expect(page.locator('#time-label')).to_have_text('468.75 s')
+            assert numeric_time(page)==468.75
             page.screenshot(path=str(evidence/'D2.png'),full_page=True,animations='disabled')
 
             page.locator('#case-select').select_option('DEV_BRIDGE')
@@ -56,7 +60,7 @@ def run(evidence:Path):
             assert page.locator('#network .edge-button').count()==5
             assert not page.locator('#reversal').is_disabled()
             page.locator('#reversal').click()
-            expect(page.locator('#time-label')).to_have_text('1,730 s')
+            assert numeric_time(page)==1730.0
             assert '+0.0058 W' in page.locator('#current-value').inner_text()
             assert 'left → right' in page.locator('#current-direction').inner_text()
             assert 'Absorbed from network' in page.locator('#energy-readouts').inner_text()
@@ -88,7 +92,7 @@ def run(evidence:Path):
             expect(page.locator('#graph-count')).to_have_text('4 nodes · 5 rods')
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
             page.locator('#reversal').click()
-            expect(page.locator('#time-label')).to_have_text('1,730 s')
+            assert numeric_time(page)==1730.0
             page.screenshot(path=str(evidence/'mobile.png'),full_page=True,animations='disabled')
             assert not errors,errors
             browser.close()
