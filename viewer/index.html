@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Thermal Bridge Explorer · SIM_HEAT</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#243a44;background:#f3f5f2;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}a{color:#207a85}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
+.top{background:#173b45;color:white;padding:18px max(calc((100vw - 1150px)/2),24px);display:flex;justify-content:space-between;gap:12px;align-items:center}
+.top strong{font-size:20px;letter-spacing:.08em}.top span{color:#bed5d4;font-size:12px;letter-spacing:.1em}
+main{max-width:1198px;padding:0 24px;margin:auto}.intro{display:grid;grid-template-columns:1.6fr .85fr;gap:30px;align-items:center;padding:48px 0 30px}
+.kicker{font-size:11px;font-weight:800;letter-spacing:.17em;color:#26858b;text-transform:uppercase}h1{font-family:Georgia,serif;font-size:clamp(34px,5vw,62px);font-weight:500;line-height:1.08;margin:12px 0}h1 em{color:#ba785d;font-weight:normal}
+.intro p{line-height:1.7;color:#51656d;max-width:620px}.status{background:#e6edeb;padding:22px 25px;border-left:4px solid #368b87;border-radius:8px}.status strong{display:block;font-size:16px}.status p{font-size:13px;margin:8px 0 0}
+.layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px}.panel{background:white;border:1px solid #e0e6e2;border-radius:13px;padding:23px;box-shadow:0 5px 22px rgba(29,59,58,.035);min-width:0;margin-bottom:18px}
+.panel h2{font-size:19px;margin:7px 0 10px}.panel p{color:#587078;line-height:1.6;font-size:13px}.heading{display:flex;justify-content:space-between;gap:12px;align-items:center}.unit{font-size:10px;color:#57767d;background:#edf2f0;border-radius:5px;padding:6px 9px;letter-spacing:.07em}
+.readout{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.slider{width:100%;accent-color:#318987;margin:24px 0 6px}.slider-end{display:flex;justify-content:space-between;color:#819092;font-size:12px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 8px}.controls button{border:1px solid #cddad7;border-radius:7px;background:#f7faf8;color:#24545b;padding:10px 15px;font-weight:600}.controls button:first-child{background:#246f74;color:white;border-color:#246f74}
+.caption{font-size:12px;color:#6c8184}.caption strong{font-weight:700;color:#315c60}.chart{width:100%;height:auto;display:block;background:#fbfcfb;border-radius:8px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#526870;margin-bottom:15px}.swatch{width:15px;height:3px;display:inline-block;vertical-align:middle;margin-right:5px}.warm{background:#d48159}.cool{background:#41998c}.flow{background:#b97575}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.metric{background:#f5f8f6;padding:13px;border-radius:7px;min-width:0}.metric small{display:block;color:#5d7779;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.metric strong{display:block;font-size:19px;margin-top:6px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.network{width:100%;max-height:340px}.network line{stroke:#b5c6c5;stroke-width:5;stroke-linecap:round}.network text{font-weight:700;text-anchor:middle;fill:#28535b;font-size:15px}.node-hot{fill:#e9af80}.node-cold{fill:#89c7ce}.node-body{fill:#e8eade;stroke:#9faea6;stroke-width:2}.node-label{font-size:12px!important;fill:#4d6670!important}
+.arrows path{fill:#347d79}.rod-table{width:100%;border-collapse:collapse;font-size:13px}.rod-table td{padding:11px 4px;border-top:1px solid #ecf0ed}.rod-table td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.flow-direction{display:flex;align-items:center;gap:18px;background:#f8f3ef;border-radius:8px;padding:12px 15px;margin-top:16px}.flow-direction b{font-size:30px;color:#ba785d}.flow-direction strong{font-size:17px}.flow-direction small{display:block;color:#765c59;font-size:12px}
+.energy-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.energy-card{background:#f5f7f5;padding:12px;border-radius:7px}.energy-card label{display:block;font-size:11px;color:#6b8184}.energy-card strong{font-size:18px;display:block;margin:5px 0}.energy-note{background:#edf3f0;padding:12px;border-radius:7px}
+.import{display:block;border:1px dashed #82aaa5;border-radius:8px;padding:15px;margin:12px 0;background:#f6faf8;color:#305f61;font-weight:700}.import input{max-width:100%;font-size:12px;display:block;margin-top:10px}.notice{font-size:12px;min-height:20px}.error{color:#a03433!important}
+.bottom{padding:35px 0 60px}.bottom h2{font-family:Georgia,serif;font-weight:500;font-size:30px}.bottom-list{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.bottom-list article{background:white;padding:21px;border-radius:10px;border:1px solid #e0e6e2}.bottom-list strong{font-size:15px}.footer{border-top:1px solid #d6dfda;text-align:center;padding:24px;color:#5a6e73;font-size:12px}
+@media(max-width:850px){.intro,.layout{grid-template-columns:1fr}.intro{padding:30px 0}.bottom-list{grid-template-columns:1fr}.top span{display:none}}
+@media(max-width:440px){main{padding:0 13px}.panel{padding:15px}.metrics{grid-template-columns:1fr 1fr}.metric strong{font-size:16px}.readout{font-size:25px}.network{max-height:250px}}
+</style>
+</head>
+<body>
+<header class="top"><strong>SIM / HEAT</strong><span>EXPLORABLE PHYSICS · H2-01</span></header>
+<main>
+<section class="intro"><div><div class="kicker">Native thermal bridge · developer-authored experiment</div><h1>Watch heat <em>change direction.</em></h1><p>Two finite bodies, two maintained-temperature reservoirs and five conductors. Scrub the saved OpenModelica trace to inspect temperatures, signed heat flows and changes in stored energy.</p></div><aside class="status"><div class="kicker">Evidence boundary</div><strong>Historical native diagnostic</strong><p>98/98 physical and numerical checks passed on the original cloud run. These are <b>not independent measurements or full native qualification</b>.</p></aside></section>
+<div id="error" class="panel error" role="alert" hidden></div>
+<div class="layout">
+<div>
+<section class="panel"><div class="heading"><div><div class="kicker">01 / time navigation</div><h2>Explore saved moments</h2></div><div><div class="readout"><span id="seconds">0</span> <small>s</small></div></div></div>
+<input id="time" class="slider" aria-label="Saved time index" type="range" value="0" min="0" max="0" disabled><div class="slider-end"><span>0 s</span><span>20,000 s</span></div>
+<div class="controls"><button id="play" disabled>▶ Play</button><button id="jump" disabled>Jump to reversal</button><button id="reset" disabled>Reset</button></div>
+<p class="caption"><strong id="mode">Loading pinned native preview…</strong> · <span id="count">No data</span>. <span id="bracket">Checking reversal bracket</span>.</p></section>
+<section class="panel"><div class="heading"><div><div class="kicker">02 / body temperatures</div><h2>Temperature over time</h2></div><span class="unit">KELVIN · K</span></div>
+<div class="legend"><span><i class="swatch warm"></i>Left body</span><span><i class="swatch cool"></i>Right body</span></div><svg id="temperature-plot" class="chart" viewBox="0 0 640 230" role="img" aria-label="Recorded left and right body temperature histories; curves connect native samples visually"></svg>
+<div class="metrics"><div class="metric"><small>Left</small><strong id="left-temperature">—</strong></div><div class="metric"><small>Right</small><strong id="right-temperature">—</strong></div><div class="metric"><small>Left minus right · K</small><strong id="delta-temperature">—</strong></div></div></section>
+<section class="panel"><div class="heading"><div><div class="kicker">03 / signed bridge flow</div><h2>Flow crosses zero</h2></div><span class="unit">WATTS · W</span></div>
+<div class="legend"><span><i class="swatch flow"></i>Bridge oriented left → right</span></div><svg id="flow-plot" class="chart" viewBox="0 0 640 160" role="img" aria-label="Recorded signed heat-flow samples; negative is right to left"></svg>
+<div class="flow-direction"><b id="direction-arrow">←</b><div><strong id="bridge-value">— W</strong><small id="direction">Loading…</small></div></div></section>
+</div>
+<div>
+<section class="panel"><div class="kicker">04 / connection topology</div><h2>The physical network</h2><p>Logical graph only. Distances and positions do not claim real apparatus geometry. Arrow direction reflects the saved sign on each rod.</p>
+<svg class="network" viewBox="0 0 540 325" role="img" aria-label="Two reservoirs and two bodies linked by five conducting rods">
+<g id="links"><line data-rod="supplyLeft" x1="75" y1="160" x2="263" y2="65"/><line data-rod="supplyRight" x1="75" y1="160" x2="263" y2="253"/><line data-rod="rejectLeft" x1="263" y1="65" x2="468" y2="160"/><line data-rod="rejectRight" x1="263" y1="253" x2="468" y2="160"/><line data-rod="bridge" x1="263" y1="65" x2="263" y2="253"/></g>
+<g id="arrows" class="arrows"></g>
+<circle class="node-hot" cx="75" cy="160" r="48"/><text x="75" y="151">HOT</text><text x="75" y="176" class="node-label">353.15 K</text>
+<circle class="node-body" cx="263" cy="65" r="42"/><text x="263" y="70">LEFT</text>
+<circle class="node-body" cx="263" cy="253" r="42"/><text x="263" y="258">RIGHT</text>
+<circle class="node-cold" cx="468" cy="160" r="48"/><text x="468" y="151">COLD</text><text x="468" y="176" class="node-label">283.15 K</text>
+</svg><table class="rod-table" aria-label="Saved rod flows"><tbody>
+<tr><td>Hot → left</td><td id="q-supplyLeft">—</td></tr><tr><td>Hot → right</td><td id="q-supplyRight">—</td></tr>
+<tr><td>Left → cold</td><td id="q-rejectLeft">—</td></tr><tr><td>Right → cold</td><td id="q-rejectRight">—</td></tr>
+<tr><td>Left → right · bridge</td><td id="q-bridge">—</td></tr></tbody></table></section>
+<section class="panel"><div class="kicker">05 / energy ownership</div><h2>Stored energy and reservoir power</h2><div class="energy-grid">
+<div class="energy-card"><label>Left body ΔU · J</label><strong id="left-energy">—</strong></div><div class="energy-card"><label>Right body ΔU · J</label><strong id="right-energy">—</strong></div>
+<div class="energy-card"><label>Hot source · W</label><strong id="hot-power">—</strong></div><div class="energy-card"><label>Cold source · W</label><strong id="cold-power">—</strong></div>
+</div><p class="energy-note">Combined body ΔU: <b id="total-energy">—</b> J. ΔU values are cumulative stored-energy changes; boundary quantities are instantaneous power. The viewer does not integrate or assert a new energy-balance verdict.</p></section>
+<section class="panel"><div class="kicker">06 / full resolution</div><h2>Open every original sample</h2><p>The included preview shows 23 selected original saved times (1,000 s increments plus 1,720/1,730 s). For all 2,001 canonical samples, import the original native <code>normalized.csv</code> from <a href="https://github.com/physicsvigilante/sim_heat/actions/runs/43699424883/artifacts/14155084346" target="_blank" rel="noopener">the archived evidence</a>. No uploads; SHA-256 must match exactly.</p>
+<label class="import" for="full-csv">Verify original CSV <input type="file" id="full-csv" accept=".csv,text/csv"></label><p class="notice" id="file-note" role="status" aria-live="polite"></p></section>
+</div></div>
+<section class="bottom"><div class="kicker">How to read this experiment</div><h2>What these curves can—and cannot—tell us</h2><div class="bottom-list">
+<article><strong>Sign is physical orientation</strong><p>Early bridge flow is negative because the right body is hotter. Recorded samples bracket a reversal between 1,720 and 1,730 seconds; no exact unsampled crossing time is asserted.</p></article>
+<article><strong>Reservoirs do not equilibrate</strong><p>Maintained hot and cold boundaries allow ongoing heat transfer. The two bodies approach different steady temperatures, unlike an isolated two-body system.</p></article>
+<article><strong>Evidence stays traceable</strong><p>Native source <a href="https://github.com/physicsvigilante/sim_heat/actions/runs/43699424883">run #43699424883</a>, original CSV SHA-256 <code>4b1a8226…</code>. Lines connect saved data visually; they do not create simulation samples. Diagnostic-only, <code>nativeQualified=false</code>.</p></article>
+</div></section>
+</main><footer class="footer">SIM / HEAT · Static, read-only trace explorer · No physical simulation or independent measurement performed here.</footer>
+<script type="module">
+import {validatePreview,parseOriginalCsv,auditFullAgainstPreview,reversalBracket,energyLedger,flowLabel,sha256,verifyGitBlob,SOURCE_CSV_SHA256} from "./trace.mjs";
+const $=id=>document.getElementById(id),svgNS="http://www.w3.org/2000/svg";
+let preview=[],rows=[],selected=0,playTimer=null,plotMarks=[];
+const rods=["supplyLeft","supplyRight","rejectLeft","rejectRight","bridge"];
+const fmt=(n,d=2)=>new Intl.NumberFormat("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}).format(Math.abs(n)<0.5*10**(-d)?0:n);
+const signed=(n,d=2)=>(n>0?"+":"")+fmt(n,d);
+function svg(tag,attributes={},text) {const n=document.createElementNS(svgNS,tag);Object.entries(attributes).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text!==undefined)n.textContent=text;return n;}
+function chart(id,series,height,includeZero=false){
+  const box=$(id);box.replaceChildren();const left=54,right=612,top=18,bottom=height-32;
+  const vals=rows.flatMap(r=>series.map(s=>r[s.key]));let lo=Math.min(...vals,includeZero?0:Infinity),hi=Math.max(...vals,includeZero?0:-Infinity);
+  if(lo===hi){lo-=1;hi+=1;}const pad=(hi-lo)*.11;lo-=pad;hi+=pad;
+  const x=t=>left+t/20000*(right-left),y=v=>bottom-(v-lo)/(hi-lo)*(bottom-top);
+  for(let i=0;i<=4;i++){const yy=top+(bottom-top)*i/4;box.append(svg("line",{x1:left,x2:right,y1:yy,y2:yy,stroke:"#e0e8e4"}));box.append(svg("text",{x:left-8,y:yy+4,"text-anchor":"end",fill:"#82918e","font-size":11},fmt(hi-i*(hi-lo)/4,1)));box.append(svg("text",{x:left+(right-left)*i/4,y:height-7,"text-anchor":"middle",fill:"#82918e","font-size":11},String(i*5)+"k"));}
+  if(includeZero&&lo<0&&hi>0)box.append(svg("line",{x1:left,x2:right,y1:y(0),y2:y(0),stroke:"#be7d7d","stroke-dasharray":"5 5"}));
+  for(const s of series){const d=rows.map((r,i)=>(i===0?"M":"L")+x(r.time).toFixed(3)+" "+y(r[s.key]).toFixed(3)).join(" ");box.append(svg("path",{d,stroke:s.color,"stroke-width":2.7,fill:"none","stroke-linejoin":"round"}));}
+  const cursor=svg("line",{x1:left,x2:left,y1:top,y2:bottom,stroke:"#607b7f","stroke-dasharray":"5 4"});box.append(cursor);
+  const dots=series.map(s=>{const n=svg("circle",{r:4,fill:s.color,cx:left,cy:top});box.append(n);return n;});
+  return i=>{const r=rows[i],xx=x(r.time);cursor.setAttribute("x1",xx);cursor.setAttribute("x2",xx);series.forEach((s,j)=>{dots[j].setAttribute("cx",xx);dots[j].setAttribute("cy",y(r[s.key]));});};
+}
+function stop(){if(playTimer!==null){clearInterval(playTimer);playTimer=null;}$("play").textContent="▶ Play";}
+function choose(i){if(!rows.length)return;selected=Math.max(0,Math.min(rows.length-1,i));const r=rows[selected],e=energyLedger(r),q=r["bridge.Q_flow"];
+$("time").value=String(selected);$("seconds").textContent=r.time.toLocaleString("en-US");$("left-temperature").textContent=fmt(r["left.T"]);$("right-temperature").textContent=fmt(r["right.T"]);$("delta-temperature").textContent=signed(r["left.T"]-r["right.T"]);
+$("bridge-value").textContent=signed(q,Math.abs(q)<.05?4:2)+" W";$("direction").textContent=flowLabel(q);$("direction-arrow").textContent=q>0?"→":q<0?"←":"·";
+$("left-energy").textContent=signed(e.leftJ)+" J";$("right-energy").textContent=signed(e.rightJ)+" J";$("total-energy").textContent=signed(e.totalJ);
+$("hot-power").textContent=signed(e.hotW)+" W";$("cold-power").textContent=signed(e.coldW)+" W";
+const arrows=$("arrows");arrows.replaceChildren();
+for(const name of rods){const line=document.querySelector('[data-rod="'+name+'"]');const flow=r[name+".Q_flow"];const ax=Number(line.getAttribute("x1")),ay=Number(line.getAttribute("y1")),bx=Number(line.getAttribute("x2")),by=Number(line.getAttribute("y2"));const direction=flow<0?-1:1;const angle=Math.atan2((by-ay)*direction,(bx-ax)*direction)*180/Math.PI;const px=ax+(bx-ax)*.5,py=ay+(by-ay)*.5;if(flow!==0)arrows.append(svg("path",{d:"M -9 -5 L 9 0 L -9 5 Z",transform:"translate("+px+" "+py+") rotate("+angle+")","data-flow-arrow":name}));$("q-"+name).textContent=signed(flow,Math.abs(flow)<.05?4:2)+" W";}
+plotMarks.forEach(f=>f(selected));
+}
+function load(next,mode){stop();rows=next;selected=0;$("mode").textContent=mode==="full"?"VERIFIED FULL NATIVE TRACE":"HASH-PINNED NATIVE PREVIEW";$("count").textContent=rows.length.toLocaleString("en-US")+"/2,001 samples";
+$("time").disabled=false;$("time").max=String(rows.length-1);["play","jump","reset"].forEach(id=>$(id).disabled=false);
+const b=reversalBracket(rows);$("bracket").textContent=b?"Flow reverses between "+b.from.toLocaleString("en-US")+" and "+b.to.toLocaleString("en-US")+" s":"No reversal bracket";
+plotMarks=[chart("temperature-plot",[{key:"left.T",color:"#d48159"},{key:"right.T",color:"#41998c"}],230),chart("flow-plot",[{key:"bridge.Q_flow",color:"#b97575"}],160,true)];choose(0);}
+$("time").addEventListener("input",()=>{stop();choose(Number($("time").value));});$("reset").addEventListener("click",()=>{stop();choose(0);});$("jump").addEventListener("click",()=>{stop();const b=reversalBracket(rows);if(b)choose(b.index);});
+$("play").addEventListener("click",()=>{if(playTimer!==null){stop();return;}if(selected===rows.length-1)choose(0);$("play").textContent="Ⅱ Pause";const stride=Math.max(1,Math.floor(rows.length/300));playTimer=setInterval(()=>{choose(Math.min(selected+stride,rows.length-1));if(selected===rows.length-1)stop();},85);});
+$("full-csv").addEventListener("change",async ev=>{stop();const file=ev.target.files?.[0];if(!file)return;try{if(file.size>3_000_000)throw Error("CSV exceeds 3 MB");const bytes=await file.arrayBuffer();if(await sha256(bytes)!==SOURCE_CSV_SHA256)throw Error("SHA-256 mismatch: this is not the original archived CSV");const trace=parseOriginalCsv(new TextDecoder("utf-8",{fatal:true}).decode(bytes));auditFullAgainstPreview(trace,preview);load(trace,"full");$("file-note").textContent="Original native CSV verified. All 2,001 saved samples available."; $("file-note").classList.remove("error");}catch(e){$("file-note").textContent="File refused: "+e.message;$("file-note").classList.add("error");}ev.target.value="";});
+async function init(){try{const res=await fetch("./data/bridge-preview.json",{cache:"no-store"});if(!res.ok)throw Error("Native preview missing");const bytes=await res.arrayBuffer();await verifyGitBlob(bytes);preview=validatePreview(JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes)));load(preview,"preview");}catch(e){const box=$("error");box.hidden=false;box.textContent="Native evidence refused: "+e.message;$("mode").textContent="DATA REFUSED";}}
+init();
+</script>
+</body></html>

@@ -1,0 +1,63 @@
+name: H2 thermal explorer — offline and real browser checks
+
+on:
+  push:
+    branches:
+      - h2/thermal-explorer
+      - main
+    paths:
+      - 'viewer/**'
+      - 'docs/H2_01_VIEWER_SCOPE.md'
+      - '.github/workflows/h2-viewer-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sim-heat-h2-viewer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  viewer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out pinned commit without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install pinned offline checking and browser dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 playwright==1.57.0
+      - name: Ensure Chromium browser is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v google-chrome >/dev/null; then google-chrome --version
+          elif command -v chromium >/dev/null; then chromium --version
+          else python -m playwright install --with-deps chromium; fi
+      - name: Capture source identity and run complete offline tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h2_viewer_ci_evidence
+          git rev-parse HEAD > h2_viewer_ci_evidence/head-sha.txt
+          python --version > h2_viewer_ci_evidence/python.txt
+          node --version > h2_viewer_ci_evidence/node.txt
+          python -m pip freeze > h2_viewer_ci_evidence/dependencies.txt
+          sha256sum viewer/data/bridge-preview.json viewer/trace.mjs viewer/index.html > h2_viewer_ci_evidence/viewer-sources.sha256
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee h2_viewer_ci_evidence/h1-tests.log
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee h2_viewer_ci_evidence/analytical-tests.log
+          node --test viewer/tests/trace.test.mjs 2>&1 | tee h2_viewer_ci_evidence/viewer-tests.log
+          python -B viewer/tests/browser_smoke.py --screenshot h2_viewer_ci_evidence/bridge-desktop.png 2>&1 | tee h2_viewer_ci_evidence/browser.log
+      - name: Upload screenshot, checks and failure logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sim-heat-h2-viewer-evidence-${{ github.sha }}
+          path: h2_viewer_ci_evidence/
+          if-no-files-found: warn
+          retention-days: 30
