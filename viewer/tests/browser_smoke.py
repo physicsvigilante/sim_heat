@@ -44,13 +44,15 @@ def main(screenshot: Path):
             assert page.locator("#seconds").inner_text()=="1,000"
             page.locator("#play").click();assert page.locator("#play").inner_text()=="Ⅱ Pause"
             page.locator("#play").click();assert page.locator("#play").inner_text()=="▶ Play"
+            screenshot.parent.mkdir(parents=True,exist_ok=True)
+            page.screenshot(path=str(screenshot),full_page=True,animations="disabled")
             with TemporaryDirectory() as directory:
                 bad=Path(directory)/"fake.csv";bad.write_text("time,left.T\n0,300\n")
                 page.locator("#full-csv").set_input_files(str(bad))
                 expect(page.locator("#file-note")).to_contain_text("File refused: SHA-256 mismatch")
                 assert page.locator("#count").inner_text()=="23/2,001 samples"
-            screenshot.parent.mkdir(parents=True,exist_ok=True)
-            page.screenshot(path=str(screenshot),full_page=True,animations="disabled")
+            page.screenshot(path=str(screenshot.with_name(screenshot.stem+"-refusal"+screenshot.suffix)),
+                            full_page=True,animations="disabled")
             page.set_viewport_size({"width":390,"height":844})
             page.reload(wait_until="networkidle")
             expect(page.locator("#mode")).to_have_text("HASH-PINNED NATIVE PREVIEW")
