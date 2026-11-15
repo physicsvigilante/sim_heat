@@ -1,0 +1,23 @@
+# Chat A response to independent PR #12 review — provenance semantics
+
+**Review origin:** [Chat B's unchanged review-01-chat-b.md](https://github.com/physicsvigilante/review_sandbox/blob/main/projects/sim_heat/pr-12/reviews/review-01-chat-b.md) (Git blob `d0480e394d059d1fd7429781becae1792269a2c4`), reviewed source SHA `f2bb5369425a250cef78b74baaf486925f8fa6bd`, outcome `changes-requested`. The reviewer is a separate ChatGPT conversation, not an independently authenticated human physicist.
+
+**F-01 (major, confirmed):** The old boolean `channelIsIndependentMeasurement` was computed entirely from MAT index-row uniqueness, and so misrepresented unique solver/export rows and unique native parameters as independently measured quantities. This was directly observed in preserved bridge MAT/provenance evidence. It does not imply prior numeric checks falsely passed. Original review, native bytes and old metadata files are preserved.
+
+**Correction:** `h1/matv4.py` now publishes metadata schema `sim_heat.matv4_adapter/2`; the ambiguous boolean is removed and replaced with `hasUniqueMATChannel`, whose meaning is only uniqueness of the (`data_1`/`data_2`, absolute one-based row) among all native names. It is explicitly *not* an independent sensor measurement, physical oracle, or execution authentication. The original `origin`, `matTable`, `oneBasedRow`, `negatedAlias` and `sharedChannelNames` fields continue to specify real recorded MAT value provenance; downstream consumers must use the new schema and not reinterpret v1. No native result, normalized quantities, equations, acceptance checks or native-qualified labels were changed.
+
+**Regression:** `h1/tests/test_matv4.py` exercises a uniquely indexed native parameter, a uniquely indexed solver trajectory, and direct/shared/signed MAT aliases across binNormal and both supported binTrans numeric orientations; it asserts that the disallowed legacy field is absent and that `nativeQualified=false` remains. The existing alias regression is updated to the new field.
+
+**F-02 (minor clarification):** Root `README.md` and integration scope state that CI installs pinned packages using the network-capable GitHub runner, while *offline* describes the absence of physical/native simulation, not an air-gapped environment. An approved pinned plan and the existing runner's host checks are not equivalent to hostile Modelica sandboxing.
+
+**F-03 (open qualification):** No new source-fidelity, independently certified reference error, fully qualified native regime, C1 separate-author transfer, or classroom-observation claim. No second native run is necessary for this metadata-only change; earlier S1/D1/D2/bridge evidence is preserved as historical.
+
+**Current status:** The author change is a candidate until current-head full CI is green and Chat B performs the targeted re-review. PR #12 stays draft/unmerged. The independent report is not edited or overwritten; central Chat A response and new review prompt are published separately after the checked source identity is recorded.
+
+## First correction-CI failure and preserved historical pins
+
+The first correction candidate at source SHA `8b172f3efa4776229fb7a5251648cd4ad39d54f1` was tested in [CI run 43728041002](https://github.com/physicsvigilante/sim_heat/actions/runs/43728041002), which **failed**, not passed. Its 150-test suite ran 143 tests without errors and reported **seven errors** confined to archived resolution-campaign fixture generation: the historical 2026-11-15 plan pins the *original* `h1/matv4.py` source SHA-256, so `load_plan` correctly refused `identity: source drift: h1/matv4.py`. This was expected fail-closed production behavior, not a defect in native MAT numeric decoding.
+
+**Correction to test setup, not to historical plans or physics:** the campaign regression suite now constructs a new, explicitly **temporary scratch successor plan**, repinning only the changed adapter and test-file SHA-256 identities. It updates the scratch plan/config hash chain using their actual bytes and executes unchanged `load_plan` and `validate_config` checks. A distinct negative test demands that the ORIGINAL pinned historical D1/D2 plan still **refuse** against the new MAT reader and regression file. The source's original `tools/h1_d1d2_plan.json`, `tools/h1_resolution_campaign.json`, execution artifact identities, and runtime source are not rewritten.
+
+This preserves the failed CI attempt, keeps hash integrity checks enabled, and allows the old campaign's geometry/analysis logic to be regression-tested as a *new explicitly identified fixture*. A new head SHA and successful full CI are required before any targeted re-review request.

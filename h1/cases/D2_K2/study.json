@@ -1,0 +1,99 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "H1_D2_K2",
+  "model": {
+    "path": "model.mo",
+    "sha256": "8d57b06b2e46d7ccca44da784acc433f3297b94871e65ad590881d4fc75531e3"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "difference",
+      "op": "temperatureDifference",
+      "a": "hot.port",
+      "b": "cold.port"
+    },
+    {
+      "id": "flow",
+      "op": "heatFlow",
+      "target": "rod"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 9375,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "hot.m",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "hot.c",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "hot.T_initial",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "cold.m",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "cold.c",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "cold.T_initial",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "rod.k",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "rod.L",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "rod.A",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md sections 2 and 7",
+      "note": "Constant properties; uniform finite bodies where present; storage-free rods; no unmodeled external exchange. Source fidelity requires human review."
+    }
+  ],
+  "revision": {
+    "parentStudyPath": "../D2/study.json",
+    "parentStudySha256": "42db543c18e673f5400e13bd18340df9c35e62927abbc9a67a833dea42919b94",
+    "parentModelSha256": "2731672b5f2d55654a886506d7ff6014e511986f1609bb431bfc5fa12f4fd30d",
+    "target": "rod.k",
+    "reason": "Explore conductivity without changing the bodies or initial temperatures.",
+    "origin": "hypothetical"
+  }
+}

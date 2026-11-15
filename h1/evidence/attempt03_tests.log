@@ -1,0 +1,55 @@
+test_bad_export_shapes_and_values (test_offline.DecoderTests.test_bad_export_shapes_and_values) ... ok
+test_duplicates_canonicalized_not_fabricated (test_offline.DecoderTests.test_duplicates_canonicalized_not_fabricated) ... ok
+test_synthetic_only_result (test_offline.DecoderTests.test_synthetic_only_result) ... ok
+test_boundary_fixture_expectations (test_offline.IndependentFixtureTests.test_boundary_fixture_expectations) ... ok
+test_d1_independently_stated_givens_and_signs (test_offline.IndependentFixtureTests.test_d1_independently_stated_givens_and_signs) ... ok
+test_d2_independently_stated_givens_topology_and_balance (test_offline.IndependentFixtureTests.test_d2_independently_stated_givens_topology_and_balance) ... ok
+test_s1_independent_reference_and_junction (test_offline.IndependentFixtureTests.test_s1_independent_reference_and_junction) ... ok
+test_all_requested_statuses_retained (test_offline.ObservationTests.test_all_requested_statuses_retained) ... ok
+test_invalid_request_shapes_types_duplicates (test_offline.ObservationTests.test_invalid_request_shapes_types_duplicates) ... ok
+test_requests_do_not_mutate_model_or_dependencies (test_offline.ObservationTests.test_requests_do_not_mutate_model_or_dependencies) ... ok
+test_all_conversions (test_offline.ParserTests.test_all_conversions) ... ok
+test_comments_and_signed_conversion (test_offline.ParserTests.test_comments_and_signed_conversion) ... ok
+test_declared_type_mismatch (test_offline.ParserTests.test_declared_type_mismatch) ... ok
+test_parameters_and_identity_refusals (test_offline.ParserTests.test_parameters_and_identity_refusals) ... ok
+test_resource_limits (test_offline.ParserTests.test_resource_limits) ... ok
+test_typed_parameter_chain (test_offline.ParserTests.test_typed_parameter_chain) ... ok
+test_unsupported_lexical_and_language_forms (test_offline.ParserTests.test_unsupported_lexical_and_language_forms) ... ok
+test_valid_isolated_body (test_offline.ParserTests.test_valid_isolated_body) ... ok
+test_f1_large_capacity_cannot_dilute_small_body_energy (test_offline.PolicyTests.test_f1_large_capacity_cannot_dilute_small_body_energy) ... ok
+test_f1_large_network_cannot_dilute_small_flow (test_offline.PolicyTests.test_f1_large_network_cannot_dilute_small_flow) ... ok
+test_f2_ambiguous_representable_grid_refused (test_offline.PolicyTests.test_f2_ambiguous_representable_grid_refused) ... ok
+test_f2_short_grid_has_disjoint_match_windows (test_offline.PolicyTests.test_f2_short_grid_has_disjoint_match_windows) ... ok
+test_f6_analysis_domain (test_offline.PolicyTests.test_f6_analysis_domain) ... ok
+test_zero_scale_remains_finite_and_typed (test_offline.PolicyTests.test_zero_scale_remains_finite_and_typed) ... ok
+test_all_exposed_cases_validate_without_native_commands (test_offline.StudyTests.test_all_exposed_cases_validate_without_native_commands) ... ok
+test_all_request_failures_visible_in_study (test_offline.StudyTests.test_all_request_failures_visible_in_study) ... ok
+test_duplicate_nested_json_key (test_offline.StudyTests.test_duplicate_nested_json_key) ... ok
+test_hash_mismatch (test_offline.StudyTests.test_hash_mismatch) ... ok
+test_missing_parameter_provenance (test_offline.StudyTests.test_missing_parameter_provenance) ... ok
+test_no_physical_overrides_in_descriptor (test_offline.StudyTests.test_no_physical_overrides_in_descriptor) ... ok
+test_noop_revision_refused (test_offline.StudyTests.test_noop_revision_refused) ... ok
+test_parameter_provenance_inheritance (test_offline.StudyTests.test_parameter_provenance_inheritance) ... ok
+test_parent_cycle_refused (test_offline.StudyTests.test_parent_cycle_refused) ... ok
+test_parent_pin_and_no_extra_change (test_offline.StudyTests.test_parent_pin_and_no_extra_change) ... ok
+test_path_escape (test_offline.StudyTests.test_path_escape) ... ok
+test_read_only (test_offline.StudyTests.test_read_only) ... ok
+test_second_physical_change_refused (test_offline.StudyTests.test_second_physical_change_refused) ... ok
+test_shared_parameter_revision_changes_other_rod_is_refused (test_offline.StudyTests.test_shared_parameter_revision_changes_other_rod_is_refused) ... ok
+test_symlink_refused (test_offline.StudyTests.test_symlink_refused) ... ok
+test_unknown_provenance_target (test_offline.StudyTests.test_unknown_provenance_target) ... ok
+test_branch_loop_and_parallel_are_rule_based (test_offline.TopologyTests.test_branch_loop_and_parallel_are_rule_based) ... ok
+test_conditioning_refuses_nearly_floating_junction_pair (test_offline.TopologyTests.test_conditioning_refuses_nearly_floating_junction_pair) ... ok
+test_derived_overflow (test_offline.TopologyTests.test_derived_overflow) ... ok
+test_disconnected_closed_bodies_need_no_boundary (test_offline.TopologyTests.test_disconnected_closed_bodies_need_no_boundary) ... ok
+test_floating_subnetwork (test_offline.TopologyTests.test_floating_subnetwork) ... ok
+test_ideal_owner_conflict_is_not_generic_physics_failure (test_offline.TopologyTests.test_ideal_owner_conflict_is_not_generic_physics_failure) ... ok
+test_invalid_connections (test_offline.TopologyTests.test_invalid_connections) ... ok
+test_mode_boundary (test_offline.TopologyTests.test_mode_boundary) ... ok
+test_rod_self_loop (test_offline.TopologyTests.test_rod_self_loop) ... ok
+test_source_arrangements_and_orientation (test_offline.TopologyTests.test_source_arrangements_and_orientation) ... ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 0.111s
+
+OK

@@ -1,0 +1,58 @@
+{
+  "branch": "experiment/h1-developer-thermal-bridge",
+  "caseRoot": "h1/cases",
+  "cases": [
+    {
+      "reference": "experiments/dev_bridge/reference/DEV_BRIDGE.json",
+      "study": "h1/cases/DEV_BRIDGE/study.json"
+    }
+  ],
+  "compilerVersion": "OpenModelica 1.27.0",
+  "dependencies": {
+    "numpy": "2.3.5",
+    "python": "3.13.5",
+    "scipy": "1.17.0"
+  },
+  "library": "experiments/h1_spike/SimHeat.mo",
+  "mslVersion": "4.0.0",
+  "output": "dev_bridge_native_attempt",
+  "pins": {
+    "experiments/dev_bridge/TASK.md": "3f9a1e11af69227a2ffaf3353a2a59662cbb150a63bbae3da5fa9a889361873c",
+    "experiments/dev_bridge/check_reference_accuracy.py": "5b81fbeba23114861a01fe933e7bced6edb643bbbb841ee03ecc715912cecd36",
+    "experiments/dev_bridge/reference/DEV_BRIDGE.json": "b316d55727671755423c1c45145b6c0db41da0149b05bef9010bdc500c85d255",
+    "experiments/h1_spike/SimHeat.mo": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+    "h1/__init__.py": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+    "h1/__main__.py": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+    "h1/cases/D1/model.mo": "526b8de941ddf1ece8d6feb6da792010a1061a857bd82ce3a9ee8e6bac89c6ca",
+    "h1/cases/D1/study.json": "caa9d32561b93dadc3fa3a4a44f65bee76e7f62bac45a1b806a1da032626e24c",
+    "h1/cases/D2/model.mo": "2731672b5f2d55654a886506d7ff6014e511986f1609bb431bfc5fa12f4fd30d",
+    "h1/cases/D2/study.json": "42db543c18e673f5400e13bd18340df9c35e62927abbc9a67a833dea42919b94",
+    "h1/cases/D2_K2/model.mo": "8d57b06b2e46d7ccca44da784acc433f3297b94871e65ad590881d4fc75531e3",
+    "h1/cases/D2_K2/study.json": "ab3741a80e94b32a8f6d050f34baf9c773763fdd3ed6df71ccdcdbe2214a0d87",
+    "h1/cases/DEV_BRIDGE/model.mo": "a18b56dbf748bff1c6609970d0812489f800a46d2154d90921f3cb14cb933b2e",
+    "h1/cases/DEV_BRIDGE/study.json": "ec359796e1c1c8daa85a5d518dec658dadedd15470885ccf1f978c0ed6a2318f",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/matv4.py": "d322b5243bbdfb5b02380583b0af6631800d2bcd3cf5126148cd814fb147ba2c",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/reference_cases/D1.json": "92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7",
+    "h1/reference_cases/D2.json": "befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a",
+    "h1/reference_cases/D2_K2.json": "d4da4597c01cb175d6b0b02c10ec055a9653a9e56e2ffc6e0d74a6335a150b6f",
+    "h1/study.py": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/tests/test_companion_comparison.py": "fa9723ad3765b3ad911ca2c74491ae64c2aab70a5191f3cfc4e1d8d7f1d6af7b",
+    "h1/tests/test_matv4.py": "7b579d15dd6a30bf0811c4f0a0add51ae80cd43d0f1333e6d9cccdb7e1a807b2",
+    "h1/tests/test_native_batch.py": "df8a6489ead431ef7cd89136697ecd45eabdac9dce92b02e3464a58d6fc6ae2a",
+    "h1/tests/test_offline.py": "1074074347d5dbee61fd32a38170d06d6f23e2fefbc25315f73879cf42476205",
+    "h1/tests/test_resolution_campaign.py": "a7df3dc258d40862eee2848d1bd2cf6f75da1f485981f5fb2e3fe35f1626c1ae",
+    "h1/tests/test_review_corrections.py": "6ce3fa7b68016f3751e384bb829edf39d5e03cc4c537afc7c4f8bd4513e87de9",
+    "h1/tests/test_verification.py": "2ac64399d0083b0714df994beaaec06563311a039f8551e3acf90f6fc64360ba",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+    "h1/verify.py": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73",
+    "tools/h1_compare_companions.py": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+    "tools/h1_native_batch.py": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1",
+    "tools/h1_resolution_campaign.py": "6415da48435b78a85412d7b1e4128185be167d9bee27882ab680dd276208c91b"
+  },
+  "schema": "sim_heat.native_batch/1"
+}

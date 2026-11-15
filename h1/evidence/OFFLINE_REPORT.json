@@ -1,0 +1,75 @@
+{
+  "record": "H1-OFFLINE-SLICE1-20261115",
+  "status": "author-tested candidate, not independently accepted",
+  "baseCommit": "6f8b504e15c14e698fe81f1261a64a919e464f94",
+  "reviewSha256": "d69108ca54aed881c770ef3e7fb47a18665fadebf5ce6f5a1205ef0f431830c3",
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "numpy": "2.3.5",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41"
+  },
+  "testCommand": "python -B -m unittest discover -s h1/tests -v",
+  "latestTests": {
+    "run": "h1/evidence/attempt03_tests.log",
+    "tests": 50,
+    "failures": 0,
+    "errors": 0
+  },
+  "priorAttempts": [
+    {
+      "path": "h1/evidence/attempt01_request_id_smoke.json",
+      "outcome": "incorrect refusal of metadata ID flow; corrected"
+    },
+    {
+      "path": "h1/evidence/attempt02_tests.log",
+      "outcome": "48 tests; 1 failing exact-float test assertion; corrected"
+    }
+  ],
+  "native": {
+    "versionQueries": 0,
+    "builds": 0,
+    "launches": 0,
+    "installations": 0
+  },
+  "reviewLimitations": [
+    "External reviewer identity/service not supplied",
+    "External review did not re-render PDF or rerun tests",
+    "These tests were authored/run by implementation author"
+  ],
+  "pending": [
+    "independent code acceptance",
+    "exact MSL/runtime",
+    "native export/initialization/sign tests",
+    "independent generic references and sealed per-output scales",
+    "complete native verification",
+    "transfer challenge"
+  ],
+  "sha256": {
+    "h1/README.md": "449666ca1afd54ef02fd8698cc51554b86bc1411275cc4936cf37db570f5624a",
+    "h1/__init__.py": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+    "h1/__main__.py": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+    "h1/cases/D1/model.mo": "526b8de941ddf1ece8d6feb6da792010a1061a857bd82ce3a9ee8e6bac89c6ca",
+    "h1/cases/D1/study.json": "caa9d32561b93dadc3fa3a4a44f65bee76e7f62bac45a1b806a1da032626e24c",
+    "h1/cases/D2/model.mo": "2731672b5f2d55654a886506d7ff6014e511986f1609bb431bfc5fa12f4fd30d",
+    "h1/cases/D2/study.json": "42db543c18e673f5400e13bd18340df9c35e62927abbc9a67a833dea42919b94",
+    "h1/cases/D2_K2/model.mo": "8d57b06b2e46d7ccca44da784acc433f3297b94871e65ad590881d4fc75531e3",
+    "h1/cases/D2_K2/study.json": "ab3741a80e94b32a8f6d050f34baf9c773763fdd3ed6df71ccdcdbe2214a0d87",
+    "h1/cases/EQ/model.mo": "4b46efd296a33843170a4b0cec0a2fc5540cfee5f3762e20295d1e9d5dacf4e0",
+    "h1/cases/EQ/study.json": "17383b9d897cd6ffdf5cabec206b7ee2aa8c19faa23186c280c7be7728fdbf61",
+    "h1/cases/ISO/model.mo": "202b9e8bf81a5e06ef5ba6b90b9f11b7f829675fdb2b0287c88fc34bd725e40f",
+    "h1/cases/ISO/study.json": "4fa127f7739c16d5afee3468cd447f7b8f2fd560a1aea047050e461b0ad0a169",
+    "h1/cases/REV/model.mo": "8b116c9b8798fa67e16f09dcb3a2b1d1b4d8c16f80d1fc0f8f7309010966af9b",
+    "h1/cases/REV/study.json": "16d97ef77c34836da8e1d475891756522427d9875f9ac7a34a725bfb339e0335",
+    "h1/cases/S1/model.mo": "3228323714b2f886279aa90c46c1c49c9143e2d8b9c6de032389c750b6848f1c",
+    "h1/cases/S1/study.json": "83bb6badc19e55008455083cde64adc2d53ba32c1d5f009d5b1b3594bd5f2405",
+    "h1/decoder.py": "b7cb6cd8daabc70731f7cb3048a57d05f75e7b9414e461740b81054c11e42bf2",
+    "h1/evidence/D2_K2_validation.json": "514d90dc6130a38dcc0e26c9fdd0b7b59a4d8c09a8fa458a0d5d1bd46df83911",
+    "h1/evidence/attempt01_request_id_smoke.json": "aa20e2d49746a1476b48dbfd56f011518b0e4a09d793b33f2bc3a2ede1cce52d",
+    "h1/evidence/attempt02_tests.log": "88ae71e13be42d29a839a87b0c96fe12d17fe38820dbcf678e77f696bf5d068e",
+    "h1/evidence/attempt03_tests.log": "9b86a43ba1be6403bf525046840344d5c2d99483d6d0385a2710112446a30f8e",
+    "h1/model.py": "26dd6d6497b0a3c7c67a7bdab47410bf8e63bc40aad03f78114e6d34f04f4e5d",
+    "h1/policy.py": "bbf906417c97343710f7e0a99b2c3a7f6c077e9756f82c5abccaecc3d234a4d0",
+    "h1/study.py": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+    "h1/tests/test_offline.py": "1074074347d5dbee61fd32a38170d06d6f23e2fefbc25315f73879cf42476205"
+  }
+}
