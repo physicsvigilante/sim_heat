@@ -1,0 +1,85 @@
+{
+  "record": "H1-OFFLINE-SLICE2-20261115",
+  "status": "author-tested candidate; independent code/numerical acceptance pending",
+  "baseCommit": "4a73f1c990f3fec333fa1972ac68e56fdacd0c10",
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41"
+  },
+  "testCommand": "python -B -m unittest discover -s h1/tests -v",
+  "latestTests": {
+    "run": "h1/evidence/slice2/attempt04_tests.log.gz",
+    "tests": 86,
+    "failures": 0,
+    "errors": 0
+  },
+  "priorAttempts": [
+    {
+      "path": "h1/evidence/slice2/attempt01_tests.log.gz",
+      "tests": 80,
+      "failures": 1,
+      "errors": 1,
+      "disposition": "CLI normalized CRLF before CSV hash: reader fixed to preserve bytes. Branch test reused boundary IDs as rod IDs: test fixture corrected."
+    },
+    {
+      "path": "h1/evidence/slice2/attempt02_tests.log.gz",
+      "tests": 80,
+      "failures": 0,
+      "errors": 0,
+      "disposition": "Passed first set."
+    },
+    {
+      "path": "h1/evidence/slice2/attempt03_tests.log.gz",
+      "tests": 86,
+      "failures": 2,
+      "errors": 0,
+      "disposition": "Injected exponential-matrix perturbation multiplied a zero initial offset and had no effect; inject affine column instead. Coarse-grid fixture triggered reference accuracy refusal before quadrature check; fixture adjusted to target the quadrature branch. No numerical allowance loosened."
+    }
+  ],
+  "candidateData": "Seven analytic formula-generated synthetic histories; no Modelica result files",
+  "references": {
+    "count": 7,
+    "summary": "h1/evidence/slice2/REFERENCE_SUMMARY.json",
+    "inputs": "separately entered by same implementation author",
+    "algorithms": "affine matrix exponential and capacity-scaled symmetric spectral cross-check",
+    "errorClaim": "sampled algorithm agreement and scalar analytical tests, not certified error bounds"
+  },
+  "native": {
+    "versionQueries": 0,
+    "builds": 0,
+    "launches": 0,
+    "installations": 0
+  },
+  "preservation": "43-file base tree reconstructed from prepared baseline bytes/13 preserved blobs equals a06ac8e4e17dd03845778b8916f60ddd985b615b. Only h1/model.py export registry and living h1/README.md change among existing tracked files. All previous evidence/source/spike/cases retained.",
+  "remaining": [
+    "independent implementation/reference-data review",
+    "certified or independently justified reference-error evidence before numerical acceptance",
+    "exact OpenModelica/MSL runtime and actual CSV/alias qualification",
+    "contained native runner and separately authorized execution/companions",
+    "post-freeze C1; no challenge selected",
+    "classroom evidence"
+  ],
+  "sha256": {
+    "docs/H1_SLICE2_VERIFICATION.md": "c1cd07d921c73a4bbb4b56e4c706b637e747d6ad056c582b3e88f60e40c47558",
+    "h1/README.md": "b648734de0450d7e238a18f70f5a922581cf74113c87be4309e46a0c0f3be587",
+    "h1/evidence/slice2/REFERENCE_SUMMARY.json": "b3f5fc0a876eed01730770a26d94e200905c6b2285d6485ffa77cc5696a0a5fc",
+    "h1/evidence/slice2/attempt01_tests.log.gz": "c2caf10ef4ae070c47884285a515eedcc5809d3182251c3046f870db2a8b8c9e",
+    "h1/evidence/slice2/attempt02_tests.log.gz": "df49158e51b51250c82361fc3d7b48969a416102cab549da39ca3b116133c5a7",
+    "h1/evidence/slice2/attempt03_tests.log.gz": "2978d0a64911ca1e52123736de432e88c6288957975e2af9cf6fb1a15b0c29ed",
+    "h1/evidence/slice2/attempt04_tests.log.gz": "b06f8a2d45d75787148fb8fe85604b5f181b09e010b672eb2b7258cd940cc63e",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/reference.py": "d6324965cc21e596f7dcd8542e0f60ca36f45c19179d5021d2f2ca7f11703aca",
+    "h1/reference_cases/D1.json": "92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7",
+    "h1/reference_cases/D2.json": "befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a",
+    "h1/reference_cases/D2_K2.json": "d4da4597c01cb175d6b0b02c10ec055a9653a9e56e2ffc6e0d74a6335a150b6f",
+    "h1/reference_cases/EQ.json": "1db9ffad9ee834b7d1a3a6271c3ca8eca81786e9cfb158e1613959433c45a13d",
+    "h1/reference_cases/ISO.json": "bac5bfcbcdadfb63ab6308006aa1d97b6d29851635cd3b69afa1aacea5214c7c",
+    "h1/reference_cases/REV.json": "8b1be62ce78b5c8c00ff0d30f8e13fbd5db93b456eb34f63fb7f9c37951968ae",
+    "h1/reference_cases/S1.json": "766fe04d54c62ed862e7a7331e18fa6cd613e4422d4ec387230e8144eb5de378",
+    "h1/tests/test_verification.py": "2ac64399d0083b0714df994beaaec06563311a039f8551e3acf90f6fc64360ba",
+    "h1/verification.py": "fa2395af493ddd79ee660604eba489efbfe4428069baba93d24b0947127e1bc3",
+    "h1/verify.py": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73"
+  }
+}

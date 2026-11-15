@@ -1,0 +1,43 @@
+{
+  "mode": "steady",
+  "nodes": [
+    "left",
+    "junction",
+    "right"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "hot": {
+      "node": "left",
+      "T": 373.15
+    },
+    "cold": {
+      "node": "right",
+      "T": 273.15
+    }
+  },
+  "rods": {
+    "copper": {
+      "kind": "RodCircular",
+      "a": "left",
+      "b": "junction",
+      "k": 384.928,
+      "L": 0.75,
+      "d": 0.02
+    },
+    "steel": {
+      "kind": "RodCircular",
+      "a": "junction",
+      "b": "right",
+      "k": 46.024,
+      "L": 1.25,
+      "d": 0.02
+    }
+  },
+  "schema": "sim_heat.reference/1",
+  "id": "H1_S1",
+  "modelSha256": "3228323714b2f886279aa90c46c1c49c9143e2d8b9c6de032389c750b6848f1c",
+  "studySha256": "83bb6badc19e55008455083cde64adc2d53ba32c1d5f009d5b1b3594bd5f2405",
+  "provenance": "Separately entered by implementation author from H1 contract section 7. Same-author checking data, not independent human source review. S1 adopts 4184 J/kcal (k=384.928 and 46.024 SI); all other numbers are illustrative. No production answers or topology extracted.",
+  "analysis": {}
+}

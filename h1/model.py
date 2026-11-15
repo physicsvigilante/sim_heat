@@ -365,7 +365,7 @@ def requests(model: Model, authored: list) -> dict:
 def internal_exports(model: Model) -> tuple[str, ...]:
     """Stable candidate wrapper fields; native availability is still unqualified."""
     fields = {'Body': ('T', 'Q_in', 'dU', 'C'),
-              'RodArea': ('T_a', 'T_b', 'Q_flow', 'G'),
-              'RodCircular': ('T_a', 'T_b', 'Q_flow', 'G', 'A'),
+              'RodArea': ('T_a', 'T_b', 'Q_flow', 'G', 'port_a.Q_flow', 'port_b.Q_flow'),
+              'RodCircular': ('T_a', 'T_b', 'Q_flow', 'G', 'A', 'port_a.Q_flow', 'port_b.Q_flow'),
               'FixedTemperature': ('T', 'Q_to_network')}
     return tuple(sorted(f'{name}.{f}' for name, c in model.components.items() for f in fields[c.kind]))

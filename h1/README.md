@@ -1,11 +1,36 @@
-# H1 offline implementation candidate - slice 1
+# H1 offline implementation candidate - slices 1 and 2
 
 This starts the user-authorized offline implementation after the external review.
 It is **not accepted H1, native qualification, or a safe arbitrary-Modelica runner**.
 See [decision](../docs/H1_OFFLINE_DECISION.md), [amendment](../docs/H1_OFFLINE_AMENDMENT.md)
 and [external review](../docs/reviews/20261115_EXTERNAL_REVIEW.md).
 
-## Use from repository root
+
+## Current addition: Slice 2 (offline, not accepted)
+
+The checking path is implemented in `reference.py`, `verification.py` and
+`verify.py`; see [Slice 2 scope and limitations](../docs/H1_SLICE2_VERIFICATION.md).
+It uses separately entered facts in `reference_cases/` and tests synthetic CSVs
+against local physical checks. Neither references nor successful synthetic checks
+are native results. The original read-only admission CLI is unchanged.
+
+```sh
+python -B -m unittest discover -s h1/tests -v
+python -B -m h1.verify prepare --study h1/cases/D2/study.json --root h1/cases \
+  --reference h1/reference_cases/D2.json --out /path/to/fresh-reference.json
+python -B -m h1.verify check --study h1/cases/D2/study.json --root h1/cases \
+  --bundle /path/to/fresh-reference.json --seal <recorded-seal> \
+  --csv /path/to/candidate.csv --receipt /path/to/candidate-metadata.json
+```
+
+`prepare` explicitly writes one fresh artifact; `check` reads only. Exit codes
+are 0 for candidate checks passed, 2 for refusal, 3 for numerical checks failed.
+These codes never assert native acceptance. SciPy is needed for reference
+preparation, not the original admission CLI. No automatic installation occurs.
+Evidence and development failures for this addition are under `evidence/slice2/`.
+The notes below describe the original slice; its report remains unchanged.
+
+## Slice 1 use from repository root
 
 ```sh
 python -B -m unittest discover -s h1/tests -v
