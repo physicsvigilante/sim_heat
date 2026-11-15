@@ -1,0 +1,195 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "DEV_BRIDGE",
+  "model": {
+    "path": "model.mo",
+    "sha256": "a18b56dbf748bff1c6609970d0812489f800a46d2154d90921f3cb14cb933b2e"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "leftTemp",
+      "op": "temperature",
+      "target": "left.port"
+    },
+    {
+      "id": "rightTemp",
+      "op": "temperature",
+      "target": "right.port"
+    },
+    {
+      "id": "bridgeFlow",
+      "op": "heatFlow",
+      "target": "bridge"
+    },
+    {
+      "id": "leftMinusRight",
+      "op": "temperatureDifference",
+      "a": "left.port",
+      "b": "right.port"
+    },
+    {
+      "id": "leftEnergy",
+      "op": "energyChange",
+      "target": "left"
+    },
+    {
+      "id": "rightEnergy",
+      "op": "energyChange",
+      "target": "right"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 20000,
+    "intervals": 2000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "heated.T",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative heated T; fixed before model and solver work."
+    },
+    {
+      "target": "cooled.T",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative cooled T; fixed before model and solver work."
+    },
+    {
+      "target": "left.m",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative left m; fixed before model and solver work."
+    },
+    {
+      "target": "left.c",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative left c; fixed before model and solver work."
+    },
+    {
+      "target": "left.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative left T_initial; fixed before model and solver work."
+    },
+    {
+      "target": "right.m",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative right m; fixed before model and solver work."
+    },
+    {
+      "target": "right.c",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative right c; fixed before model and solver work."
+    },
+    {
+      "target": "right.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative right T_initial; fixed before model and solver work."
+    },
+    {
+      "target": "supplyLeft.k",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyLeft k; fixed before model and solver work."
+    },
+    {
+      "target": "supplyLeft.L",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyLeft L; fixed before model and solver work."
+    },
+    {
+      "target": "supplyLeft.A",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyLeft A; fixed before model and solver work."
+    },
+    {
+      "target": "supplyRight.k",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyRight k; fixed before model and solver work."
+    },
+    {
+      "target": "supplyRight.L",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyRight L; fixed before model and solver work."
+    },
+    {
+      "target": "supplyRight.A",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative supplyRight A; fixed before model and solver work."
+    },
+    {
+      "target": "rejectLeft.k",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectLeft k; fixed before model and solver work."
+    },
+    {
+      "target": "rejectLeft.L",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectLeft L; fixed before model and solver work."
+    },
+    {
+      "target": "rejectLeft.A",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectLeft A; fixed before model and solver work."
+    },
+    {
+      "target": "rejectRight.k",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectRight k; fixed before model and solver work."
+    },
+    {
+      "target": "rejectRight.L",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectRight L; fixed before model and solver work."
+    },
+    {
+      "target": "rejectRight.A",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative rejectRight A; fixed before model and solver work."
+    },
+    {
+      "target": "bridge.k",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative bridge k; fixed before model and solver work."
+    },
+    {
+      "target": "bridge.L",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative bridge L; fixed before model and solver work."
+    },
+    {
+      "target": "bridge.A",
+      "kind": "illustrative",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Developer-authored illustrative bridge A; fixed before model and solver work."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "experiments/dev_bridge/TASK.md section Physical facts",
+      "note": "Uniform-temperature bodies, constant heat capacity/conductivity, no contact resistance, storage-free rods, ideal junctions, fixed-temperature reservoirs and no other heat/work/matter transfer."
+    }
+  ]
+}

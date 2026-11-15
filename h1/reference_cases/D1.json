@@ -1,0 +1,43 @@
+{
+  "mode": "transient",
+  "nodes": [
+    "left",
+    "right"
+  ],
+  "bodies": {
+    "body": {
+      "node": "right",
+      "m": 1.0,
+      "c": 500.0,
+      "T_initial": 293.15
+    }
+  },
+  "boundaries": {
+    "reservoir": {
+      "node": "left",
+      "T": 353.15
+    }
+  },
+  "rods": {
+    "rod": {
+      "kind": "RodArea",
+      "a": "left",
+      "b": "right",
+      "k": 100.0,
+      "L": 0.5,
+      "A": 0.001
+    }
+  },
+  "schema": "sim_heat.reference/1",
+  "id": "H1_D1",
+  "modelSha256": "526b8de941ddf1ece8d6feb6da792010a1061a857bd82ce3a9ee8e6bac89c6ca",
+  "studySha256": "caa9d32561b93dadc3fa3a4a44f65bee76e7f62bac45a1b806a1da032626e24c",
+  "provenance": "Separately entered by implementation author from H1 contract section 7. Same-author checking data, not independent human source review. S1 adopts 4184 J/kcal (k=384.928 and 46.024 SI); all other numbers are illustrative. No production answers or topology extracted.",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 12500,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  }
+}

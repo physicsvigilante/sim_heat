@@ -1,0 +1,54 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "H1_ISO",
+  "model": {
+    "path": "model.mo",
+    "sha256": "202b9e8bf81a5e06ef5ba6b90b9f11b7f829675fdb2b0287c88fc34bd725e40f"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "temperature",
+      "op": "temperature",
+      "target": "body.port"
+    },
+    {
+      "id": "energy",
+      "op": "energyChange",
+      "target": "body"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 12500,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "body.m",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "body.c",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "body.T_initial",
+      "kind": "illustrative",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md section 7",
+      "note": "Chosen demonstration binding, not a textbook numerical given."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "docs/H1_IMPLEMENTATION_CONTRACT.md sections 2 and 7",
+      "note": "Constant properties; uniform finite bodies where present; storage-free rods; no unmodeled external exchange. Source fidelity requires human review."
+    }
+  ]
+}
