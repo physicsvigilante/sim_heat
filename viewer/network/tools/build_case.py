@@ -1,0 +1,165 @@
+"""H2-02 read-only adapter: archived native H1 evidence -> generic viewer case.
+
+This runs OFFLINE on original ZIP evidence, checks source input bytes and the
+existing decode policy, and generates selection-only JSON. It does not solve
+physics, verify native qualification, or repair missing observations.
+"""
+from __future__ import annotations
+import argparse
+import hashlib
+import json
+import math
+from pathlib import Path
+import sys
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+from h1.decoder import decode_csv
+from h1.model import internal_exports, require
+from h1.study import load_study, strict_json
+
+
+def sha(bytes_: bytes) -> str:
+    return hashlib.sha256(bytes_).hexdigest()
+
+
+def stable_json(obj: object) -> bytes:
+    return (json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)+'\n').encode('utf-8')
+
+
+def owner_graph(study):
+    model, top = study.model, study.topology
+    node_names = {}
+    nodes = []
+    for i, ports in enumerate(top.nodes):
+        owners = sorted(p.split('.')[0] for p in ports
+                        if model.components[p.split('.')[0]].kind in ('Body','FixedTemperature'))
+        require(len(owners) <= 1, 'viewer_topology', 'multiple node owners')
+        if owners:
+            name = owners[0]
+            kind = 'body' if model.components[name].kind == 'Body' else 'boundary'
+            temperature = name+'.T'
+        else:
+            name = 'junction_'+str(i)
+            kind = 'junction'
+            # No measured junction state: use the native temperature of a connected rod end.
+            ends = sorted(p for p in ports if p.endswith(('.port_a','.port_b')))
+            require(bool(ends), 'viewer_topology', 'junction lacks native endpoint')
+            end = ends[0]
+            rod, side = end.rsplit('.',1)
+            temperature = rod + ('.T_a' if side == 'port_a' else '.T_b')
+        node_names[i] = name
+        item = {'id':name,'kind':kind,'temperature':temperature,'ports':list(ports)}
+        if kind == 'body': item['energy'] = name+'.dU'
+        if kind == 'boundary': item['power'] = name+'.Q_to_network'
+        nodes.append(item)
+    edges = [{'id':name, 'from':node_names[a], 'to':node_names[b], 'flow':name+'.Q_flow'}
+             for name,a,b,_ in top.edges]
+    return nodes,edges
+
+
+def pick_indices(cols: dict, edges: list, intervals: int, max_regular=20) -> list[int]:
+    indices=set(range(0,intervals+1,max(1,math.ceil(intervals/max_regular))))
+    indices.add(intervals)
+    for edge in edges:
+        q=cols[edge['flow']]
+        for i in range(1,len(q)):
+            if (q[i-1]<0 and q[i]>=0) or (q[i-1]>0 and q[i]<=0):
+                indices.update((i-1,i))
+    return sorted(indices)
+
+
+def compile_case(root:Path, study_rel:str, archive:Path, expected_artifact_sha:str,
+                 archive_case:int, artifact_id:int, display_title:str) -> dict:
+    require(archive.is_file() and sha(archive.read_bytes())==expected_artifact_sha,
+            'viewer_evidence','archived ZIP digest mismatch')
+    study=load_study(root/study_rel,root/'h1/cases')
+    require(study.request_report['admitted'],'viewer_study','study not admitted')
+    require(archive_case>=1 and archive_case<=2,'viewer_evidence','invalid archive slot')
+    folder=f'case_{archive_case:02}'
+    with zipfile.ZipFile(archive) as z:
+        require(z.testzip() is None,'viewer_evidence','archive CRC failed')
+        attempt=strict_json(z.read('attempt.json').decode('utf-8'))
+        require(attempt['status']=='diagnostic_checks_passed_not_native_qualified',
+                'viewer_evidence','native attempt not successful diagnostic')
+        require(attempt.get('nativeQualified') is False,'viewer_evidence','nativeQualified cannot be true')
+        require(len(attempt['cases'])>=archive_case,'viewer_evidence','missing selected case')
+        item=attempt['cases'][archive_case-1]
+        require(item['directory']==folder and item['study']==study_rel and
+                item['model']==study.model.name and item['status']=='checks_passed',
+                'viewer_evidence','case/study mismatch')
+        require(z.read(folder+'/model.mo')==(study.path.parent/study.data['model']['path']).read_bytes(),
+                'viewer_evidence','native compiled model bytes differ')
+        require(z.read(folder+'/study.json')==study.path.read_bytes(),
+                'viewer_evidence','native study bytes differ')
+        csvbytes=z.read(folder+'/normalized.csv')
+        csv_sha=sha(csvbytes)
+        require(attempt['artifactSha256'][folder+'/normalized.csv']==csv_sha,
+                'viewer_evidence','archived manifest CSV mismatch')
+        verdict=strict_json(z.read(folder+'/verification.json').decode('utf-8'))
+        require(verdict['status']=='checks_passed' and verdict['nativeQualified'] is False and
+                verdict['csvSha256']==csv_sha and verdict['studySha256']==study.sha256 and
+                verdict['modelSha256']==study.model_sha256 and
+                len(verdict['checks'])==item['checkCount'] and
+                all(x['status']=='diagnostic_only' for x in verdict['requests']),
+                'viewer_evidence','invalid native candidate checking record')
+        require(z.read(folder+'/build.returncode').strip()==b'0' and
+                z.read(folder+'/simulation.returncode').strip()==b'0',
+                'viewer_evidence','native build/launch did not exit successfully')
+        rawmat=sha(z.read(folder+'/model_res.mat'))
+        require(rawmat==item['rawMatSha256'] and
+                rawmat==attempt['artifactSha256'][folder+'/model_res.mat'],
+                'viewer_evidence','raw native MAT drift')
+        decoded=decode_csv(csvbytes.decode('utf-8'),internal_exports(study.model),tuple(study.grid))
+        require(decoded['duplicateRowsCollapsed']==1 and
+                len(decoded['columns']['time'])==len(study.grid)==item['canonicalSamples'],
+                'viewer_evidence','native canonical grid mismatch')
+        native_run=int(attempt['github']['GITHUB_RUN_ID'])
+        native_commit=attempt['github']['GITHUB_SHA']
+    nodes,edges=owner_graph(study)
+    cols=decoded['columns']
+    names=['time']+list(dict.fromkeys(
+        [n['temperature'] for n in nodes]+
+        [n['energy'] for n in nodes if 'energy' in n]+
+        [n['power'] for n in nodes if 'power' in n]+
+        [e['flow'] for e in edges]
+    ))
+    require(all(k in cols for k in names),'viewer_evidence','missing native viewer channel')
+    indices=pick_indices(cols,edges,len(study.grid)-1)
+    rows=[[cols[k][i] for k in names] for i in indices]
+    graph={'nodes':nodes,'edges':edges}
+    return {'schema':'sim_heat.viewer.native_case/1','id':study.data['id'],
+            'title':display_title,'modelName':study.model.name,
+            'source':{'runId':native_run,'artifactId':artifact_id,'artifactSha256':expected_artifact_sha,
+                'modelSha256':study.model_sha256,'studySha256':study.sha256,
+                'compiledSourceCommit':native_commit,'csvSha256':csv_sha,'rawMatSha256':rawmat,
+                'archiveEntry':folder+'/normalized.csv',
+                'evidenceKind':'historical_native_diagnostic','nativeQualified':False,
+                'verificationStatus':'checks_passed','publicRequestStatus':'diagnostic_only',
+                'checksPassed':item['checkCount'],'canonicalSamples':item['canonicalSamples'],
+                'duplicateRowsCollapsed':decoded['duplicateRowsCollapsed']},
+            'analysis':{'start':float(study.grid[0]),'stop':float(study.grid[-1]),
+                        'intervals':len(study.grid)-1},'graph':graph,
+            'columns':names,'samples':rows}
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--root',type=Path,default=ROOT)
+    p.add_argument('--study',required=True)
+    p.add_argument('--archive',type=Path,required=True)
+    p.add_argument('--archive-sha',required=True)
+    p.add_argument('--case-slot',type=int,required=True)
+    p.add_argument('--artifact-id',type=int,required=True)
+    p.add_argument('--title',required=True)
+    p.add_argument('--out',type=Path,required=True)
+    a=p.parse_args()
+    item=compile_case(a.root,a.study,a.archive,a.archive_sha,a.case_slot,a.artifact_id,a.title)
+    a.out.parent.mkdir(parents=True,exist_ok=True)
+    a.out.write_bytes(stable_json(item))
+    print(json.dumps({'case':item['id'],'samples':len(item['samples']),
+                      'nodes':len(item['graph']['nodes']),'edges':len(item['graph']['edges']),
+                      'sha256':sha(a.out.read_bytes()),'path':str(a.out)}))
+
+if __name__=='__main__': main()
