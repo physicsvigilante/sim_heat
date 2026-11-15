@@ -1,0 +1,107 @@
+{
+  "schema": "sim_heat.transfer_freeze/1",
+  "id": "H1-C1-F0",
+  "date": "2026-11-15",
+  "status": "technical_transfer_baseline_only_not_final_H1_acceptance",
+  "source": {
+    "repository": "physicsvigilante/sim_heat",
+    "commit": "dd8c9432abe97563414bb3ed809e61e673473812",
+    "tree": "551904dc91ce5d70cc6dfc72b2115e8ae497fa22",
+    "subtrees": {
+      "h1": "92a10d90aebfed5a3c0f655297e1f727b4c52c6b",
+      "tools": "dc1367640e4300dea59135b7bd37119defcd192a",
+      "experiments": "d098fa6f67c00ee384ee954f1fd0d428c8f3542e",
+      "docs": "f6dfed0b11a6b82c227ae2fa3e1b7d3d293c0626"
+    }
+  },
+  "publicAuthorFilesSha256": {
+    "AUTHOR_CONTRACT.md": "bcb4bb3b6360b5e97440bf0c91f0de6ca447711a5ec630ccb58c2d24aa38bae6",
+    "START_HERE.md": "fa5d2397327ba399216563c261fb2a8c006c46e0233377957989f9c914e0a25c"
+  },
+  "freezeRecordSha256": "ec0b3f95344e188c0124b6fe58e23b206af72f5bdc901ea0dc04cf921d5fb13e",
+  "executionAndCheckingFilesSha256": {
+    "experiments/h1_spike/SimHeat.mo": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+    "h1/__init__.py": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+    "h1/__main__.py": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/matv4.py": "d322b5243bbdfb5b02380583b0af6631800d2bcd3cf5126148cd814fb147ba2c",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/study.py": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+    "h1/verify.py": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73",
+    "tools/h1_compare_companions.py": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+    "tools/h1_native_batch.py": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1"
+  },
+  "charter": {
+    "name": "Composability and Teaching Charter",
+    "version": "1.0",
+    "sha256": "4fa10c92f8109526c7f704cdbbf688a65b9fcad359fe79a55b461ffbdbfb78b5",
+    "unchanged": true,
+    "projectException": "one post-freeze C1, not the default two-arrangement Track A / Track B diagnostic"
+  },
+  "observedRuntime": {
+    "compiler": "OpenModelica 1.27.0",
+    "mslVersion": "4.0.0",
+    "mslSourceManifestSha256": "15bcd69467c3ac4b183c04a200452eb34dcdf7989cebf888c6ec04ead38a194a",
+    "mslSourceFiles": 2508,
+    "python": "3.13.5",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "hostLabel": "ubuntu-24.04",
+    "rebindActualHostBeforeC1": true,
+    "completeOSFreezeClaim": false
+  },
+  "evidence": [
+    {
+      "run": 43691263273,
+      "artifact": 14152886226,
+      "zipSha256": "8fc38b9e2f040b48ab5cbeab34e8698b7c99c4d462a1e31e8bc33b0395185379",
+      "role": "D1/D2 primary native diagnostics"
+    },
+    {
+      "run": 43693191224,
+      "artifact": 14153251022,
+      "zipSha256": "dc32a0a36a27f031ce7a13da83ebdd26a3dd6ac1d14612fa597b36cb439f4843",
+      "role": "conductivity and numerical companions",
+      "fileHashesRecheckedForThisRecord": 592
+    }
+  ],
+  "allowedC1Additions": [
+    "locked task and original author submission",
+    "model/study/provenance/request/reference data under fresh case root",
+    "case-bound plan through unchanged batch runner",
+    "independent checking evidence",
+    "execution-only workflow after case-specific authorization",
+    "assessment records"
+  ],
+  "noRepairScope": [
+    "physical laws and conversions",
+    "authoring/parser/topology",
+    "observation/revision rules",
+    "runner logic",
+    "MAT/CSV extraction",
+    "reference/numerical policies",
+    "verifier and machine-readable report logic"
+  ],
+  "transfer": {
+    "selected": false,
+    "firstSubmissionReceived": false,
+    "authorInvoked": false,
+    "nativeBuildsThisStep": 0,
+    "nativeLaunchesThisStep": 0,
+    "C1NativeExecutionAuthorizedByThisRecord": false,
+    "independentAcceptanceClaim": false,
+    "nativeQualified": false
+  },
+  "openConditions": [
+    "independent disposition of corrected implementation and reference accuracy",
+    "case-specific independent interpretation and selected-point accuracy evidence",
+    "runtime and exact case-bound execution approval",
+    "unexecuted edge cases and investigation operations",
+    "reserved C1 and wider charter diagnostics",
+    "classroom effectiveness"
+  ]
+}
