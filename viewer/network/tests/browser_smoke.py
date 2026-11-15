@@ -69,7 +69,7 @@ def run(evidence:Path):
 
             page.locator('#play').click();expect(page.locator('#play')).to_have_text('Ⅱ Pause')
             page.locator('#play').click();expect(page.locator('#play')).to_have_text('▶ Play')
-            page.locator('#reset').click();expect(page.locator('#time-label')).to_have_text('0 s')
+            page.locator('#reset').click();expect(page.locator('#time-label')).to_contain_text('0');assert numeric_time(page)==0.0
 
             bogus=evidence/'wrong.csv';bogus.write_text('time,left.T\n0,300\n')
             page.locator('#native-import').set_input_files(str(bogus))
