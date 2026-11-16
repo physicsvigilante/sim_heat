@@ -1,0 +1,114 @@
+{
+  "schema": "sim_heat.h1_c1_first_offline_evaluation/1",
+  "id": "H1-C1-F0-issue26-stage2-initial-offline",
+  "inputIdentity": {
+    "stage1CommentId": 6919450031,
+    "stage1BodySha256": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+    "stage2CommentId": 6919854838,
+    "stage2BodySha256": "e69eb7f0fe4a926062d7bd901ca31d43f60aa25e7207cf35e17a48f468d63122",
+    "modelSha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+    "studySha256": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+    "authorNotesSha256": "eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a",
+    "firstPhysicalEdits": 0,
+    "firstTaskReplaced": false,
+    "firstAuthoredModelHashIsCorrect": true
+  },
+  "frozenEvaluation": {
+    "originalSourceBase": "dd8c9432abe97563414bb3ed809e61e673473812",
+    "candidateCommit": "74a8031651f9742c35e18fca499f3bd7866ab15b",
+    "modelAndStudyCopiedByteIdenticalFromOriginalIssue": true,
+    "productionH1AndNativeRunnerModified": false,
+    "offlineRunId": 43896919308,
+    "offlineRunUrl": "https://github.com/physicsvigilante/sim_heat/actions/runs/43896919308",
+    "result": "completed/success",
+    "artifactId": 14239267614,
+    "artifactOriginalZipBytes": 10002,
+    "artifactOriginalZipSha256": "05a290ac04cecfa3634a773a140e4ae8accfbd5a1058bd48c175a86d86176d38",
+    "archiveCRC": "pass",
+    "archiveMembers": 8,
+    "admissionReportSha256": "5aaa3d0c09711a04d6cdaaa416f9d7cffe30753b06353e551602c10da9db1f0d",
+    "cliExitCode": 0,
+    "admitted": true,
+    "nativeExecuted": false,
+    "frozenH1UnitTests": {
+      "total": 149,
+      "passed": 149
+    },
+    "publicRequests": {
+      "count": 9,
+      "allStatus": "not_computed",
+      "units": [
+        "K",
+        "W",
+        "J"
+      ]
+    },
+    "nodes": 4,
+    "networks": 1,
+    "scaledJunctionCondition": 1,
+    "nativeQualification": false,
+    "numericalReferenceQualified": false,
+    "teacherOutcomeProven": false
+  },
+  "sameAuthorCheckingOnlyModalDiagnostics": {
+    "evidenceStatus": "evaluator_calculation_not_independent_reference_certification_not_native_output",
+    "calculation": "Two-state constant conductance/heat capacity matrix exponential from Stage 1 task declarations; 80-digit mpmath high-precision arithmetic; no OpenModelica",
+    "rodConductances_W_per_K": {
+      "hotLead": 0.45,
+      "flatBridge": 1,
+      "roundBridge": 0.3141592653589793,
+      "coldLead": 0.4
+    },
+    "bodyCapacities_J_per_K": {
+      "leftBuffer": 125,
+      "rightBuffer": 180
+    },
+    "positiveDecayRates_per_s": {
+      "slow": 0.002761501788087817,
+      "fast": 0.020874879364556124
+    },
+    "slowestModalTime_s": 362.121800649799,
+    "primaryStopTime_5SlowestTau_s": 1810.609003248995,
+    "minimumEvenIntervalsForHFastRateLe0p01": 3780,
+    "normalizedStepFastRate": 0.00999900648656137,
+    "originalAuthorProvisionalGrid": {
+      "stopTime_s": 1800,
+      "intervals": 3600,
+      "normalizedStepFastRate": 0.010437439682278062
+    },
+    "gridAssessment": "Author's study remains correctly preserved and offline-admitted. Its provisional 1800 s, 3600 interval setting is not exactly the prospective C1 primary five-slowest-tau horizon and slightly misses h*lambdaFast <= 0.01. Any evaluator-bound primary analysis must be a new separately identified study; do not relabel first submitted study or repair physical facts.",
+    "checkingOnlyEquilibrium_K": {
+      "left": 330.7275254213953,
+      "right": 319.6252839009303
+    },
+    "predictedSignChangeTime_s": 71.88232998435815,
+    "predictionCaveat": "High-precision mathematical prediction not independently reviewed and not an exact native recorded zero-crossing; not an author input or guaranteed software output",
+    "initialFlows_W": {
+      "hotLead": 31.5,
+      "flatBridge": -40,
+      "roundBridge": -12.566370614359172,
+      "coldLead": 20
+    }
+  },
+  "sourceInterpretationSelfReview": {
+    "components": {
+      "bodies": 2,
+      "boundaries": 2,
+      "rodArea": 3,
+      "rodCircular": 1
+    },
+    "connectStatements": 8,
+    "declaredNodes": 4,
+    "taskModelFidelity": "No numerical or topological discrepancy detected by initial evaluator source inspection; external independent review of task and original model pending.",
+    "novelty": "Two distinct parallel rods between two bodies, with separate terminal bath leads, differs structurally from exposed DEV_BRIDGE's single cross-bridge and Ring4's four-body ring. The author disclosed prior H1 design exposure; blind independence not established.",
+    "limits": [
+      "Offline parser admission is not physical-source certification",
+      "No native Modelica build or launch",
+      "Same-author checking-only modal calculations are not independent physical reference accuracy",
+      "Primary analysis grid still prospective",
+      "No source evidence beyond first model/study and original task approved for publication",
+      "A complete frozen C1 transfer PASS requires separate authored/reference/native review"
+    ]
+  },
+  "next": "R2 independent review of original task/model fidelity, first-attempt chronology, exposure and prospective primary modal/reference basis before any new native C1 run"
+}
