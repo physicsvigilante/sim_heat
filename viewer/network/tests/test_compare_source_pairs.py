@@ -218,7 +218,7 @@ class SourcePairProvenanceTests(unittest.TestCase):
     def test_source_authoring_stays_data_only_no_case_name_dispatch(self):
         program=(ROOT/'viewer/network/tools/build_compare_index.py').read_text()
         for forbidden in ('H1_D2_K2', 'TEACH_RING4', 'buildModel(', 'simulate(',
-                          'subprocess.', 'rod(k=200':
+                          'subprocess.', 'rod(k=200'):
             self.assertNotIn(forbidden,program)
 
 
