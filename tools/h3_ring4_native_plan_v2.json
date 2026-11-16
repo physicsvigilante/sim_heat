@@ -1,0 +1,45 @@
+{
+  "branch": "experiment/h3-ring4-native-successor-once",
+  "caseRoot": "h1/cases",
+  "cases": [
+    {
+      "reference": "experiments/teacher_ring4/reference.json",
+      "study": "h1/cases/TEACH_RING4/study.json"
+    }
+  ],
+  "compilerVersion": "OpenModelica 1.27.0",
+  "dependencies": {
+    "numpy": "2.3.5",
+    "python": "3.13.5",
+    "scipy": "1.17.0"
+  },
+  "library": "experiments/h1_spike/SimHeat.mo",
+  "mslVersion": "4.0.0",
+  "output": "h3_ring4_native_successor_attempt",
+  "pins": {
+    "experiments/h1_spike/SimHeat.mo": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+    "experiments/teacher_ring4/reference.json": "f5a7b10337cd62ff79ce77896b63135b71a2b2e39ee355ace46acf4ede55217b",
+    "h1/__init__.py": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+    "h1/__main__.py": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+    "h1/cases/TEACH_RING4/model.mo": "3a4771b5e6254a72a2d96e8a432b5151db8af51c1ef1d49b9553bb0e9c56e5a8",
+    "h1/cases/TEACH_RING4/study.json": "812e27fb83643d8ddf052181610f3d1353efbdef4e482a9374f263dd92b7f1fd",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/matv4.py": "bb0a5194e1235af132a729d5287ecd1756eaad09585269eff18bc046589d1b8e",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/study.py": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/tests/test_companion_comparison.py": "fa9723ad3765b3ad911ca2c74491ae64c2aab70a5191f3cfc4e1d8d7f1d6af7b",
+    "h1/tests/test_matv4.py": "e5e9c3849ca1e24af6d17ce016832a3f4ed14611a428badbb715665186d2537e",
+    "h1/tests/test_native_batch.py": "df8a6489ead431ef7cd89136697ecd45eabdac9dce92b02e3464a58d6fc6ae2a",
+    "h1/tests/test_offline.py": "1074074347d5dbee61fd32a38170d06d6f23e2fefbc25315f73879cf42476205",
+    "h1/tests/test_resolution_campaign.py": "db27924db3ca6dc6727ec15e3ebb466a5b90ee18f81442ee32e3870d7187958c",
+    "h1/tests/test_review_corrections.py": "6ce3fa7b68016f3751e384bb829edf39d5e03cc4c537afc7c4f8bd4513e87de9",
+    "h1/tests/test_verification.py": "2ac64399d0083b0714df994beaaec06563311a039f8551e3acf90f6fc64360ba",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+    "h1/verify.py": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73",
+    "tools/h1_native_batch.py": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1"
+  },
+  "schema": "sim_heat.native_batch/1"
+}
