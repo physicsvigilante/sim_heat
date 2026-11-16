@@ -188,8 +188,14 @@ class SourcePairProvenanceTests(unittest.TestCase):
         check_source_relation(a,b)
         b['runId']=a['runId'];b['artifactId']=a['artifactId']
         b['artifactSha256']=a['artifactSha256']
+        b['compiledSourceCommit']=a['compiledSourceCommit']
         b['archiveEntry']='case_01/normalized.csv'
-        check_source_relation(a,b)   # one run/artifact; two different compiled cases
+        check_source_relation(a,b)   # one run/artifact, different compiled slots
+        b['compiledSourceCommit']='0'*40
+        with self.assertRaises(Refusal) as wrong_run_sha:
+            check_source_relation(a,b)
+        self.assertEqual(wrong_run_sha.exception.code,'pair_provenance')
+        b['compiledSourceCommit']=a['compiledSourceCommit']
         b['archiveEntry']=a['archiveEntry']
         with self.assertRaises(Refusal):
             check_source_relation(a,b)
@@ -198,7 +204,49 @@ class SourcePairProvenanceTests(unittest.TestCase):
         with self.assertRaises(Refusal):
             check_source_relation(a,b)
         b['artifactId']=a['artifactId']+1
-        check_source_relation(a,b)  # same run, different original artifact OK
+        check_source_relation(a,b)  # same run, distinct ZIP artifact OK
+        b['compiledSourceCommit']='0'*40
+        with self.assertRaises(Refusal):
+            check_source_relation(a,b)  # same run, separate artifact still one SHA
+        b['runId']=a['runId']+1
+        check_source_relation(a,b)  # different workflow run may have different SHA
+
+    def test_fully_rehashed_pair_and_case_refuse_divergent_shared_run_commit(self):
+        # A fabricated source plan and native case may be internally repinned.
+        # This test deliberately keeps the baseline and successor artifact IDs
+        # distinct but assigns them one GitHub run and *different* run SHAs.
+        # A single Actions run cannot have two distinct GITHUB_SHA values.
+        with TemporaryDirectory() as td:
+            root=Path(td);scratch(root)
+            baseline=read_json(root/PLAN)['pairs'][0]['expectedNative']['baseline']
+            run_id=baseline['runId']
+            edit(root,PLAN,
+                 lambda x:x['pairs'][0]['expectedNative']['successor'].__setitem__(
+                     'runId',run_id))
+            edit(root,'viewer/network/data/D2_K2.json',
+                 lambda x:x['source'].__setitem__('runId',run_id),
+                 case_id='H1_D2_K2')
+            with self.assertRaises(Refusal) as error:
+                admitted(root)
+            self.assertEqual(error.exception.code,'pair_provenance')
+            self.assertIn('conflicting executed source commits',
+                          error.exception.message)
+
+            # A consistent same-run, distinct-artifact test-only repin is
+            # structurally admissible; GitHub provenance is still EXTERNAL.
+            original_commit=baseline['compiledSourceCommit']
+            edit(root,PLAN,
+                 lambda x:x['pairs'][0]['expectedNative']['successor'].__setitem__(
+                     'compiledSourceCommit',original_commit))
+            edit(root,'viewer/network/data/D2_K2.json',
+                 lambda x:x['source'].__setitem__(
+                     'compiledSourceCommit',original_commit),
+                 case_id='H1_D2_K2')
+            hypothetical=admitted(root)
+            self.assertEqual(hypothetical['pairs'][0]['sources']['successor']['runId'],
+                             run_id)
+            self.assertFalse(read_json(root/'viewer/network/data/D2_K2.json')[
+                'source']['nativeQualified'])
 
     def test_self_pinned_fabrication_is_not_external_github_attestation(self):
         with TemporaryDirectory() as td:
