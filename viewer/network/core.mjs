@@ -172,7 +172,7 @@ export function validateSteadyCase(input, catalogEntry) {
        positiveInteger(s.checksPassed),'Missing steady native source IDs');
   need([s.artifactSha256,s.modelSha256,s.studySha256,s.csvSha256,s.rawMatSha256].every(x=>SHA.test(x)) &&
        /^[0-9a-f]{40}$/.test(s.compiledSourceCommit),'Invalid steady native hashes');
-  need(/^case_\\d{2}\\/normalized\\.csv$/.test(s.archiveEntry),'Invalid native steady archive path');
+  need(/^case_\d{2}\/normalized\.csv$/.test(s.archiveEntry),'Invalid native steady archive path');
   need(s.evidenceKind==='historical_native_diagnostic' && s.nativeQualified===false &&
        s.verificationStatus==='checks_passed' && s.publicRequestStatus==='diagnostic_only',
        'Unqualified steady source misrepresented');
@@ -198,7 +198,7 @@ export async function parseSteadyCsv(bytes,caseData) {
   let csv;
   try{csv=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
   catch{throw Error('Non-UTF8 CSV');}
-  const lines=csv.trimEnd().split(/\\r?\\n/);
+  const lines=csv.trimEnd().split(/\r?\n/);
   need(lines.length===1+src.algebraicEvaluations+src.duplicateRowsCollapsed,
        'Steady algebraic evaluation row count mismatch');
   const header=lines[0].split(',');
