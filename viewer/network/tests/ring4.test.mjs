@@ -97,7 +97,7 @@ test('wrong owner/port/orientation, fake native status and fabricated time refus
     x=>{x.samples[1][0]+=1;},
     x=>{x.samples[1][5]=null;},
     x=>{x.samples[0].pop();},
-    x=>{x.samples.splice(2,1);},
+    x=>{x.samples[2][0]=x.samples[1][0];}, // duplicate time refused; sparse previews are valid
     x=>{x.analysis.intervals=1999;},
   ];
   for(const fn of invalid)assert.throws(mutate(fn));
