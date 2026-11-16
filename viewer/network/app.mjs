@@ -22,7 +22,7 @@ function clearEvidence(){
   $('steady-note').textContent='No verified evidence available';
   $('steady-panel').hidden=true;
   $('time-panel').hidden=false;$('temperature-panel').hidden=false;
-  $('observation-chart').hidden=false;
+  $('observation-chart').removeAttribute('hidden');
   $('native-run').removeAttribute('href');
   $('import-status').className='help';$('native-import').value='';
 }
@@ -80,7 +80,7 @@ function drawSteady(){
 function updateSteady(){
   stop();rows=[];selected=0;
   $('time-panel').hidden=true;$('temperature-panel').hidden=true;
-  $('observation-chart').hidden=true;$('steady-panel').hidden=false;
+  $('observation-chart').setAttribute('hidden','');$('steady-panel').hidden=false;
   for(const id of ['time-slider','play','reset','reversal'])$(id).disabled=true;
   $('observation').disabled=false;$('native-import').disabled=false;
   const out=$('steady-readouts');out.replaceChildren();
