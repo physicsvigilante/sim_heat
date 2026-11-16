@@ -1,0 +1,71 @@
+{
+  "schema": "sim_heat.h1_c1_stage2_capture/1",
+  "id": "H1-C1-F0-stage2-first-6919854838",
+  "status": "first_model_study_notes_captured_before_offline_admission",
+  "issue": {
+    "repo": "physicsvigilante/sim_heat",
+    "number": 26
+  },
+  "stage1": {
+    "originalCommentId": 6919450031,
+    "originalCommentBodySha256": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+    "firstTaskCapturedBeforeModelAtCommit": "3a298b87863d3eb97b978a4100b83dec71200b77",
+    "originalPostedAtUtc": "2026-11-16T14:36:47Z"
+  },
+  "stage2": {
+    "originalCommentId": 6919854838,
+    "originalCommentUrl": "https://github.com/physicsvigilante/sim_heat/issues/26#issuecomment-6919854838",
+    "originalGithubUser": "physicsvigilante",
+    "createdAtUtc": "2026-11-16T14:52:33Z",
+    "updatedAtUtcAtCapture": "2026-11-16T14:52:33Z",
+    "originalVerbatimCommentPath": "qualification/h1_c1/submissions/issue-26/comment-6919854838.STAGE2_ORIGINAL.md",
+    "originalVerbatimCommentSha256": "e69eb7f0fe4a926062d7bd901ca31d43f60aa25e7207cf35e17a48f468d63122",
+    "originalVerbatimCommentUtf8Bytes": 14645,
+    "originalGitBlobSha": "647e33333e72331fad397593288096097803746e",
+    "exactCommentAndFencedFilesCompared": true,
+    "fileType": "UTF-8 without BOM, LF line endings and final LF",
+    "firstFiles": [
+      {
+        "name": "model.mo",
+        "sha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+        "utf8Bytes": 872,
+        "gitBlob": "e7083db3c91ae41ea63c91cd43c3db5775c0653e"
+      },
+      {
+        "name": "study.json",
+        "sha256": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+        "utf8Bytes": 6603,
+        "gitBlob": "1e848d5134a1b3dec92baf99b3f021c6582effda"
+      },
+      {
+        "name": "AUTHOR_NOTES.md",
+        "sha256": "eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a",
+        "utf8Bytes": 6778,
+        "gitBlob": "0dcb45d81d2b5e05ede54bc347674b7fcc5e8bdb"
+      }
+    ],
+    "modelHashMechanicallyCheckedMatchesFirstStudyModelSha256": true
+  },
+  "assistanceAndExposure": {
+    "externalAuthorSelfIdentified": "GPT-6; same author role as Stage 1, not authenticated different model",
+    "priorExposure": "disclosed existing SIM_HEAT H1 design/review summaries; not fully blind",
+    "reportedTools": "GitHub file reads and issue comment, Python standard library hashlib/json mechanical author-byte preparation",
+    "reportedNoValidatorRunBeforeFirstCapture": true,
+    "reportedNoOMCExecution": true,
+    "identityNotHumanCertified": true
+  },
+  "assessment": {
+    "sourceFrozenCodeCommit": "dd8c9432abe97563414bb3ed809e61e673473812",
+    "historicalSourceTree": "551904dc91ce5d70cc6dfc72b2115e8ae497fa22",
+    "currentMainDifferent": "c06fb5395781482bd6bbe055d10bc10cdf3bba8d",
+    "f0MatAdapterV1MustNotBeSilentlyReplacedByCurrentV2": true,
+    "firstVersionPhysicallyUnmodified": true,
+    "taskReplacementNotPermitted": true,
+    "offlineAdmissionRunAtCapture": false,
+    "numericReferencePrepared": false,
+    "nativeBuilds": 0,
+    "nativeLaunches": 0,
+    "transferPassClaim": false,
+    "next": "Evaluator read-only original F0 offline admission and source/observation fidelity; record refusals without source repair. Only later prepare independent C1 reference and bounded native plan."
+  }
+}
