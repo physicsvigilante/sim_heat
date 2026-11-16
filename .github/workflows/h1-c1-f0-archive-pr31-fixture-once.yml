@@ -1,0 +1,121 @@
+name: H1-C1 F0 capture reviewed PR31 checking fixture once (NO NATIVE)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-immutable-fixture-candidate
+    paths:
+      - '.github/workflows/h1-c1-f0-archive-pr31-fixture-once.yml'
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: simheat-c1-archival-pr31-once
+  cancel-in-progress: false
+jobs:
+  capture-original-reviewed-bytes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source branch; scoped write token for archival commit only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Pin Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Guard one-shot archival workflow, source lineage, and clean candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = 'physicsvigilante/sim_heat'
+          test "${GITHUB_REF}" = 'refs/heads/qualification/h1-c1-f0-immutable-fixture-candidate'
+          test "${GITHUB_EVENT_NAME}" = 'push'
+          test "${GITHUB_RUN_ATTEMPT}" = '1'
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD^)" = '6bd7ae4f1c0c0dab5bfcd1ea6974339a293e55ae'
+          test ! -e qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz
+          test ! -e qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json
+          test -z "$(git status --porcelain)"
+          git diff --name-status 502a6e8c392d8b8cfb8a4361cddcae4fafff6f01 HEAD \
+            > /tmp/c1-pr31-archive-source-diff.txt
+          python - <<'PY'
+          from pathlib import Path
+          allowed={
+            "qualification/h1_c1/immutable_fixture/capture_pr31_fixture.py",
+            "qualification/h1_c1/immutable_fixture/inspect_pr31_fixture.py",
+            "qualification/h1_c1/immutable_fixture/test_pr31_fixture.py",
+            "qualification/h1_c1/immutable_fixture/IMMUTABLE_FIXTURE_CANDIDATE_SCOPE.md",
+            ".github/workflows/h1-c1-f0-archive-pr31-fixture-once.yml",
+          }
+          changes=Path("/tmp/c1-pr31-archive-source-diff.txt").read_text().splitlines()
+          assert len(changes)==len(allowed), changes
+          for line in changes:
+              state,path=line.split("\t",1)
+              assert state=="A" and path in allowed, line
+          PY
+      - name: Retrieve exact saved original PR31 artifact (not regenerate)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: 14249313720
+          run-id: 43915934653
+          github-token: ${{ github.token }}
+          repository: physicsvigilante/sim_heat
+          path: c1_original_pr31_artifact
+      - name: Verify original reviewed payload hash and create reversible candidate storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json
+          printf '%s  %s\n' \
+            '0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368' \
+            'c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json' | sha256sum -c
+          python -B -m qualification.h1_c1.immutable_fixture.capture_pr31_fixture \
+            c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json \
+            qualification/h1_c1/immutable_fixture
+          test -f qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz
+          test -f qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json
+      - name: Inspect exactly preserved candidate and refuse unapproved consumption
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.immutable_fixture.inspect_pr31_fixture --inspect-only
+          if python -B -m qualification.h1_c1.immutable_fixture.inspect_pr31_fixture; then
+            echo 'FAIL: candidate was improperly consumable without owner approval'
+            exit 1
+          fi
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_pr31_fixture -v
+      - name: Retest original frozen H1 source identities and 149 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir \
+            numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256
+          python -B -m unittest discover -s h1/tests -v
+      - name: Commit ONLY the two candidate archival data files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- \
+            qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz \
+            qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json
+          git diff --cached --name-status > /tmp/c1-pr31-archive-commit-diff.txt
+          python - <<'PY'
+          from pathlib import Path
+          changed=Path("/tmp/c1-pr31-archive-commit-diff.txt").read_text().splitlines()
+          required={
+            "qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz",
+            "qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json",
+          }
+          assert len(changed)==2,changed
+          assert {line.split("\t",1)[1] for line in changed}==required,changed
+          assert all(line.startswith("A\t") for line in changed),changed
+          PY
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'Archive exact independently reviewed PR31 V2 checking fixture (candidate, no native)'
+          git push origin HEAD:refs/heads/qualification/h1-c1-f0-immutable-fixture-candidate
+          echo "candidate-archive-commit=$(git rev-parse HEAD)"
+          echo "No OpenModelica version queries, builds or launches performed."
