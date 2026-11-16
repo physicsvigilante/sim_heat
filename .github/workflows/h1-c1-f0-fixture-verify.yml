@@ -5,10 +5,8 @@ on:
       - qualification/h1-c1-f0-immutable-fixture-candidate
     paths:
       - '.github/workflows/h1-c1-f0-fixture-verify.yml'
-      - 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz'
-      - 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json'
-      - 'qualification/h1_c1/immutable_fixture/inspect_pr31_fixture.py'
-      - 'qualification/h1_c1/immutable_fixture/test_pr31_fixture.py'
+      - '.github/workflows/h1-c1-f0-archive-pr31-fixture-once.yml'
+      - 'qualification/h1_c1/immutable_fixture/**'
 permissions:
   contents: read
 concurrency:
