@@ -1,0 +1,122 @@
+name: H1-C1 F0 prospective modal and checking-only reference preflight
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-evaluator-modal
+    paths:
+      - 'h1/cases/H1_C1_MODAL/**'
+      - 'qualification/h1_c1/evaluation/**'
+      - '.github/workflows/h1-c1-f0-modal-preflight.yml'
+permissions:
+  contents: read
+concurrency:
+  group: simheat-f0-modal-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  modal-checking:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact original frozen F0 plus prospective data only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install checking-only dependencies; no Modelica installation
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Check all unchanged F0 source hashes and source-model identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_modal_preflight_evidence
+          git rev-parse HEAD > c1_modal_preflight_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_modal_preflight_evidence/head-tree.txt
+          git diff --name-status dd8c9432abe97563414bb3ed809e61e673473812 HEAD > c1_modal_preflight_evidence/from-f0.diff
+          git ls-files -z | xargs -0 sha256sum > c1_modal_preflight_evidence/source.sha256
+          python --version > c1_modal_preflight_evidence/python.txt
+          python -m pip freeze > c1_modal_preflight_evidence/packages.txt
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 | tee c1_modal_preflight_evidence/f0-original-pins.log
+          echo '9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435  h1/cases/H1_C1_FIRST/model.mo' | sha256sum --check
+          echo 'b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc  h1/cases/H1_C1_FIRST/study.json' | sha256sum --check
+          echo 'eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a  h1/cases/H1_C1_FIRST/AUTHOR_NOTES.md' | sha256sum --check
+          echo '9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435  h1/cases/H1_C1_MODAL/model.mo' | sha256sum --check
+          echo 'b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b  h1/cases/H1_C1_MODAL/study.json' | sha256sum --check
+          python - <<'PY'
+          from pathlib import Path
+          changed=Path('c1_modal_preflight_evidence/from-f0.diff').read_text().splitlines()
+          assert changed and all(x.startswith('A\t') for x in changed),changed
+          assert not any(x.startswith('M\t') or x.startswith('D\t') for x in changed)
+          PY
+      - name: Retain read-only original-first and evaluator-assisted study admissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m h1 h1/cases/H1_C1_FIRST/study.json --root h1/cases > c1_modal_preflight_evidence/original-first-admission.json
+          python -B -m h1 h1/cases/H1_C1_MODAL/study.json --root h1/cases > c1_modal_preflight_evidence/prospective-modal-admission.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('c1_modal_preflight_evidence')
+          original=json.loads((base/'original-first-admission.json').read_text())
+          modal=json.loads((base/'prospective-modal-admission.json').read_text())
+          assert original['admitted'] and modal['admitted']
+          assert original['nativeExecuted'] is False and modal['nativeExecuted'] is False
+          assert original['modelSha256']==modal['modelSha256']
+          assert original['studySha256']!=modal['studySha256']
+          assert len(original['requests'])==len(modal['requests'])==9
+          assert all(r['status']=='not_computed' for r in original['requests']+modal['requests'])
+          print('First author and prospective assisted study both admitted offline, no computation of public requests.')
+          PY
+      - name: Prepare sealed checking-only bundle before any native run
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m h1.verify prepare \
+            --study h1/cases/H1_C1_MODAL/study.json \
+            --root h1/cases \
+            --reference qualification/h1_c1/evaluation/C1_FIRST_CHECKING_REFERENCE.json \
+            --out c1_modal_preflight_evidence/C1_FIRST_REFERENCE_BUNDLE.json \
+            2>&1 | tee c1_modal_preflight_evidence/reference-preparation.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('c1_modal_preflight_evidence/C1_FIRST_REFERENCE_BUNDLE.json')
+          b=json.loads(p.read_text())
+          assert b['schema']=='sim_heat.reference_bundle/2'
+          assert b['nativeQualified'] is False and b['origin']=='analytical_reference_only'
+          assert len(b['grid'])==4001
+          assert b['spec']['studySha256']=='b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b'
+          print('Checking bundle prepared:',b['seal'])
+          PY
+      - name: Same-evaluator 95-digit analytic and float64 numerical cross-check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B qualification/h1_c1/evaluation/check_modal_accuracy.py > c1_modal_preflight_evidence/checking-accuracy.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('c1_modal_preflight_evidence/checking-accuracy.json').read_text())
+          assert r['status']=='same_evaluator_two_algorithm_check_not_independent_certification'
+          assert r['gridPointsChecked']==4001
+          assert r['timeStepFastRateProduct']<=0.01
+          assert r['maximumTemperatureMethodDisagreementK']<1e-9
+          print('Same-author checking-only numerical cross-check:',r['maximumTemperatureMethodDisagreementK'])
+          PY
+      - name: Unchanged frozen F0 H1 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee c1_modal_preflight_evidence/f0-h1-tests.log
+      - name: Preserve source, reference seals, results, refusals and failure logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f0-modal-preflight-${{ github.sha }}
+          path: c1_modal_preflight_evidence/
+          if-no-files-found: warn
+          retention-days: 90
