@@ -1,0 +1,79 @@
+{
+  "schema": "sim_heat.h1_c1_stage2_capture/1",
+  "id": "H1-C1-F0-author-stage2-6919854838",
+  "status": "first_model_study_notes_captured_before_admission_no_native",
+  "stage1": {
+    "originalIssueCommentId": 6919450031,
+    "bodySha256": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+    "savedAt": "qualification/h1_c1/submissions/issue-26/comment-6919450031.STAGE1_ORIGINAL.md"
+  },
+  "stage2": {
+    "originalIssueCommentId": 6919854838,
+    "githubAuthorLogin": "physicsvigilante",
+    "url": "https://github.com/physicsvigilante/sim_heat/issues/26#issuecomment-6919854838",
+    "createdAtUtc": "2026-11-16T14:52:33Z",
+    "updatedAtUtcAtCapture": "2026-11-16T14:52:33Z",
+    "fullRawOriginalComment": {
+      "path": "qualification/h1_c1/submissions/issue-26/comment-6919854838.STAGE2_ORIGINAL.md",
+      "sha256": "e69eb7f0fe4a926062d7bd901ca31d43f60aa25e7207cf35e17a48f468d63122",
+      "gitBlob": "647e33333e72331fad397593288096097803746e",
+      "preservationCommit": "eb2ff14566b35aa30a679f1bbcdc84ac4c6d134c"
+    },
+    "firstFiles": [
+      {
+        "name": "model.mo",
+        "path": "qualification/h1_c1/submissions/issue-26/first-author/model.mo",
+        "sha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+        "gitBlob": "e7083db3c91ae41ea63c91cd43c3db5775c0653e",
+        "utf8Bytes": 872,
+        "captureCommit": "68e6e4a685ca245763858fa4667b456f849d093f"
+      },
+      {
+        "name": "study.json",
+        "path": "qualification/h1_c1/submissions/issue-26/first-author/study.json",
+        "sha256": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+        "gitBlob": "1e848d5134a1b3dec92baf99b3f021c6582effda",
+        "utf8Bytes": 6603,
+        "captureCommit": "6eca9592fd99ed4853f530e2d0f28cf4d59a012d"
+      },
+      {
+        "name": "AUTHOR_NOTES.md",
+        "path": "qualification/h1_c1/submissions/issue-26/first-author/AUTHOR_NOTES.md",
+        "sha256": "eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a",
+        "gitBlob": "0dcb45d81d2b5e05ede54bc347674b7fcc5e8bdb",
+        "utf8Bytes": 6778,
+        "captureCommit": "73cd0fe24db8bb8e245a55d32fc8cb1d5ab91223"
+      }
+    ],
+    "verifiedExactCodeFenceContents": true,
+    "oneTerminalLFPerFile": true,
+    "noBOM": true,
+    "studyClaimedModelShaCorrect": true,
+    "studyRequestsCount": 9,
+    "studyProvenanceRecords": 22,
+    "provisionalAnalysis": {
+      "startTime": 0,
+      "stopTime": 1800,
+      "intervals": 3600,
+      "solver": "dassl",
+      "tolerance": 1e-8
+    }
+  },
+  "independence": {
+    "authorSelfIdentifiesAsGPT6": true,
+    "authorAndTaskSelectorSameRole": true,
+    "priorExposureToH1DesignDiscussionDisclosed": true,
+    "githubAccountNotProofOfIndependentHuman": true,
+    "modelFamilyDistinctnessNotProven": true
+  },
+  "evaluatorStage": {
+    "originalFirstAttemptPreserved": true,
+    "offlineValidationYetRun": false,
+    "frozenBaseline": "dd8c9432abe97563414bb3ed809e61e673473812",
+    "nativeLaunches": 0,
+    "firstAttemptCorrections": 0,
+    "physicalModelRepaired": false,
+    "taskReplaced": false,
+    "sourceFidelityIndependentReviewPending": true
+  }
+}
