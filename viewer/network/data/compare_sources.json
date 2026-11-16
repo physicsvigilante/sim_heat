@@ -1,0 +1,33 @@
+{
+  "schema": "sim_heat.viewer.compare_sources/1",
+  "pairs": [
+    {
+      "id": "D2_K2",
+      "title": "What if the connecting rod conducted twice as well?",
+      "baseline": "H1_D2",
+      "successor": "H1_D2_K2",
+      "baselineStudy": "h1/cases/D2/study.json",
+      "successorStudy": "h1/cases/D2_K2/study.json",
+      "expectedNative": {
+        "baseline": {
+          "runId": 43691263273,
+          "artifactId": 14152886226,
+          "artifactSha256": "8fc38b9e2f040b48ab5cbeab34e8698b7c99c4d462a1e31e8bc33b0395185379",
+          "compiledSourceCommit": "1b68b14dd05c5eb8f148b02055890563cdc32095",
+          "archiveEntry": "case_02/normalized.csv",
+          "csvSha256": "ad4c1d50777f272d461a472e052e80f89311344d25195d1e15864932eba7eee4",
+          "rawMatSha256": "3d75bd507cfefd6852e7d0354d5cd55f604cad756a759f6d341e5637e1b7426f"
+        },
+        "successor": {
+          "runId": 43693191224,
+          "artifactId": 14153251022,
+          "artifactSha256": "dc32a0a36a27f031ce7a13da83ebdd26a3dd6ac1d14612fa597b36cb439f4843",
+          "compiledSourceCommit": "52b1635932a3e4519b91f3bf093c0c21b0248d91",
+          "archiveEntry": "case_01/normalized.csv",
+          "csvSha256": "f3fd607a4f8701f1736942db6547be7f477e6fcc0973ca4730835b64efc8c7e0",
+          "rawMatSha256": "a4ebf82400d1e65c8b84992f57862650d7c3d132fba93cd1bfeeda2b040bebf9"
+        }
+      }
+    }
+  ]
+}

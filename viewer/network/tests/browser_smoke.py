@@ -368,6 +368,78 @@ def run(evidence:Path):
             expect(pair.locator('#inspector')).to_be_visible()
             pair.screenshot(path=str(evidence/'whatif-mobile.png'),
                             full_page=True,animations='disabled')
+            # A structurally valid but mis-pinned native identity in the
+            # comparison index must refuse, clear the previous data and not
+            # claim that the self-described run is independently authenticated.
+            wrongmeta=browser.new_page(viewport={'width':1070,'height':720})
+            wrongmeta.on('pageerror',lambda exc:errors.append(str(exc)))
+            source_index=json.loads((ROOT/'data/compare_index.json').read_text())
+            source_index['pairs'][0]['sources']['successor']['runId']=12345
+            wrongmeta.route('**/data/compare_index.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body=json.dumps(source_index)))
+            wrongmeta.goto(f'http://127.0.0.1:{http.server_port}/compare.html',
+                           wait_until='networkidle')
+            expect(wrongmeta.locator('#error')).to_contain_text(
+                'Original native run/artifact/CSV identity changed')
+            expect(wrongmeta.locator('#inspector')).to_be_hidden()
+            assert wrongmeta.locator('#comparison-chart path').count()==0
+            assert wrongmeta.locator('#baseline-source').inner_text()==''
+            assert wrongmeta.locator('#successor-source').inner_text()==''
+            wrongmeta.screenshot(path=str(evidence/'whatif-provenance-refusal.png'),
+                                 full_page=True,animations='disabled')
+            wrongmeta.close()
+            # Synthetic two-selection UI fixture uses the SAME verified source
+            # pair twice, not a fabricated seventh native composition. Hold
+            # one old fetch, change selection back, then release the old reply.
+            race=browser.new_page(viewport={'width':1080,'height':780})
+            race.on('pageerror',lambda exc:errors.append(str(exc)))
+            alternate=json.loads((ROOT/'data/compare_index.json').read_text())
+            second=__import__('copy').deepcopy(alternate['pairs'][0])
+            second['id']='D2_K2_ALT'
+            second['title']='TEST ONLY — alternative selection of same approved evidence'
+            alternate['pairs'].append(second)
+            race.route('**/data/compare_index.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body=json.dumps(alternate)))
+            race.add_init_script("""(()=>{
+                const original=window.fetch;
+                window.__holdPair={armed:false,pending:false,done:false,release:null};
+                window.fetch=function(...args){
+                  const h=window.__holdPair;
+                  if(h.armed&&String(args[0]).includes('data/D2_K2.json')){
+                    h.armed=false;h.pending=true;
+                    return new Promise((resolve,reject)=>{
+                      h.release=()=>Promise.resolve(original.apply(this,args)).then(v=>{
+                        h.done=true;resolve(v);
+                      },reject);
+                    });
+                  }
+                  return original.apply(this,args);
+                };
+            })();""")
+            race.goto(f'http://127.0.0.1:{http.server_port}/compare.html',
+                      wait_until='networkidle')
+            expect(race.locator('#inspector')).to_be_visible()
+            expect(race.locator('#comparison-select option')).to_have_count(2)
+            race.evaluate('window.__holdPair.armed=true')
+            race.locator('#comparison-select').select_option('D2_K2_ALT')
+            race.wait_for_function("""()=>window.__holdPair.pending &&
+                typeof window.__holdPair.release === 'function'""")
+            race.locator('#comparison-select').select_option('D2_K2')
+            expect(race.locator('#inspector')).to_be_visible()
+            race.locator('#quantity-select').select_option('hot.T')
+            race.locator('#time-slider').fill('1')
+            expect(race.locator('#time-label')).to_have_text('468.75 s')
+            race.evaluate('window.__holdPair.release()')
+            race.wait_for_function('window.__holdPair.done')
+            race.wait_for_timeout(100)
+            expect(race.locator('#inspector')).to_be_visible()
+            assert race.locator('#quantity-select').input_value()=='hot.T'
+            assert race.locator('#time-label').inner_text()=='468.75 s'
+            assert race.locator('#baseline-value').inner_text().endswith(' K')
+            assert race.locator('#error').inner_text()==''
+            race.screenshot(path=str(evidence/'whatif-async-pair-race.png'),
+                            full_page=True,animations='disabled')
+            race.close()
             # Even after displaying valid values, a repinned wrong source file
             # must clear all visible comparison observations on refusal.
             pair.route('**/data/D2_K2.json',lambda route:route.fulfill(
