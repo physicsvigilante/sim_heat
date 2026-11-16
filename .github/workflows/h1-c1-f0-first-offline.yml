@@ -41,10 +41,10 @@ jobs:
           node --version > c1_f0_first_ci_evidence/node.txt
           sha256sum -c qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 | tee c1_f0_first_ci_evidence/original-f0-fingerprints.log
           cat > c1_f0_first_ci_evidence/first-author-pins.sha256 <<'AUTHOR_PINS'
-9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435  h1/cases/H1_C1_FIRST/model.mo
-b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc  h1/cases/H1_C1_FIRST/study.json
-eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a  h1/cases/H1_C1_FIRST/AUTHOR_NOTES.md
-AUTHOR_PINS
+          9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435  h1/cases/H1_C1_FIRST/model.mo
+          b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc  h1/cases/H1_C1_FIRST/study.json
+          eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a  h1/cases/H1_C1_FIRST/AUTHOR_NOTES.md
+          AUTHOR_PINS
           sha256sum -c c1_f0_first_ci_evidence/first-author-pins.sha256 | tee c1_f0_first_ci_evidence/original-author-fingerprints.log
           python - <<'PY'
           from pathlib import Path
