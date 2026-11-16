@@ -2,23 +2,54 @@
 // This file does not calculate a new thermal trajectory or interpolate time.
 const SHA=/^[0-9a-f]{64}$/;
 const ID=/^[A-Za-z][A-Za-z0-9_]*$/;
+export const PAIR_SCHEMA='sim_heat.viewer.compare_index/2';
+const COMMIT=/^[0-9a-f]{40}$/;
+const EVIDENCE_FIELDS=['runId','artifactId','artifactSha256','compiledSourceCommit',
+  'archiveEntry','csvSha256','rawMatSha256'];
 function need(value,message){if(!value)throw Error(message);}
 function keys(value,names,label){need(value && typeof value==='object' && !Array.isArray(value) &&
   Object.keys(value).sort().join('|')===[...names].sort().join('|'),label+' fields invalid');}
 function positive(x){return typeof x==='number'&&Number.isFinite(x)&&x>0;}
+function positiveID(x){return Number.isSafeInteger(x)&&x>0;}
+function checkEvidence(value){
+  keys(value,EVIDENCE_FIELDS,'native pair evidence');
+  need(positiveID(value.runId)&&positiveID(value.artifactId)&&
+       [value.artifactSha256,value.csvSha256,value.rawMatSha256].every(x=>SHA.test(x))&&
+       COMMIT.test(value.compiledSourceCommit)&&
+       /^case_[0-9]{2}\/normalized\.csv$/.test(value.archiveEntry),
+       'Invalid or missing source native provenance');
+}
+function checkSourcePair(sources){
+  keys(sources,['baseline','successor'],'source pair');
+  checkEvidence(sources.baseline);checkEvidence(sources.successor);
+  const a=sources.baseline,b=sources.successor;
+  if(a.artifactId===b.artifactId)
+    need(a.runId===b.runId && a.artifactSha256===b.artifactSha256,
+         'Same original artifact has conflicting GitHub run/ZIP identities');
+  // One genuine native run can legitimately contain two different model slots.
+  need(a.runId!==b.runId||a.artifactId!==b.artifactId||
+       a.archiveEntry!==b.archiveEntry,
+       'Both sides point to exactly one archived native result slot');
+}
+function checkCaseSource(caseData,pin){
+  const s=caseData.source;
+  need(EVIDENCE_FIELDS.every(k=>s?.[k]===pin[k]),
+       'Original native run/artifact/CSV identity changed');
+}
 
 export function validateCompareIndex(value){
   keys(value,['schema','pairs'],'comparison index');
-  need(value.schema==='sim_heat.viewer.compare_index/1'&&Array.isArray(value.pairs)&&
+  need(value.schema===PAIR_SCHEMA&&Array.isArray(value.pairs)&&
        value.pairs.length>=1&&value.pairs.length<=20,'Unsupported comparison index');
   const ids=new Set();
   for(const pair of value.pairs){
-    keys(pair,['id','title','baseline','successor','revision'],'pair');
+    keys(pair,['id','title','baseline','successor','revision','sources'],'pair');
     need(ID.test(pair.id)&&!ids.has(pair.id)&&
       typeof pair.title==='string'&&pair.title.length>0&&pair.title.length<=120&&
       ID.test(pair.baseline)&&ID.test(pair.successor)&&pair.baseline!==pair.successor,
       'Invalid comparison pair identity');
     ids.add(pair.id);
+    checkSourcePair(pair.sources);
     const r=pair.revision;
     keys(r,['target','before','after','unit','origin','reason',
             'parentStudySha256','childStudySha256','parentModelSha256','childModelSha256'],'revision');
@@ -33,11 +64,14 @@ export function validateCompareIndex(value){
 }
 
 export function compareNativeCases(pair, baseline, successor){
+  checkSourcePair(pair.sources);
   need(baseline.id===pair.baseline&&successor.id===pair.successor&&
        baseline.schema==='sim_heat.viewer.native_case/1'&&
        successor.schema==='sim_heat.viewer.native_case/1',
        'Comparison requires the selected native transient cases');
   const r=pair.revision;
+  checkCaseSource(baseline,pair.sources.baseline);
+  checkCaseSource(successor,pair.sources.successor);
   need(baseline.source.nativeQualified===false&&successor.source.nativeQualified===false&&
        baseline.source.publicRequestStatus==='diagnostic_only'&&
        successor.source.publicRequestStatus==='diagnostic_only',
