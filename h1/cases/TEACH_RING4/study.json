@@ -1,0 +1,288 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "TEACH_RING4",
+  "model": {
+    "path": "model.mo",
+    "sha256": "3a4771b5e6254a72a2d96e8a432b5151db8af51c1ef1d49b9553bb0e9c56e5a8"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "tempA",
+      "op": "temperature",
+      "target": "A.port"
+    },
+    {
+      "id": "tempB",
+      "op": "temperature",
+      "target": "B.port"
+    },
+    {
+      "id": "tempC",
+      "op": "temperature",
+      "target": "C.port"
+    },
+    {
+      "id": "tempD",
+      "op": "temperature",
+      "target": "D.port"
+    },
+    {
+      "id": "flowbathToA",
+      "op": "heatFlow",
+      "target": "bathToA"
+    },
+    {
+      "id": "flowringAB",
+      "op": "heatFlow",
+      "target": "ringAB"
+    },
+    {
+      "id": "flowringBC",
+      "op": "heatFlow",
+      "target": "ringBC"
+    },
+    {
+      "id": "flowringCD",
+      "op": "heatFlow",
+      "target": "ringCD"
+    },
+    {
+      "id": "flowringDA",
+      "op": "heatFlow",
+      "target": "ringDA"
+    },
+    {
+      "id": "flowdiagonalAC",
+      "op": "heatFlow",
+      "target": "diagonalAC"
+    },
+    {
+      "id": "energyA",
+      "op": "energyChange",
+      "target": "A"
+    },
+    {
+      "id": "energyB",
+      "op": "energyChange",
+      "target": "B"
+    },
+    {
+      "id": "energyC",
+      "op": "energyChange",
+      "target": "C"
+    },
+    {
+      "id": "energyD",
+      "op": "energyChange",
+      "target": "D"
+    },
+    {
+      "id": "differenceAB",
+      "op": "temperatureDifference",
+      "a": "A.port",
+      "b": "B.port"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 24000,
+    "intervals": 2000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "A.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "A.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "A.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "B.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "B.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "B.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "C.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "C.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "C.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "D.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "D.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "D.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed teacher-style illustrative input in task, not a literal textbook value."
+    },
+    {
+      "target": "bath.T",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Maintained illustrative hot boundary, distinct from source Illustration 135."
+    },
+    {
+      "target": "bathToA.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "bathToA.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "bathToA.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringAB.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringAB.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringAB.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringBC.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringBC.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringBC.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringCD.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringCD.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringCD.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringDA.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringDA.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "ringDA.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "diagonalAC.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "diagonalAC.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "diagonalAC.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_ring4/TASK.md | Authoritative physical inputs",
+      "note": "Fixed illustrative rod parameter; conductance is derived by the engine."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "experiments/teacher_ring4/TASK.md | Fixed natural-language problem",
+      "note": "Four uniform-temperature lumped bodies, constant properties, storage-free conductive rods, ideal contacts, one maintained-temperature boundary, no matter/work/other heat exchange. Logical topology only; no physical geometry inference."
+    }
+  ]
+}

@@ -18,7 +18,7 @@ function modify(f){const d=structuredClone(data);f(d);return()=>validateCase(d,m
 test('original three transient identities are preserved; fourth is truly steady',()=>{
   const original=['H1_D1','H1_D2','DEV_BRIDGE'];
   assert.deepEqual(index.cases.slice(0,3).map(c=>c.id),original);
-  assert.equal(index.cases.length,4);
+  assert.equal(index.cases.length,5);
   assert.equal(data.schema,STEADY_SCHEMA);
   assert.equal(sha(readFileSync(DIR+'data/S1.json')),meta.sha256);
   assert.equal(sha(fixture),data.source.csvSha256);

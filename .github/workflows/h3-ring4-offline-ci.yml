@@ -1,0 +1,65 @@
+name: H3 teacher Ring4 — offline authoring/reference and existing viewer regressions
+on:
+  push:
+    branches:
+      - h3/teacher-ring4-composition
+    paths:
+      - 'h1/cases/TEACH_RING4/**'
+      - 'experiments/teacher_ring4/reference.json'
+      - 'h1/tests/test_verification.py'
+      - 'experiments/teacher_ring4/**'
+      - 'docs/H3_RING4_*.md'
+      - 'viewer/network/**'
+      - '.github/workflows/h3-ring4-offline-ci.yml'
+permissions:
+  contents: read
+concurrency:
+  group: sim-heat-h3-ring4-offline-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  teacher-authoring:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact source without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Use pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install checking-only dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 playwright==1.57.0
+      - name: Bind Chromium for native-code-free UI checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v google-chrome >/dev/null; then google-chrome --version
+          elif command -v chromium >/dev/null; then chromium --version
+          else python -m playwright install --with-deps chromium; fi
+      - name: Run all existing H1 and viewer regression tests and check new authoring admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h3_ring4_offline_evidence
+          git rev-parse HEAD > h3_ring4_offline_evidence/head-sha.txt
+          git ls-files -z | xargs -0 sha256sum > h3_ring4_offline_evidence/source.sha256
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee h3_ring4_offline_evidence/h1-tests.log
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee h3_ring4_offline_evidence/analytical.log
+          python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v 2>&1 | tee h3_ring4_offline_evidence/adapter-tests.log
+          node --test viewer/network/tests/*.test.mjs 2>&1 | tee h3_ring4_offline_evidence/node-tests.log
+          python -B viewer/network/tests/browser_smoke.py --out h3_ring4_offline_evidence/screenshots 2>&1 | tee h3_ring4_offline_evidence/browser.log
+          python -B -m h1 h1/cases/TEACH_RING4/study.json --root h1/cases > h3_ring4_offline_evidence/admission.json
+          python -c "import json; d=json.load(open('h3_ring4_offline_evidence/admission.json')); assert d['admitted'] and not d['nativeExecuted'] and len(d['requests'])==15 and all(x['status']=='not_computed' for x in d['requests'])"
+          PYTHONPATH=. python -B experiments/teacher_ring4/independent_ode_check.py > h3_ring4_offline_evidence/independent-ode.log
+          python -B -m h1.verify prepare --study h1/cases/TEACH_RING4/study.json --root h1/cases --reference experiments/teacher_ring4/reference.json --out h3_ring4_offline_evidence/reference.bundle.json > h3_ring4_offline_evidence/prepare-reference.json
+          python -c "import json; x=json.load(open('h3_ring4_offline_evidence/prepare-reference.json')); b=json.load(open('h3_ring4_offline_evidence/reference.bundle.json')); assert x['seal']==b['seal']"
+      - name: Preserve source, test logs, negative evidence and browser screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h3-ring4-offline-evidence-${{ github.sha }}
+          path: h3_ring4_offline_evidence/
+          if-no-files-found: warn
+          retention-days: 30
