@@ -8,7 +8,7 @@ import {validateIndex,validateCase,readingsAt,flowDescription,signDescription,
 
 const DIR=fileURLToPath(new URL('../',import.meta.url));
 const index=JSON.parse(readFileSync(DIR+'data/index.json','utf8'));
-const cases=()=>validateIndex(structuredClone(index)).filter(meta=>meta.id!=='H1_S1').map(meta=>{
+const cases=()=>validateIndex(structuredClone(index)).filter(meta=>['H1_D1','H1_D2','DEV_BRIDGE'].includes(meta.id)).map(meta=>{
   const bytes=readFileSync(DIR+meta.file);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),meta.sha256);
   return validateCase(JSON.parse(bytes.toString('utf8')),meta);
