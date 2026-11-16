@@ -1,0 +1,65 @@
+name: H1-C1-F0 original author first attempt — offline admission only
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-first-candidate
+    paths:
+      - 'h1/cases/H1C1_TwoBufferParallelBridge/**'
+      - '.github/workflows/h1-c1-f0-offline.yml'
+permissions:
+  contents: read
+concurrency:
+  group: sim-heat-c1-f0-first-attempt-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  frozen-admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact frozen-lineage candidate, no retained token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Set up pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install checking-only Python dependencies, NEVER OpenModelica
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Verify captured original physical file identities and source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h1_c1_first_attempt_evidence
+          git rev-parse HEAD > h1_c1_first_attempt_evidence/head-sha.txt
+          git ls-files -z | xargs -0 sha256sum > h1_c1_first_attempt_evidence/source-files.sha256
+          python --version > h1_c1_first_attempt_evidence/python.txt
+          python -m pip freeze > h1_c1_first_attempt_evidence/dependencies.txt
+          cd h1/cases/H1C1_TwoBufferParallelBridge
+          echo '9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435  model.mo' | sha256sum -c
+          echo 'b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc  study.json' | sha256sum -c
+          echo 'eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a  AUTHOR_NOTES.md' | sha256sum -c
+          echo '3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c  TASK_AUTHOR_COMMENT_ORIGINAL.md' | sha256sum -c
+      - name: Run original H1 offline regression without Modelica or author repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee h1_c1_first_attempt_evidence/h1-frozen-tests.log
+      - name: Capture exactly ONE first-attempt frozen H1 CLI admission, no fixes
+        shell: bash
+        run: |
+          set -uo pipefail
+          python -B -m h1 h1/cases/H1C1_TwoBufferParallelBridge/study.json --root h1/cases > h1_c1_first_attempt_evidence/first-admission.json 2> h1_c1_first_attempt_evidence/first-admission.stderr
+          code=$?
+          echo "$code" > h1_c1_first_attempt_evidence/first-admission.exitcode
+          cat h1_c1_first_attempt_evidence/first-admission.json
+          cat h1_c1_first_attempt_evidence/first-admission.stderr
+          exit "$code"
+      - name: Preserve exact-source, first admission, refusal and regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f0-first-author-offline-${{ github.sha }}
+          path: h1_c1_first_attempt_evidence/
+          if-no-files-found: warn
+          retention-days: 30
