@@ -356,12 +356,15 @@ def run(evidence:Path):
             pair.locator('#quantity-select').select_option('hot.T')
             expect(pair.locator('#baseline-value')).to_contain_text('K')
             expect(pair.locator('#successor-value')).to_contain_text('K')
+            assert not pair.locator('#baseline-value').inner_text().startswith('+')
+            assert not pair.locator('#successor-value').inner_text().startswith('+')
             assert pair.locator('#baseline-source a').get_attribute('href').endswith('43691263273')
             assert pair.locator('#successor-source a').get_attribute('href').endswith('43693191224')
             pair.screenshot(path=str(evidence/'whatif-desktop.png'),
                             full_page=True,animations='disabled')
             pair.set_viewport_size({'width':390,'height':844})
             assert pair.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
+            assert pair.locator('.plot-scroll').evaluate('(el)=>el.scrollWidth > el.clientWidth')
             expect(pair.locator('#inspector')).to_be_visible()
             pair.screenshot(path=str(evidence/'whatif-mobile.png'),
                             full_page=True,animations='disabled')
