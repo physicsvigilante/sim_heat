@@ -1,0 +1,119 @@
+{
+  "schema": "sim_heat.h1_c1_modal_preflight/1",
+  "id": "H1-C1-F0-STAGE2-EVALUATOR-MODAL-01",
+  "status": "checking_only_prospective_not_native_execution_or_certified_reference",
+  "physicalSource": "Original separate ChatGPT author Stage 1 task comment 6919450031 and byte-identical Stage 2 physical model comment 6919854838",
+  "sourceTaskSha256": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+  "firstModelSha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+  "firstStudySha256": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+  "evaluatorProspectiveStudySha256": "b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b",
+  "originalAnalysis": {
+    "startTime": 0,
+    "stopTime": 1800,
+    "intervals": 3600,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "evaluatorAnalysis": {
+    "startTime": 0,
+    "stopTime": 1810.609003248995,
+    "intervals": 4000,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "physicsScope": "Two uniform finite bodies, two maintained-temperature reservoirs and four storage-free conductors, including one circular rod with diameter input; fixed task values only; no new physical laws",
+  "independentlyEnteredCheckingFacts": {
+    "capacityLeft_J_per_K": 125,
+    "capacityRight_J_per_K": 180,
+    "conductanceHot_W_per_K": "0.45",
+    "conductanceFlat_W_per_K": "1.0",
+    "conductanceRound_W_per_K": "0.3141592653589793238463",
+    "conductanceCold_W_per_K": "0.4",
+    "matrixA_per_s": [
+      [
+        "-(0.45 + (1 + pi/10))/125",
+        "(1 + pi/10)/125"
+      ],
+      [
+        "(1 + pi/10)/180",
+        "-((1 + pi/10) + 0.4)/180"
+      ]
+    ],
+    "forcingB_K_per_s": [
+      "0.45 * 363.15 / 125",
+      "0.4 * 283.15 / 180"
+    ],
+    "initialTemperatures_K": [
+      293.15,
+      333.15
+    ]
+  },
+  "checkingOnlyEigenAnalysis": {
+    "method": "Evaluator independently constructed the two-state linear energy-balance matrix from locked task physical facts; 95-decimal-digit mpmath 2x2 spectral solution cross-checked against independent-in-code SciPy matrix exponential at every prospective grid point. Same evaluator context; no external human or blind referee yet.",
+    "positiveSlowRate_per_s": "0.00276150178808781737300776",
+    "positiveFastRate_per_s": "0.0208748793645561245724638",
+    "slowTau_s": "362.121800649798969008704",
+    "fastTau_s": "47.9044684539791886081591",
+    "fiveSlowTau_s_highPrecision": "1810.6090032489948450435213174",
+    "prospectiveStopTime_s": 1810.609003248995,
+    "stopTimeRelativeRounding": "8.55825185915421884e-17",
+    "outputIntervals": 4000,
+    "timeStep_s": 0.45265225081224875,
+    "maximumModeStepProduct": "0.0094490611298004939005931",
+    "requiredMaximumModeStepProduct": "<=0.01",
+    "minimumIntegerIntervalsApproximately": 3780,
+    "noConservedEigenmode": true,
+    "asymptoticBodyTemperatures_K": [
+      "330.727525421395255763917",
+      "319.625283900930337265593"
+    ]
+  },
+  "checkingOnlySelectedExamples": [
+    {
+      "sampleIndex": 0,
+      "time_s": 0,
+      "left_T_K": 293.15,
+      "right_T_K": 333.15,
+      "signedInterBodyGap_K": -40,
+      "flatBridge_Q_W": -40,
+      "roundBridge_Q_W": -12.566370614359172
+    },
+    {
+      "sampleIndex": 125,
+      "time_s": 56.58153135153109,
+      "left_T_K": 315.8059929883827,
+      "right_T_K": 320.1184082402013,
+      "signedInterBodyGap_K": -4.312415251818597
+    },
+    {
+      "sampleIndex": 160,
+      "time_s": 72.4243601299598,
+      "left_T_K": 318.7460580437065,
+      "right_T_K": 318.61720521949377,
+      "signedInterBodyGap_K": 0.12885282421274466
+    },
+    {
+      "sampleIndex": 4000,
+      "time_s": 1810.609003248995,
+      "left_T_K": 330.68590177051186,
+      "right_T_K": 319.58034050812535,
+      "signedInterBodyGap_K": 11.105561262386516
+    }
+  ],
+  "checkingOnlyNumericalComparison": {
+    "highPrecisionDigits": 95,
+    "gridPointsCompared": 4001,
+    "maxTemperatureDifference_K": 4.547473508864641e-13,
+    "comparedMethods": "2x2 analytic spectral projectors in mpmath (95 dps) and scipy.linalg.expm (float64) using independently constructed task equations",
+    "scientificLimit": "Numerical algorithm agreement plus exact task equation reasoning is not a certified global numerical error bound or independent physical reference certification. Every new native output requires separate independent R2 adjudication and preserved diagnostic-only status."
+  },
+  "analysisAssistance": {
+    "changedOnly": "study.json analysis.stopTime and analysis.intervals, in separate evaluator H1_C1_MODAL directory; original model.mo exact same bytes and original first study left intact.",
+    "reason": "C1 freeze specifies five slowest positive time constants and h * fastest mode rate <= 0.01 with even 1000..10000 intervals.",
+    "authorFirstProvisionalWindowNativeApproved": false,
+    "newNativePlanCreated": false,
+    "nativeVersionQueries": 0,
+    "nativeBuilds": 0,
+    "nativeLaunches": 0
+  }
+}
