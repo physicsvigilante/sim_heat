@@ -145,6 +145,40 @@ test('refuse mismatched source hashes, ownership, identity or time without inter
   }
 });
 
+test('same GitHub run means exactly one executed workflow commit across output slots',()=>{
+  // SYNTHETIC TEST-ONLY repinning of the already verified D2/D2-K2 pair.
+  // Different case files from one authenticated run may occupy distinct slots,
+  // but a GitHub Actions run has one workflow GITHUB_SHA.
+  const p=pairing();
+  const a=p.sources.baseline,b=p.sources.successor;
+  b.runId=a.runId;
+  b.compiledSourceCommit=a.compiledSourceCommit;
+  const base=load('H1_D2'),child=load('H1_D2_K2');
+  child.source.runId=a.runId;
+  child.source.compiledSourceCommit=a.compiledSourceCommit;
+  assert.equal(validateCompareIndex({schema:PAIR_SCHEMA,pairs:[p]}).length,1);
+  assert.equal(compareNativeCases(p,base,child).rows.length,21);
+  // Different ZIP artifacts can exist in the same GitHub Actions run.
+  assert.notEqual(a.artifactId,b.artifactId);
+  const bad=structuredClone(p);
+  bad.sources.successor.compiledSourceCommit='0'.repeat(40);
+  assert.throws(()=>validateCompareIndex({schema:PAIR_SCHEMA,pairs:[bad]}),
+                /conflicting executed source commits/);
+  assert.throws(()=>compareNativeCases(bad,base,child),
+                /conflicting executed source commits/);
+  // The same original ZIP can contain different case_XX output slots.
+  b.artifactId=a.artifactId;
+  b.artifactSha256=a.artifactSha256;
+  b.archiveEntry='case_01/normalized.csv';
+  child.source.artifactId=a.artifactId;
+  child.source.artifactSha256=a.artifactSha256;
+  child.source.archiveEntry=b.archiveEntry;
+  assert.equal(compareNativeCases(p,base,child).rows.length,21);
+  b.compiledSourceCommit='0'.repeat(40);
+  assert.throws(()=>validateCompareIndex({schema:PAIR_SCHEMA,pairs:[p]}),
+                /conflicting executed source commits/);
+});
+
 test('comparison stays source-data-driven, no solver or individual apparatus code paths',()=>{
   const app=readFileSync(dir+'compare.mjs','utf8'),core=readFileSync(dir+'compare_core.mjs','utf8');
   for(const token of ['H1_D2','H1_D2_K2','SimHeat.RodArea','buildModel(', 'simulate(', 'TeacherRingFour']){
