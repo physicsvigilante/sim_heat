@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from qualification.h1_c1.immutable_fixture import inspect_pr31_fixture as inspector
 from qualification.h1_c1.immutable_fixture.capture_pr31_fixture import (
@@ -70,6 +71,16 @@ class ImmutableFixtureTests(unittest.TestCase):
             ("reviewedV2SourceSha", "f"*64),
             ("physicalSpecSha256", "f"*64),
             ("archiveFullSha256", "f"*64),
+            # PR #33 review F-01: these originally unpinned claims could be
+            # counterfeited without modifying the valid stored reference.
+            ("githubActionsOriginalZipSha256", "f"*64),
+            ("extractedArchivedFileName", "unreviewed.json"),
+            ("origin", "owner_certified_native_reference"),
+            ("limitations", []),
+            ("retentionClaim", "permanent owner certified reference"),
+            ("referenceErrorClaim", "no reference errors exist"),
+            ("archiveEncoding", "different_unverified_compressor"),
+            ("archiveBytes", 636796),
         ):
             with self.subTest(field=field):
                 with tempfile.TemporaryDirectory() as t:
@@ -97,6 +108,45 @@ class ImmutableFixtureTests(unittest.TestCase):
             self.save_manifest(root,manifest)
             with self.assertRaises(inspector.FixtureRefusal):
                 inspector.load_candidate(root,inspect_only=True)
+
+    def test_valid_alternate_compression_with_forged_manifest_refused(self):
+        """PR33 F-02: different valid XZ cannot replace the pinned Git object."""
+        with tempfile.TemporaryDirectory() as t:
+            root = self.install_copy(t)
+            original = (root/inspector.BUNDLE_NAME).read_bytes()
+            exact_raw = lzma.decompress(original)
+            different = lzma.compress(exact_raw, format=lzma.FORMAT_XZ, preset=3)
+            self.assertNotEqual(different, original)
+            self.assertEqual(lzma.decompress(different), exact_raw)
+            (root/inspector.BUNDLE_NAME).write_bytes(different)
+            fake = self.load_manifest(root)
+            fake["archiveFullSha256"] = hashlib.sha256(different).hexdigest()
+            fake["archiveBytes"] = len(different)
+            self.save_manifest(root, fake)
+            with self.assertRaises(inspector.FixtureRefusal):
+                inspector.load_candidate(root, inspect_only=True)
+
+    def test_decoder_memory_limit_applied_to_authentic_archive(self):
+        """PR33 F-03: actual decoder receives a bounded XZ memlimit."""
+        original_decoder = lzma.LZMADecompressor
+        with mock.patch.object(inspector.lzma, "LZMADecompressor",
+                               wraps=original_decoder) as decoder:
+            data = inspector.load_candidate(inspect_only=True)
+            self.assertEqual(data["rawSha256"], V2_RAW_SHA)
+            decoder.assert_called_once_with(
+                format=lzma.FORMAT_XZ,
+                memlimit=inspector.XZ_DECODER_MEMORY_LIMIT)
+
+    def test_modified_header_refused_before_decoder_allocation(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = self.install_copy(t)
+            corrupted = bytearray((root/inspector.BUNDLE_NAME).read_bytes())
+            corrupted[0] ^= 0x40
+            (root/inspector.BUNDLE_NAME).write_bytes(corrupted)
+            with mock.patch.object(inspector.lzma, "LZMADecompressor") as decoder:
+                with self.assertRaises(inspector.FixtureRefusal):
+                    inspector.load_candidate(root, inspect_only=True)
+                decoder.assert_not_called()
 
     def test_original_raw_archive_rejects_changed_data(self):
         from qualification.h1_c1.immutable_fixture.capture_pr31_fixture import (
