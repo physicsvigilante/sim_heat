@@ -1,0 +1,79 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "H1C1TwoBufferParallelBridge",
+  "mode": "transient",
+  "modelSha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+  "studySha256": "b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 1810.609003248995,
+    "intervals": 4000,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "provenance": "Checking-only, separately entered by the evaluator from the verbatim independent-author Stage 1 task comment 6919450031 (SHA-256 3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c). Task selected by an LLM with disclosed prior H1 summaries; not fully blind, not an independent human source or certified reference. All values and topology are physical givens, not solved answers. Original Stage 2 model/study are preserved byte-for-byte; this distinct study changes only prospective evaluator analysis grid; no native simulator result is included.",
+  "nodes": [
+    "H",
+    "L",
+    "R",
+    "C"
+  ],
+  "bodies": {
+    "leftBuffer": {
+      "node": "L",
+      "m": 0.25,
+      "c": 500,
+      "T_initial": 293.15
+    },
+    "rightBuffer": {
+      "node": "R",
+      "m": 0.3,
+      "c": 600,
+      "T_initial": 333.15
+    }
+  },
+  "boundaries": {
+    "hotBath": {
+      "node": "H",
+      "T": 363.15
+    },
+    "coldBath": {
+      "node": "C",
+      "T": 283.15
+    }
+  },
+  "rods": {
+    "hotLead": {
+      "kind": "RodArea",
+      "a": "H",
+      "b": "L",
+      "k": 150,
+      "L": 0.1,
+      "A": 0.0003
+    },
+    "flatBridge": {
+      "kind": "RodArea",
+      "a": "L",
+      "b": "R",
+      "k": 200,
+      "L": 0.1,
+      "A": 0.0005
+    },
+    "roundBridge": {
+      "kind": "RodCircular",
+      "a": "L",
+      "b": "R",
+      "k": 50,
+      "L": 0.05,
+      "d": 0.02
+    },
+    "coldLead": {
+      "kind": "RodArea",
+      "a": "R",
+      "b": "C",
+      "k": 100,
+      "L": 0.1,
+      "A": 0.0004
+    }
+  }
+}
