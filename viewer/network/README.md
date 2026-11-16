@@ -10,7 +10,7 @@ From the root of `sim_heat`:
 python -m http.server 8000
 ```
 
-Open <http://localhost:8000/viewer/network/>. It includes the three original **historical transient diagnostics** — D1 (one finite body and reservoir), D2 (two finite bodies), DEV_BRIDGE (two boundaries and five rods) — and **S1**, the PDF Illustration 123 steady copper/steel series conductor. The original bridge-only prototype remains at `/viewer/`.
+Open <http://localhost:8000/viewer/network/>. It includes the three original **historical transient diagnostics** — D1 (one finite body and reservoir), D2 (two finite bodies), DEV_BRIDGE (two boundaries and five rods) — **S1**, the PDF Illustration 123 steady copper/steel series conductor, and **TEACH_RING4**, a developer-authored four-body conductive ring with one diagonal rod and a hot reservoir. Ring4 is an illustrative extension of the conduction mechanism, **not** an actual textbook question or a held-out C1 author trial. The original bridge-only prototype remains at `/viewer/`.
 
 Choose a case and select a body, rod, junction or boundary. **Transient cases** allow scrubbing authentic saved times; **steady cases** show one native algebraic state with no time slider, playback or time-history charts. Both show available temperatures in K, signed rod/boundary power in W and, for finite bodies only, relative energy change in J. Node locations are **logical topology**, not apparatus geometry. Chart lines are a drawing convention, **not computed intermediate physics**. The case list and all graph structure/observed fields are data: `data/index.json` plus one `data/<case>.json` file per arrangement. A viewer change is **not** required to add a new supported arrangement **within one of these two versioned physical modes**.
 
@@ -18,7 +18,7 @@ Positive rod flow follows the authored `port_a → port_b` orientation. Positive
 
 ## Data, original source and integrity
 
-All previews were generated from **actual saved native CSVs** whose corresponding original archived ZIP, model/study bytes and `checks_passed` diagnostic records were SHA-matched. The source authorship and native check statuses remain explicit. D1/D2: [run 43691263273](https://github.com/physicsvigilante/sim_heat/actions/runs/43691263273), ZIP SHA-256 `8fc38b9e2f040b48ab5cbeab34e8698b7c99c4d462a1e31e8bc33b0395185379`. DEV_BRIDGE: [run 43699424883](https://github.com/physicsvigilante/sim_heat/actions/runs/43699424883), ZIP SHA-256 `f16975a25eea79f61f7819fb9e704ab04a33630044a51a0d062b8399c1c9ce38`.
+All previews were generated from **actual saved native CSVs** whose corresponding original archived ZIP, model/study bytes and `checks_passed` diagnostic records were SHA-matched. The source authorship and native check statuses remain explicit. D1/D2: [run 43691263273](https://github.com/physicsvigilante/sim_heat/actions/runs/43691263273), ZIP SHA-256 `8fc38b9e2f040b48ab5cbeab34e8698b7c99c4d462a1e31e8bc33b0395185379`. DEV_BRIDGE: [run 43699424883](https://github.com/physicsvigilante/sim_heat/actions/runs/43699424883), ZIP SHA-256 `f16975a25eea79f61f7819fb9e704ab04a33630044a51a0d062b8399c1c9ce38`. Ring4: [native run 43845664024](https://github.com/physicsvigilante/sim_heat/actions/runs/43845664024), original artifact 14215520616, full ZIP SHA-256 `0bc1433be66df2827f8907d100ca264f6a721fe8ad40644b962500b97fa9b8b2`.
 
 The case manifests explicitly retain SHA-256 identities of original compiled Modelica and study descriptors, native CSV, raw MAT and ZIP artifact, historical run/commit, source of each observed channel, the sampled output grid and topology ports. All values are copied from the original native CSV; the adapter does not compute missing temperatures or Fourier fluxes. No claim of independent sensor measurement is made. Original traces are **diagnostic_only**, `nativeQualified=false`, not full H1 or classroom qualification.
 
@@ -67,6 +67,30 @@ python -B viewer/network/tools/build_steady_case.py \
 The resulting byte hash must equal the tracked `data/S1.json` SHA-256 **`eacab37b499a47c094cbd642acfee269a1bea7c82d16b15b9217a8c13ef1e4e7`**. This reproduces the saved **native data selection**, not a second solver run. The test-only `tests/fixtures/S1-native-normalized.csv` retains the exact original normalized CSV bytes so browser and Node tests can exercise authentic SHA checks without expiring artifact downloads.
 
 Both mode contracts remain `diagnostic_only`, `nativeQualified=false`. This feature is not a native scientific qualification, independently certified reference error, unrestricted-model service, or classroom evaluation.
+
+## H3 — Four-body teacher-authored ring, genuine transient native evidence
+
+The fixed [teacher task](../../../experiments/teacher_ring4/TASK.md) was committed **before** the first `TeacherRingFour` model and study; it describes the one-reservoir + four-body A–B–C–D–A conducting ring with an A–C shortcut. All masses, heat capacities, initial states, rod conductivities, lengths and areas are **illustrative inputs**. The problem tests composability of supported components, not a literal book illustration, a held-out blind-author transfer or an arbitrary physical law.
+
+A separate, owner-approved [OpenModelica run 43845664024](https://github.com/physicsvigilante/sim_heat/actions/runs/43845664024) compiled and executed the **unchanged** first-authored Modelica source in one version query, one build, one launch. [Original ZIP artifact 14215520616](https://github.com/physicsvigilante/sim_heat/actions/runs/43845664024/artifacts/14215520616), SHA-256 **`0bc1433be66df2827f8907d100ca264f6a721fe8ad40644b962500b97fa9b8b2`**, retains 88/88 verified original native source/member hashes. Native raw MAT SHA-256 `6ed17558911379b0be0d85f46e1a00d9ce3cac8aca0513fe3d5fd9209156af5b`, normalized CSV SHA-256 `31b3f77dca6227462505c548907f9cf7ed7b620f8b23d73ba8ea9953f52d87d7` (`1,962,266` original bytes). Exactly **126/126** H1 diagnostics and 15 public observations passed at the unchanged numerical policy; all remain **`diagnostic_only`, `nativeQualified=false`**. This does not independently certify native accuracy or measure a physical apparatus.
+
+The [fifth original-native data bundle](data/TEACH_RING4.json) includes 5 graph nodes, 6 oriented rods, 4 finite body `ΔU` channels and a boundary W channel. **29 authentic saved samples from 2,001 physical-time samples** include both sides of four observed sign reversals: `ringDA` 336–348 s, `ringAB` 756–768 s, `ringCD` 1956–1968 s, `ringBC` 3984–3996 s. No exact unsampled zero instant is claimed and no case-name-specific renderer code was added. The UI illustrates *logical* connectivity, not literal rod positions or lengths.
+
+A small **generic archive-read compatibility** addition to `tools/build_case.py` reads original SHA-pinned ZIPs with either a root-level `attempt.json` (legacy D1/D2/bridge) or one nested native-attempt directory (new GitHub Actions multi-folder artifact); original whole-ZIP digest and bytes are untouched and no archives are silently re-packed. The new input-layout path does **not** infer missing native data or change the H1 checker. To regenerate the new bundle against the **original full GitHub ZIP**, after downloading/verifying its run, exact SHA and source:
+
+```sh
+python -B viewer/network/tools/build_case.py \
+  --study h1/cases/TEACH_RING4/study.json \
+  --archive /path/to/h3-ring4-native-successor-evidence.zip \
+  --archive-sha 0bc1433be66df2827f8907d100ca264f6a721fe8ad40644b962500b97fa9b8b2 \
+  --case-slot 1 --artifact-id 14215520616 \
+  --title 'Ring4 · four bodies, loop and shortcut' \
+  --out /tmp/TEACH_RING4-replayed.json
+```
+
+The generated byte SHA-256 must equal **`b4f46b2953409980ea5d5ed1b41cafaf5a7504003da44038d9d51286bb6e8a34`**. This is an offline selection of **actual original native readings**, not a new simulation. Independently, the unchanged `parseNativeCsv` accepted all 2,001 full authentic native saved time points from the 1,962,266-byte original CSV and checked the preview after its exact hash.
+
+The original one-shot [43843168327](https://github.com/physicsvigilante/sim_heat/actions/runs/43843168327) failed *before* native execution due a preflight synthetic-fixture inventory mistake; the original failure and related failed offline CI remain preserved. A separate author-approved successor ran exactly once after a data-only correction and new offline qualification. This fifth case does **not** advance blind H1-C1 transfer, R3 scientific error certification, symbolic inverse solving or classroom effectiveness. See the [full evidence report](../../../experiments/teacher_ring4/NATIVE_SUCCESSOR_RESULTS.md) and [R2 scope](../../../docs/H3_RING4_COMPOSITION_VIEWER_SCOPE.md).
 
 ## Checks, scope and review
 
