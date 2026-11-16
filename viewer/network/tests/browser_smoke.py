@@ -36,7 +36,7 @@ def run(evidence:Path):
             page=browser.new_page(viewport={'width':1376,'height':940})
             page.on('pageerror',lambda x:errors.append(str(x)))
             page.goto(f'http://127.0.0.1:{http.server_port}/index.html',wait_until='networkidle')
-            expect(page.locator('#case-select option')).to_have_count(4)
+            expect(page.locator('#case-select option')).to_have_count(5)
             expect(page.locator('#graph-count')).to_have_text('2 nodes · 1 rods')
             expect(page.locator('#sample-note')).to_contain_text('21 saved points')
             assert page.locator('#network .node-button').count()==2
@@ -115,6 +115,40 @@ def run(evidence:Path):
             assert page.locator('#time-label').inner_text()=='—'
             assert page.locator('#steady-panel').is_visible()
 
+            # Fifth case: genuine new 4-body native trace, same data-only
+            # renderer. Source native time is 0–24,000 s, not an invented mode.
+            page.locator('#case-select').select_option('TEACH_RING4')
+            expect(page.locator('#model-id')).to_have_text('TeacherRingFour')
+            expect(page.locator('#graph-count')).to_have_text('5 nodes · 6 rods')
+            expect(page.locator('#sample-note')).to_contain_text('29 saved points')
+            assert page.locator('#network .node-button').count()==5
+            assert page.locator('#network .edge-button').count()==6
+            assert page.locator('#steady-panel').is_hidden()
+            assert page.locator('#time-panel').is_visible()
+            assert page.locator('#temperature-panel').is_visible()
+            assert page.locator('#time-slider').is_enabled()
+            assert page.locator('#reversal').is_enabled()
+            assert numeric_time(page)==0.0
+            assert page.locator('#energy-readouts .record-field').count()==6
+            assert page.locator('#check-count').inner_text()=='126 passed; diagnostic_only'
+            page.locator('#reversal').click()
+            assert numeric_time(page)==768.0
+            assert 'A → B' in page.locator('#current-direction').inner_text()
+            page.screenshot(path=str(evidence/'ring4-reversal.png'),
+                            full_page=True,animations='disabled')
+            # A keyboard-selected original rod has its own signed orientation.
+            edge=page.locator('#network .edge-button[aria-label^="Select rod ringDA"]')
+            edge.focus()
+            page.keyboard.press('Enter')
+            assert 'A → D' in page.locator('#current-direction').inner_text()
+            page.locator('#native-import').set_input_files(str(bogus))
+            expect(page.locator('#import-status')).to_contain_text('File refused: Original native CSV SHA-256 mismatch')
+            assert numeric_time(page)==768.0
+            page.locator('#case-select').select_option('H1_S1')
+            expect(page.locator('#steady-panel')).to_be_visible()
+            assert page.locator('#time-panel').is_hidden()
+            assert page.locator('#current-value').inner_text()=='+1.08 W'
+
             # A different source case cannot silently reuse previous good observations.
             def tampered(route): route.fulfill(status=200,content_type='application/json',body='{"schema":"tampered"}')
             page.route('**/data/D2.json',tampered)
@@ -152,6 +186,15 @@ def run(evidence:Path):
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
             assert page.locator('.graph-frame').evaluate('(el)=>el.scrollWidth>el.clientWidth')
             page.screenshot(path=str(evidence/'mobile-steady.png'),full_page=True,animations='disabled')
+            page.locator('#case-select').select_option('TEACH_RING4')
+            expect(page.locator('#graph-count')).to_have_text('5 nodes · 6 rods')
+            assert page.locator('#steady-panel').is_hidden()
+            assert page.locator('#time-panel').is_visible()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
+            assert page.locator('.graph-frame').evaluate('(el)=>el.scrollWidth>el.clientWidth')
+            assert page.locator('#network .edge-button').count()==6
+            page.screenshot(path=str(evidence/'mobile-ring4.png'),
+                            full_page=True,animations='disabled')
             # F-02: Test-only synthetic full D1 fixture, with its own
             # temporary, re-hashed D1 bundle/catalog. It exercises real
             # WebCrypto + native CSV parsing, NOT an independent native result.
@@ -278,7 +321,7 @@ def run(evidence:Path):
             tamper.close()
             assert not errors,errors
             browser.close()
-            print('PASS: D1/D2/bridge and authentic S1 steady; no fictitious time; refusal/import races; desktop/mobile screenshots')
+            print('PASS: D1/D2/bridge, authentic S1 steady and native Ring4; four rod reversals, refusal/import races and desktop/mobile screenshots')
     finally:
         http.shutdown();http.server_close();thread.join(timeout=3)
 
