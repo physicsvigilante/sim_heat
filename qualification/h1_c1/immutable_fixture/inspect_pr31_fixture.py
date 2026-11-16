@@ -18,6 +18,13 @@ EXPECTED_STATUS = "PROPOSED_STORAGE_ONLY_NOT_APPROVED_FOR_NATIVE_CONSUMPTION"
 BUNDLE_NAME = "PR31_V2_REFERENCE.json.xz"
 MANIFEST_NAME = "PR31_V2_REFERENCE_MANIFEST.json"
 
+# Trusted only with a separately reviewed/pinned source commit. These constants
+# are independent of writable values inside the candidate manifest itself.
+EXPECTED_MANIFEST_RAW_SHA256 = "50467b138ed64cdb908f2c763bc777e6babf0bb04a0711568acc559112e66f84"
+EXPECTED_ARCHIVE_RAW_SHA256 = "fc5a7df5928c3fb8aef2ba4af516dfbd32b42c0450ebef1051ad4fd7efebd17f"
+EXPECTED_ARCHIVE_BYTES = 503_552
+XZ_DECODER_MEMORY_LIMIT = 64 * 1024 * 1024
+
 
 class FixtureRefusal(ValueError):
     pass
@@ -43,9 +50,13 @@ def load_candidate(root=None, *, inspect_only=False):
     ):
         raise FixtureRefusal("candidate archived fixture/manifest missing or symlink")
     try:
-        manifest_raw = manifest_path.read_bytes()
-        if len(manifest_raw) > 20_000:
+        # Verify the *whole* originally reviewed manifest before interpreting
+        # its historical attribution or any values used as evidence.
+        if manifest_path.stat().st_size > 20_000:
             raise FixtureRefusal("oversized fixture manifest")
+        manifest_raw = manifest_path.read_bytes()
+        if hashlib.sha256(manifest_raw).hexdigest() != EXPECTED_MANIFEST_RAW_SHA256:
+            raise FixtureRefusal("entire manifest is not the pinned reviewed manifest")
         manifest = json.loads(manifest_raw.decode("utf-8"), object_pairs_hook=unique_pairs)
         if manifest.get("schema") != "sim_heat.c1_v2_fixture_candidate/1" or (
             manifest.get("status") != EXPECTED_STATUS or
@@ -74,15 +85,22 @@ def load_candidate(root=None, *, inspect_only=False):
         for field, expected in requirements.items():
             if manifest.get(field) != expected:
                 raise FixtureRefusal("fixture manifest identity field mismatch: "+field)
+        # The specific Git object is pinned independently of the mutable
+        # manifest. Recompression and manifest rehashing cannot pass.
+        if binary.stat().st_size != EXPECTED_ARCHIVE_BYTES:
+            raise FixtureRefusal("archive size not the pinned reviewed representation")
         payload = binary.read_bytes()
-        if len(payload) > 1_000_000 or (
+        payload_sha = hashlib.sha256(payload).hexdigest()
+        if (len(payload) != EXPECTED_ARCHIVE_BYTES or
+            payload_sha != EXPECTED_ARCHIVE_RAW_SHA256 or
             len(payload) != manifest.get("archiveBytes") or
-            hashlib.sha256(payload).hexdigest() != manifest.get("archiveFullSha256")
+            payload_sha != manifest.get("archiveFullSha256")
         ):
-            raise FixtureRefusal("compressed archive does not match manifest")
-        # lzma decompression is restricted to the 1 MiB pinned compressed file;
-        # decompressed size/hash is pinned after extraction.
-        decompressor = lzma.LZMADecompressor(format=lzma.FORMAT_XZ)
+            raise FixtureRefusal("compressed archive differs from pinned reviewed bytes")
+        # Bound XZ dictionary/decoder memory independently of the output cap.
+        # The original archive is authenticated before invoking the decoder.
+        decompressor = lzma.LZMADecompressor(
+            format=lzma.FORMAT_XZ, memlimit=XZ_DECODER_MEMORY_LIMIT)
         plain = decompressor.decompress(payload, max_length=V2_RAW_LENGTH+1)
         if not decompressor.eof or decompressor.unused_data or (
             len(plain) != V2_RAW_LENGTH
