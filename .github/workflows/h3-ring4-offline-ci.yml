@@ -8,6 +8,7 @@ on:
       - 'experiments/teacher_ring4/reference.json'
       - 'h1/tests/test_verification.py'
       - 'experiments/teacher_ring4/**'
+      - 'docs/H3_RING4_*.md'
       - 'viewer/network/**'
       - '.github/workflows/h3-ring4-offline-ci.yml'
 permissions:
