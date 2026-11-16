@@ -1,0 +1,27 @@
+# H1-C1 F0 — PROPOSED immutable PR #31 checking reference (Option A)
+
+**Policy status: CANDIDATE — NOT CERTIFIED, NO NATIVE/PRODUCTION AUTHORIZATION.**
+
+This is a separate pre-native R2 experiment following Chat B's [PR #32 review](https://github.com/physicsvigilante/review_sandbox/blob/main/projects/sim_heat/pr-32/reviews/review-01-chat-b.md). It preserves **exactly the verified PR #31 V2 checking reference bytes**, instead of claiming that the numerical generator can bit-for-bit regenerate them across environments. **It does not approve an exception to the frozen F0 100× scientific accuracy budget, change the original H1 source/physics, retrofit the original failed reference, substitute an alternate seal, or authorize the first OpenModelica run.**
+
+## Archived object and provenance
+
+The original [PR #31 exact-head CI run #43915934653](https://github.com/physicsvigilante/sim_heat/actions/runs/43915934653), artifact [#14249313720](https://github.com/physicsvigilante/sim_heat/actions/runs/43915934653/artifacts/14249313720), provided the independently reviewed `C1_REFERENCE_V2_BUNDLE.json` as **4,409,800 original JSON bytes**. Its raw SHA-256 is **`0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368`**. Its canonical field/seal SHA-256 is **`d2b8e2ca8e1f929cac7b028dcc3f7d0b453921d193f877eb091e23ac70aa4ce9`**. The whole CI ZIP SHA-256 (independently verified by Chat B) is **`d9259837e0e03c70989b50b2c9dcbf13aca260da4d1cb0ae000b2a23ef65732e`**. Source code HEAD reviewed for that ZIP was `d857c8e807612026ecdf624277b4ace3977fefe3`.
+
+The same complete original bytes, **not a newly regenerated or corrected reference**, are compressed into `qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz` (xz/LZMA compression only) and accompanied by a **new manifest** `PR31_V2_REFERENCE_MANIFEST.json`. The archival script validates original raw SHA, length, canonical seal, original source/spec hashes, 37 channels, 4001 samples, four integral histories and V2 corrected `hotLead.G` before storage. The new manifest records compressed SHA/length and original archived raw/source/seal identities. Compression is a reversible storage representation, not new checking physics or a substitute reference calculation.
+
+The GitHub source **branch and pinned archival commit** retain the compressed byte-for-byte candidate beyond ordinary Actions artifact expiration *while that Git reference remains available*. The branch can be deleted and must not be described as guaranteed permanent preservation; an owner-approved future tag/retention policy is needed before certified long-term dependency. GitHub Actions storage is still a separately recorded historic artifact rather than the only consumer source.
+
+## Reader boundaries and refusal controls
+
+`inspect_pr31_fixture.py` is a candidate-only, fail-closed **read-only inspector**. It requires `--inspect-only` and checks a committed compressed SHA/size against the separate manifest, then original decompressed raw SHA/size, true canonical JSON seal, source/spec/model/study identities, schema, nativeQualified=false, all 37 export channels × 4,001 timestamps and 4 flow integrals. It does **not** generate, round, interpolate, or repair any sample. It does not import or invoke `h1.reference.prepare` or any native runner.
+
+**Its default is refusal**, even when the archive is valid. A green inspection means exactly `CANDIDATE_STORAGE_INTEGRITY_PASS_NOT_AUTHORIZED_FOR_NATIVE`, not owner approval or numerical requalification. Native use cannot be triggered through this candidate reader. Unit negative tests prove refusal on mutated/recompressed data, missing/invalid archive, forged manifest/source/seal, and invented `approvedForNative=true`.
+
+The original static F0 failure **80× vs required 100×** remains unchanged at original seal `d76c98f37a0629b56d977c960d1e75694e1121832a9d5281f68bb972d31a365b`. The archived PR #31 V2 corrected static export is `0.45 W/K` (320×), and Chat B independently checked the entire saved 37-channel/4-integral 100× grid. Later two-host new regenerations (`c30e8783…`) are **different exact objects** even though each independently passes physical checks; the two-host bitwise-identity gate remains **FAIL/HOLD**. Do not accept those as equal to the archived candidate.
+
+## Open gates and independent review request
+
+This branch makes only a **draft immutable-fixture storage and inspection contract**. Its automated archival workflow has a single path to the original reviewed GitHub Actions artifact and can commit **new binary/manifests to its own branch only**, never touching original physical data. The separate CI verifies all source pins, exact pristine archived byte identity, reproducible compression, full manifest/reader checks, refusals, and 149 frozen H1 regressions. Historic failed/negative events remain intact.
+
+**Required for any reference certification/consumption:** one focused independent R2 review of the pinned archival source, exact stored bytes/manifests, and negative controls; then explicit **owner approval of Option A**, acknowledging that reference **consumption is artifact-reproducible** but its numerical *generator is not bitwise portable*. Only after that could a distinct reference-bound **F-02 one-shot** workflow/host/plan be drafted, independently reviewed, separately authorized, and eventually executed. No such workflow or plan is implemented in this candidate. No production/historical PR merge is authorized.
