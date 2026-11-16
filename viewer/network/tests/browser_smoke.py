@@ -150,6 +150,7 @@ def run(evidence:Path):
             expect(page.locator('#steady-panel')).to_be_visible()
             assert page.locator('#time-panel').is_hidden()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
+            assert page.locator('.graph-frame').evaluate('(el)=>el.scrollWidth>el.clientWidth')
             page.screenshot(path=str(evidence/'mobile-steady.png'),full_page=True,animations='disabled')
             # F-02: Test-only synthetic full D1 fixture, with its own
             # temporary, re-hashed D1 bundle/catalog. It exercises real
@@ -227,6 +228,35 @@ def run(evidence:Path):
                 assert 'NaN' not in test.locator('#energy-readouts').inner_text()
                 assert 'Exact native CSV verified' not in test.locator('#import-status').inner_text()
                 test.screenshot(path=str(evidence/'import-race.png'),full_page=True,animations='disabled')
+                # Cross-MODE F-02: neither a successful old import nor an
+                # asynchronously rejected one can overwrite a selected steady
+                # case's readings, provenance or no-time presentation.
+                rejected=Path(scratch)/'REJECTED-D1-late.csv'
+                rejected.write_bytes(b'wrong,non-native,csv\n0,1,2\n')
+                for label,source_file in [('valid',fixture),('refused',rejected)]:
+                    test.reload(wait_until='networkidle')
+                    expect(test.locator('#model-id')).to_have_text('H1_D1')
+                    test.evaluate('(size)=>{window.__heldNative.expected=size;window.__heldNative.armed=true}',
+                                  source_file.stat().st_size)
+                    test.locator('#native-import').set_input_files(str(source_file))
+                    test.wait_for_function("""()=>window.__heldNative.pending === true &&
+                        window.__heldNative.done === false &&
+                        typeof window.__heldNative.release === 'function'""")
+                    test.locator('#case-select').select_option('H1_S1')
+                    expect(test.locator('#model-id')).to_have_text('H1_S1')
+                    expect(test.locator('#steady-panel')).to_be_visible()
+                    test.evaluate('window.__heldNative.release()')
+                    test.wait_for_function('window.__heldNative.done')
+                    test.wait_for_timeout(100)
+                    expect(test.locator('#model-id')).to_have_text('H1_S1')
+                    assert test.locator('#time-panel').is_hidden()
+                    assert test.locator('#temperature-panel').is_hidden()
+                    assert test.locator('#steady-readouts').locator('.record-field').count()==5
+                    assert test.locator('#current-value').inner_text()=='+1.08 W'
+                    assert test.locator('#import-status').inner_text().startswith('No import yet')
+                    assert not test.locator('#error').is_visible()
+                    test.screenshot(path=str(evidence/('import-race-steady-'+label+'.png')),
+                                    full_page=True,animations='disabled')
                 test.close()
             # Refusal of a tampered steady bundle after a genuine transient also
             # clears all previous graph, numeric and source-linked evidence.
