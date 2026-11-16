@@ -48,7 +48,9 @@ A **new** authorized [S1 native successor run 43820600508](https://github.com/ph
 
 The new bundle `data/S1.json` copies **only the actual final algebraic evaluation**: junction temperature approximately **366.456288 K** and signed rod heat flow **+1.079282 W**, hot-supply positive, cold-absorption negative. Every value and the native source provenance are recorded; no result is computed by JavaScript. The junction is storage-free and its temperature is a recorded rod-end channel, **not** a fabricated junction sensor. No absolute rod shape, pose or extra dimensional geometry is inferred from this topological schematic.
 
-The new read-only adapter `tools/build_steady_case.py` operates from a ZIP SHA-pinned, **successful** original native diagnostic attempt and the byte-identical admitted H1 study/model. It checks the original per-file SHA manifest, required MAT/CSV identity, saved evaluation semantics, native exit codes and diagnostic receipt. The output has no fake time array or storage values; a missing/unqualified native run refuses. To reproduce the S1 bundle from original archive:
+The new read-only adapter `tools/build_steady_case.py` operates from a ZIP SHA-pinned, **successful** original native diagnostic attempt and the byte-identical admitted H1 study/model. After Chat B's PR #16 Review 01, it now enforces **complete archived-member/SHA-manifest coverage**, checks the original presealed reference file digest and matching seals, and **recomputes the entire saved numerical verification and public-request receipt using the unchanged generic H1 checker**. Contradictory `passed` flags, request values, reference seals, omitted mandatory files and missing archive members refuse. The output has no fake time array or storage values. This read-only verification neither executes OMC nor independently certifies reference accuracy.
+
+**Provenance trust boundary:** The archive's internal `GITHUB_RUN_ID` and `GITHUB_SHA` are self-described metadata. Supply `--expected-run-id` and `--expected-commit-sha` from the **separately checked GitHub Actions run**, together with the externally verified original full-ZIP digest and artifact ID. The adapter checks that the archive agrees with these supplied identities; it does **not** contact GitHub or establish that an arbitrary newly repinned ZIP originated from an authenticated physical measurement. A person/process must independently check the GitHub run/artifact/commit before accepting newly supplied evidence. To reproduce S1 from its separately verified original archive:
 
 ```sh
 python -B viewer/network/tools/build_steady_case.py \
@@ -56,6 +58,8 @@ python -B viewer/network/tools/build_steady_case.py \
   --archive /path/to/h2-s1-steady-successor-evidence.zip \
   --archive-sha 82b4a87b66e0022d582da931253649b3829f6633119a57081c02dc253dc5dbd9 \
   --case-slot 1 --artifact-id 14204656273 \
+  --expected-run-id 43820600508 \
+  --expected-commit-sha 337ef554fb40da9408485bda8f2a4024c84720f6 \
   --title 'S1 · Copper and steel in series (steady)' \
   --out /tmp/S1-replayed.json
 ```
