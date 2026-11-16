@@ -7,7 +7,7 @@
 **First physical authoring submission:**
 - `h1/cases/TEACH_RING4/model.mo`: SHA-256 `3a4771b5e6254a72a2d96e8a432b5151db8af51c1ef1d49b9553bb0e9c56e5a8`.
 - `h1/cases/TEACH_RING4/study.json`: SHA-256 `812e27fb83643d8ddf052181610f3d1353efbdef4e482a9374f263dd92b7f1fd`.
-- `h1/reference_cases/TEACH_RING4.json`: SHA-256 `f5a7b10337cd62ff79ce77896b63135b71a2b2e39ee355ace46acf4ede55217b`, checking only; independently re-entered **by same Chat A author**, not by a separate independent reviewer.
+- `experiments/teacher_ring4/reference.json`: SHA-256 `f5a7b10337cd62ff79ce77896b63135b71a2b2e39ee355ace46acf4ede55217b`, checking only; independently re-entered **by same Chat A author**, not by a separate independent reviewer.
 - Model/study: **4 bodies, 1 boundary, 6 rods, 5 native ideal nodes, 15 public observation requests, 32 provenance records**. No contact geometry, rod heat capacity, extra physics laws, arbitrary equations or inferred conductivities.
 
 ## Local checks, not native results
@@ -28,4 +28,6 @@ One hypothetical conductivity experiment changes only `ringAB.k` (80.0→160.0 W
 
 Use only the public `SimHeat.Body`, `RodArea`, `FixedTemperature` constructors, conserved ideal ports and original `h1` parser, MAT adapter, reference, numerical checker and batch runner. For native evidence, pin the existing OpenModelica 1.27.0 / MSL 4.0.0 / Python 3.13.5 environment with one build and at most one launch, no retries, fixed DASSL tolerance 1e-8 and 2000 saved output intervals. Inspect any refusal and preserve the failed attempt; do **not** change source physical parameters, solver tolerances or required observations to force acceptance.
 
-**Development claim only:** successful first-attempt H1 admission of one new fixed 4-body conductive ring on an established grammar. Full native execution, viewer ingestion, educational usability and independent R2 review are future checks. Frozen H1-C1-F0 transfer experiment remains untouched.
+**Chronological correction after first native preflight:** The first one-shot [run 43843168327](https://github.com/physicsvigilante/sim_heat/actions/runs/43843168327) failed **before OMC setup** because the new reference was placed in the seven-fixture `h1/reference_cases/` namespace. The historical closed-form test picked it up incorrectly. An intermediate attempted test-only fixture restriction proved incompatible with old SHA-pinned resolution plans, so that test edit was **reverted byte-for-byte**. The physically identical reference was **moved** to `experiments/teacher_ring4/reference.json` with the *same SHA-256*; its H1 study and model bytes are untouched. Historical baseline tests/source remain frozen, and the original failed CI runs are retained. This is an authoring-directory correction, not a new physics/refit.
+
+**Development claim only:** successful first-attempt H1 admission of one new fixed 4-body conductive ring on an established grammar. Native attempt 01 has **failed preflight with zero builds/launches**; viewer ingestion, full native execution and independent R2 review remain future gates. Frozen H1-C1-F0 transfer experiment remains untouched.
