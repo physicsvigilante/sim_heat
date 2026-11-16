@@ -4,6 +4,7 @@ export const CASE_SCHEMA = 'sim_heat.viewer.native_case/1';
 const SHA = /^[0-9a-f]{64}$/;
 const ID = /^[A-Za-z][A-Za-z0-9_]*$/;
 const MAX_SAMPLES = 40001;
+export const STEADY_SCHEMA = 'sim_heat.viewer.steady_case/1';
 function need(v, reason) { if (!v) throw new Error(reason); }
 function keys(obj, expected, label) {
   need(obj && typeof obj==='object' && !Array.isArray(obj) &&
@@ -25,37 +26,18 @@ export function validateIndex(data) {
   }
   return data.cases;
 }
-export function validateCase(input, catalogEntry) {
-  keys(input,['schema','id','title','modelName','source','analysis','graph','columns','samples'],'case');
-  need(input.schema===CASE_SCHEMA && input.id===catalogEntry.id && input.title===catalogEntry.title,
-       'Case identity mismatch');
-  need(ID.test(input.id)&&ID.test(input.modelName),'Invalid model identifier');
-  const s=input.source;
-  keys(s,['runId','artifactId','artifactSha256','modelSha256','studySha256','compiledSourceCommit',
-          'csvSha256','rawMatSha256','archiveEntry','evidenceKind','nativeQualified',
-          'verificationStatus','publicRequestStatus','checksPassed','canonicalSamples','duplicateRowsCollapsed'],'source');
-  need(positiveInteger(s.runId)&&positiveInteger(s.artifactId)&&positiveInteger(s.checksPassed),
-       'Missing native source IDs');
-  need([s.artifactSha256,s.modelSha256,s.studySha256,s.csvSha256,s.rawMatSha256].every(x=>SHA.test(x)) &&
-       /^[0-9a-f]{40}$/.test(s.compiledSourceCommit), 'Invalid source hashes');
-  need(/^case_\d{2}\/normalized\.csv$/.test(s.archiveEntry),'Invalid native archive path');
-  need(s.evidenceKind==='historical_native_diagnostic' && s.nativeQualified===false &&
-       s.verificationStatus==='checks_passed' && s.publicRequestStatus==='diagnostic_only',
-       'Missing/incorrect diagnostic-only status');
-  need(positiveInteger(s.canonicalSamples)&&s.canonicalSamples<=MAX_SAMPLES &&
-       s.duplicateRowsCollapsed===1, 'Unsupported native sample format');
-  keys(input.analysis,['start','stop','intervals'],'analysis');
-  const a=input.analysis;
-  need(Number.isFinite(a.start)&&Number.isFinite(a.stop)&&a.start<a.stop&&
-       positiveInteger(a.intervals)&&a.intervals+1===s.canonicalSamples,'Bad analysis grid');
-  keys(input.graph,['nodes','edges'],'graph');
-  const nodes=input.graph.nodes, edges=input.graph.edges;
+// Strict physical owner/rod orientation checks shared by the original transient
+// contract and a separately versioned, non-time-dependent steady contract.
+function validateGraph(graph, fields, withTime) {
+  keys(graph,['nodes','edges'],'graph');
+  const nodes=graph.nodes, edges=graph.edges;
   need(Array.isArray(nodes)&&nodes.length>0&&nodes.length<=64&&
        Array.isArray(edges)&&edges.length<=32,'Unsupported graph size');
-  need(Array.isArray(input.columns)&&input.columns.length>=2&&input.columns.length<=64 &&
-       input.columns[0]==='time'&&new Set(input.columns).size===input.columns.length,
+  need(Array.isArray(fields)&&fields.length>=(withTime?2:1)&&fields.length<=64 &&
+       (withTime?fields[0]==='time':!fields.includes('time')) &&
+       new Set(fields).size===fields.length,
        'Duplicate or missing native channel');
-  const columns=new Set(input.columns), names=new Set(), required=new Set(['time']);
+  const columns=new Set(fields), names=new Set(), required=new Set(withTime?['time']:[]);
   // Port ownership is structural evidence, not an arbitrary free-form label.
   // Each declared Modelica connector belongs to one and only one ideal node.
   const portOwner=new Map(), ownerFields=new Set();
@@ -126,6 +108,34 @@ export function validateCase(input, catalogEntry) {
   }
   need(required.size===columns.size && [...columns].every(c=>required.has(c)),
        'Unattributed/unsupported sample channel');
+
+}
+
+export function validateCase(input, catalogEntry) {
+  if(input?.schema===STEADY_SCHEMA)return validateSteadyCase(input,catalogEntry);
+  keys(input,['schema','id','title','modelName','source','analysis','graph','columns','samples'],'case');
+  need(input.schema===CASE_SCHEMA && input.id===catalogEntry.id && input.title===catalogEntry.title,
+       'Case identity mismatch');
+  need(ID.test(input.id)&&ID.test(input.modelName),'Invalid model identifier');
+  const s=input.source;
+  keys(s,['runId','artifactId','artifactSha256','modelSha256','studySha256','compiledSourceCommit',
+          'csvSha256','rawMatSha256','archiveEntry','evidenceKind','nativeQualified',
+          'verificationStatus','publicRequestStatus','checksPassed','canonicalSamples','duplicateRowsCollapsed'],'source');
+  need(positiveInteger(s.runId)&&positiveInteger(s.artifactId)&&positiveInteger(s.checksPassed),
+       'Missing native source IDs');
+  need([s.artifactSha256,s.modelSha256,s.studySha256,s.csvSha256,s.rawMatSha256].every(x=>SHA.test(x)) &&
+       /^[0-9a-f]{40}$/.test(s.compiledSourceCommit), 'Invalid source hashes');
+  need(/^case_\d{2}\/normalized\.csv$/.test(s.archiveEntry),'Invalid native archive path');
+  need(s.evidenceKind==='historical_native_diagnostic' && s.nativeQualified===false &&
+       s.verificationStatus==='checks_passed' && s.publicRequestStatus==='diagnostic_only',
+       'Missing/incorrect diagnostic-only status');
+  need(positiveInteger(s.canonicalSamples)&&s.canonicalSamples<=MAX_SAMPLES &&
+       s.duplicateRowsCollapsed===1, 'Unsupported native sample format');
+  keys(input.analysis,['start','stop','intervals'],'analysis');
+  const a=input.analysis;
+  need(Number.isFinite(a.start)&&Number.isFinite(a.stop)&&a.start<a.stop&&
+       positiveInteger(a.intervals)&&a.intervals+1===s.canonicalSamples,'Bad analysis grid');
+  validateGraph(input.graph,input.columns,true);
   need(Array.isArray(input.samples)&&input.samples.length>=2&&
        input.samples.length<=s.canonicalSamples,'Invalid saved sample selection');
   let previous=-Infinity;
@@ -145,6 +155,74 @@ export function validateCase(input, catalogEntry) {
     rowObjects:input.samples.map(row=>Object.fromEntries(row.map((v,i)=>[input.columns[i],v])))
   };
 }
+
+export function validateSteadyCase(input, catalogEntry) {
+  keys(input,['schema','mode','id','title','modelName','source','graph','columns','values'],'steady case');
+  need(input.schema===STEADY_SCHEMA && input.mode==='steady' &&
+       input.id===catalogEntry.id && input.title===catalogEntry.title,
+       'Steady case identity or mode mismatch');
+  need(ID.test(input.id)&&ID.test(input.modelName),'Invalid steady model identifier');
+  const s=input.source;
+  keys(s,['runId','artifactId','artifactSha256','modelSha256','studySha256',
+          'compiledSourceCommit','csvSha256','rawMatSha256','archiveEntry',
+          'evidenceKind','nativeQualified','verificationStatus','publicRequestStatus',
+          'checksPassed','algebraicEvaluations','selectedEvaluationIndex',
+          'evaluationMeaning','duplicateRowsCollapsed'],'steady source');
+  need(positiveInteger(s.runId)&&positiveInteger(s.artifactId)&&
+       positiveInteger(s.checksPassed),'Missing steady native source IDs');
+  need([s.artifactSha256,s.modelSha256,s.studySha256,s.csvSha256,s.rawMatSha256].every(x=>SHA.test(x)) &&
+       /^[0-9a-f]{40}$/.test(s.compiledSourceCommit),'Invalid steady native hashes');
+  need(/^case_\d{2}\/normalized\.csv$/.test(s.archiveEntry),'Invalid native steady archive path');
+  need(s.evidenceKind==='historical_native_diagnostic' && s.nativeQualified===false &&
+       s.verificationStatus==='checks_passed' && s.publicRequestStatus==='diagnostic_only',
+       'Unqualified steady source misrepresented');
+  // These are two native algebraic evaluations, never elapsed seconds.
+  need(s.evaluationMeaning==='algebraic_evaluation_index' &&
+       s.algebraicEvaluations===2 && s.selectedEvaluationIndex===1 &&
+       s.duplicateRowsCollapsed===1,'Invalid steady evaluation semantics');
+  validateGraph(input.graph,input.columns,false);
+  need(input.graph.nodes.every(n=>n.kind!=='body'),
+       'Steady viewer cannot invent storage or transient bodies');
+  need(Array.isArray(input.values) && input.values.length===input.columns.length &&
+       input.values.every(x=>typeof x==='number'&&Number.isFinite(x)),
+       'Invalid/missing recorded steady value');
+  return {...input,readings:Object.fromEntries(input.columns.map((n,i)=>[n,input.values[i]]))};
+}
+
+// Checks the actual canonical archive after SHA-256; never treats evaluation
+// indices 0,1 as time or returns a fabricated temperature history.
+export async function parseSteadyCsv(bytes,caseData) {
+  const src=caseData.source;
+  need(bytes.byteLength<=20*1024*1024,'Original steady CSV oversized');
+  need(await hashHex(bytes)===src.csvSha256,'Original native CSV SHA-256 mismatch');
+  let csv;
+  try{csv=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+  catch{throw Error('Non-UTF8 CSV');}
+  const lines=csv.trimEnd().split(/\r?\n/);
+  need(lines.length===1+src.algebraicEvaluations+src.duplicateRowsCollapsed,
+       'Steady algebraic evaluation row count mismatch');
+  const header=lines[0].split(',');
+  need(header[0]==='time' && header.length===new Set(header).size &&
+       caseData.columns.every(n=>header.includes(n)),
+       'Steady native CSV missing/duplicate observations');
+  const raw=lines.slice(1).map(line=>line.split(','));
+  need(raw.every(row=>row.length===header.length &&
+       row.every(token=>token!==''&&token.trim()===token&&Number.isFinite(Number(token)))),
+       'Malformed/nonfinite steady native observation');
+  need(raw.at(-1).every((token,i)=>token===raw.at(-2)[i]),
+       'Nonidentical repeated steady terminal row');
+  const evaluation=raw.slice(0,-1);
+  need(evaluation.length===2 && Number(evaluation[0][0])===0 &&
+       Number(evaluation[1][0])===1,
+       'Steady algebraic indices must be 0 and 1');
+  const selected=evaluation[src.selectedEvaluationIndex];
+  const values=Object.fromEntries(caseData.columns.map(name=>
+       [name,Number(selected[header.indexOf(name)])]));
+  for(const name of caseData.columns)
+    need(values[name]===caseData.readings[name],'Saved steady reading differs from archived CSV: '+name);
+  return values;
+}
+
 export function readingsAt(caseData, index) {
   need(Number.isSafeInteger(index)&&index>=0&&index<caseData.rowObjects.length,'Unknown saved sample');
   return caseData.rowObjects[index];
