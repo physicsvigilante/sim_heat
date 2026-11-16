@@ -4,6 +4,7 @@ import {validateCompareIndex,compareNativeCases,recordedBodyTemperatureGap} from
 const $=id=>document.getElementById(id);
 const NS='http://www.w3.org/2000/svg';
 const numeric=(x,d=3)=>Number(x).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0});
+const showObserved=(value,unit)=>(unit==='K'?'':value>=0?'+':'')+numeric(value,4)+' '+unit;
 let index=[],pairs=[],selected=null,inputs=null,field='',selectedTime=0,epoch=0;
 function svg(tag,attrs={},txt){const n=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(txt!==undefined)n.textContent=txt;return n;}
 function clear(){selected=null;inputs=null;$('inspector').hidden=true;$('comparison-chart').replaceChildren();$('revision').textContent='No verified comparison selected.';}
@@ -16,7 +17,7 @@ function drawChart(){if(!inputs)return;const observations=inputs.rows.map(x=>[x.
   for(const [j,color] of [[1,'#267e83'],[2,'#bf7b56']]){const path=observations.map((p,i)=>(i?'L':'M')+xp(p[0]).toFixed(2)+','+yp(p[j]).toFixed(2)).join(' ');chart.append(svg('path',{d:path,fill:'none',stroke:color,'stroke-width':3,'stroke-linejoin':'round'}));for(const p of observations)chart.append(svg('circle',{cx:xp(p[0]),cy:yp(p[j]),r:2.8,fill:color}));}
   const point=inputs.rows[selectedTime],x=xp(point.time);chart.append(svg('line',{x1:x,y1:y0,x2:x,y2:y1,stroke:'#485c65','stroke-dasharray':'4,5'}));$('chart-title').textContent=field+' · recorded native '+unitOf(field);
 }
-function render(){if(!inputs||!selected)return;const entry=inputs.rows[selectedTime];const u=unitOf(field);$('time-label').textContent=numeric(entry.time,2)+' s';$('baseline-value').textContent=(entry.baseline[field]>=0?'+':'')+numeric(entry.baseline[field],4)+' '+u;$('successor-value').textContent=(entry.successor[field]>=0?'+':'')+numeric(entry.successor[field],4)+' '+u;$('quantity-description').textContent='Both are original recorded '+u+' values; positive and negative signs retain the native port convention.';
+function render(){if(!inputs||!selected)return;const entry=inputs.rows[selectedTime];const u=unitOf(field);$('time-label').textContent=numeric(entry.time,2)+' s';$('baseline-value').textContent=showObserved(entry.baseline[field],u);$('successor-value').textContent=showObserved(entry.successor[field],u);$('quantity-description').textContent='Both are original recorded '+u+' values; positive and negative signs retain the native port convention.';
   const g=recordedBodyTemperatureGap(inputs,selectedTime);
   if(g){$('gap-label').textContent=numeric(g.baseline,3)+' K → '+numeric(g.successor,3)+' K';$('gap-details').textContent='Absolute temperature difference between bodies '+g.bodies.join(' and ')+'; only a subtraction of recorded native K values at this saved time.';}
   else{$('gap-label').textContent='Not applicable';$('gap-details').textContent='A two-body temperature separation is not defined for this topology.';}
