@@ -72,7 +72,15 @@ def check_source_relation(a, b):
     # Distinct *case result selectors* are necessary; different GitHub runs
     # are NOT mandatory. One run can archive two models in distinct slots.
     # GitHub artifact IDs are global: two cases citing the same artifact ID
-    # must agree on its run and exact original ZIP SHA.
+    # must agree on its run and exact original ZIP SHA. The run SHA above
+    # must agree even when a run publishes multiple distinct artifact ZIPs.
+    # A GitHub Actions run is bound to one checked-out source commit.
+    # Different artifact ZIPs/physical models may be produced in that run,
+    # but their recorded workflow GITHUB_SHA cannot legitimately diverge.
+    if a['runId'] == b['runId']:
+        require(a['compiledSourceCommit'] == b['compiledSourceCommit'],
+                'pair_provenance',
+                'same GitHub run has conflicting executed source commits')
     same_artifact = a['artifactId'] == b['artifactId']
     if same_artifact:
         require(a['runId'] == b['runId'] and
