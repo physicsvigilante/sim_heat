@@ -1,0 +1,171 @@
+name: H1-C1 F0 V2 two-host checking reference reproducibility (offline only)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-v2-crosshost-reproduction
+    paths:
+      - 'qualification/h1_c1/evaluation/capture_v2_runtime.py'
+      - 'qualification/h1_c1/evaluation/compare_v2_reproduction.py'
+      - 'qualification/h1_c1/evaluation/C1_REFERENCE_V2_CROSSHOST_SCOPE.md'
+      - '.github/workflows/h1-c1-f0-v2-crosshost.yml'
+permissions:
+  contents: read
+concurrency:
+  group: simheat-c1-v2-twohost-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  host_reproductions:
+    name: V2 reference on ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: ubuntu2204
+          - os: ubuntu-24.04
+            label: ubuntu2404
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout immutable historical experimental source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Download, hash, install and verify exact wheel archives (checking only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_v2_host_evidence/logs
+          WHEEL_DIR="${RUNNER_TEMP}/simheat-c1-v2-pinned-wheels"
+          mkdir -p "$WHEEL_DIR"
+          python -m pip download --disable-pip-version-check --only-binary=:all: --no-deps \
+            --dest "$WHEEL_DIR" \
+            numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 threadpoolctl==3.6.0 \
+            > c1_v2_host_evidence/logs/pip-download.log 2>&1
+          sha256sum "$WHEEL_DIR"/*.whl | sed "s|${WHEEL_DIR}/||" \
+            > c1_v2_host_evidence/wheels.sha256
+          python -m pip install --disable-pip-version-check --no-index --find-links "$WHEEL_DIR" \
+            numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 threadpoolctl==3.6.0 \
+            > c1_v2_host_evidence/logs/pip-install.log 2>&1
+          python -m pip check > c1_v2_host_evidence/logs/pip-check.log 2>&1
+          python -m pip freeze > c1_v2_host_evidence/pip-freeze.txt
+      - name: Check original F0 hashes and new-only cross-host source diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > c1_v2_host_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_v2_host_evidence/head-tree.txt
+          git ls-files -z | xargs -0 sha256sum > c1_v2_host_evidence/source.sha256
+          git diff --name-status d857c8e807612026ecdf624277b4ace3977fefe3 HEAD \
+            > c1_v2_host_evidence/pr31-to-new.diff
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 \
+            > c1_v2_host_evidence/frozen-f0-pins.txt
+          python - <<'PY'
+          from pathlib import Path
+          allowed = {
+            "qualification/h1_c1/evaluation/capture_v2_runtime.py",
+            "qualification/h1_c1/evaluation/compare_v2_reproduction.py",
+            "qualification/h1_c1/evaluation/C1_REFERENCE_V2_CROSSHOST_SCOPE.md",
+            ".github/workflows/h1-c1-f0-v2-crosshost.yml",
+          }
+          changes = Path("c1_v2_host_evidence/pr31-to-new.diff").read_text().splitlines()
+          assert len(changes) == len(allowed)
+          for change in changes:
+              op, name = change.split("\t", 1)
+              assert op == "A" and name in allowed, change
+          PY
+      - name: Capture actual BLAS/threadpool, build and CPU provenance (no secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.evaluation.capture_v2_runtime \
+            c1_v2_host_evidence/runtime.json \
+            > c1_v2_host_evidence/logs/runtime.log 2>&1
+          lscpu > c1_v2_host_evidence/lscpu.txt
+          printf "ImageOS=%s\nImageVersion=%s\n" "${ImageOS:-}" "${ImageVersion:-}" \
+            > c1_v2_host_evidence/runner-image.txt
+      - name: Independently prepare V2 in two fresh processes and test mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_v2_host_evidence/process-a c1_v2_host_evidence/process-b
+          status=0
+          python -B -m qualification.h1_c1.evaluation.prepare_reference_v2 \
+            c1_v2_host_evidence/process-a \
+            > c1_v2_host_evidence/logs/process-a.log 2>&1 || status=1
+          python -B -m qualification.h1_c1.evaluation.prepare_reference_v2 \
+            c1_v2_host_evidence/process-b \
+            > c1_v2_host_evidence/logs/process-b.log 2>&1 || status=1
+          python -B -m qualification.h1_c1.evaluation.compare_v2_reproduction \
+            --left c1_v2_host_evidence/process-a \
+            --right c1_v2_host_evidence/process-b \
+            --mode same-host \
+            --output c1_v2_host_evidence/clean-process-comparison.json \
+            > c1_v2_host_evidence/logs/clean-process-compare.log 2>&1 || status=1
+          if [ "$status" -ne 0 ]; then
+            echo 'REFUSED: a clean-process or negative-control check failed'
+            cat c1_v2_host_evidence/logs/process-a.log || true
+            cat c1_v2_host_evidence/logs/process-b.log || true
+            cat c1_v2_host_evidence/logs/clean-process-compare.log || true
+          fi
+          exit "$status"
+      - name: Archive original and candidate bundles even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: c1-v2-host-${{ matrix.label }}
+          path: c1_v2_host_evidence/
+          retention-days: 90
+          if-no-files-found: warn
+
+  compare_distinct_hosts:
+    name: Compare complete saved V2 bundles across distinct runner images
+    needs: host_reproductions
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source for fail-closed offline comparison
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select pinned Python 3.13.5 (stdlib comparator only)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Download both host evidence artifacts by name
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: c1-v2-host-*
+          path: c1_v2_host_inputs
+          merge-multiple: false
+      - name: Record complete cross-host differences before refusing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_v2_crosshost_evidence
+          git rev-parse HEAD > c1_v2_crosshost_evidence/head-sha.txt
+          status=0
+          python -B -m qualification.h1_c1.evaluation.compare_v2_reproduction \
+            --left c1_v2_host_inputs/c1-v2-host-ubuntu2204/process-a \
+            --right c1_v2_host_inputs/c1-v2-host-ubuntu2404/process-a \
+            --mode cross-host \
+            --output c1_v2_crosshost_evidence/CROSSHOST_COMPARISON.json \
+            > c1_v2_crosshost_evidence/compare.log 2>&1 || status=1
+          cat c1_v2_crosshost_evidence/compare.log
+          exit "$status"
+      - name: Preserve cross-host receipt even when certification is refused
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: c1-v2-crosshost-comparison-${{ github.sha }}
+          path: c1_v2_crosshost_evidence/
+          retention-days: 90
+          if-no-files-found: warn

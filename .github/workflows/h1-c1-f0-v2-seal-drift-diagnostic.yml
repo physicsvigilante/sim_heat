@@ -1,0 +1,91 @@
+name: H1-C1 V2 diagnostic compare reviewed vs cross-host sealed bundles
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-v2-crosshost-reproduction
+    paths:
+      - 'qualification/h1_c1/evaluation/diagnose_v2_reviewed_seal_drift.py'
+      - 'qualification/h1_c1/evaluation/C1_REFERENCE_V2_CROSSHOST_FINDINGS.md'
+      - '.github/workflows/h1-c1-f0-v2-seal-drift-diagnostic.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  offline_field_drift:
+    name: Archived bundle identity diff (never native)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python 3.13.5 for stdlib field comparison
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Retrieve original independently reviewed PR31 archived bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          run-id: 43915934653
+          name: h1-c1-f0-v2-checking-d857c8e807612026ecdf624277b4ace3977fefe3
+          github-token: ${{ github.token }}
+          path: v2_archive_compare/pr31
+      - name: Retrieve immutable failing-run Ubuntu 22.04 reference bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          run-id: 43921113470
+          name: c1-v2-host-ubuntu2204
+          github-token: ${{ github.token }}
+          path: v2_archive_compare/host22
+      - name: Retrieve immutable failing-run Ubuntu 24.04 reference bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          run-id: 43921113470
+          name: c1-v2-host-ubuntu2404
+          github-token: ${{ github.token }}
+          path: v2_archive_compare/host24
+      - name: Preserve precise field-level differences and retained HOLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_v2_drift_evidence
+          git rev-parse HEAD > c1_v2_drift_evidence/head-sha.txt
+          python -B -m qualification.h1_c1.evaluation.diagnose_v2_reviewed_seal_drift \
+            --reviewed-pr31 v2_archive_compare/pr31 \
+            --ubuntu2204 v2_archive_compare/host22/process-a \
+            --ubuntu2404 v2_archive_compare/host24/process-a \
+            --output c1_v2_drift_evidence/REVIEWED_V2_FIELD_DRIFT.json \
+            2>&1 | tee c1_v2_drift_evidence/diagnostic.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("c1_v2_drift_evidence/REVIEWED_V2_FIELD_DRIFT.json")
+          x=json.loads(p.read_text())
+          assert x["status"]=="CAPTURED_REVIEWED_V2_SEAL_DRIFT__CERTIFICATION_HOLD"
+          assert not x["refusals"]
+          assert x["pr31_to_ubuntu2204"]["fieldComparison"]["differentLeaves"]>0
+          assert x["pr31_to_ubuntu2404"]["fieldComparison"]["differentLeaves"]>0
+          assert x["new_host22_to_host24"]["differentLeaves"]==0
+          for label in ("new_ubuntu2204", "new_ubuntu2404"):
+              y=x["pr31_to_"+label+"_numericalBudget"]
+              assert y["allWithinOneHundredthOfOriginalNativeAllowance"] is True
+              assert y["scalarComparisons"]==148037
+              assert y["integralComparisons"]==16004
+              assert y["maxScalarDriftFractionOfNativeAllowance"]<0.01
+              assert y["maxIntegralDriftFractionOfExisting100xBudget"]<1
+              print(label,"drift/native",y["maxScalarDriftFractionOfNativeAllowance"],
+                    "flow-integral-drift/reference-budget",
+                    y["maxIntegralDriftFractionOfExisting100xBudget"])
+          assert x["nativeExecuted"] is False and x["nativeQualified"] is False
+          print("PASS forensic drift capture; scientific/native qualification HOLD")
+          PY
+      - name: Retain forensic report even if downloads or field checks failed
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: c1-v2-reviewed-vs-crosshost-field-drift-${{ github.sha }}
+          path: c1_v2_drift_evidence/
+          retention-days: 90
+          if-no-files-found: warn
