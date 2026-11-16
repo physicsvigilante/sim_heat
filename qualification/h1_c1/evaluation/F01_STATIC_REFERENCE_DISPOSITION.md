@@ -29,9 +29,11 @@ The unchanged frozen checker’s two algorithms both emit the same `hotLead.G`, 
 
 ## Executable regression and intended interpretation
 
+The first corrected CI attempt uncovered a further reproducibility limit: a host-local run of the unchanged floating-point F0 reference preparer emitted a **different seal** from the originally archived checking-only bundle. This is a reproducibility finding, **not authorization** to replace or reinterpret the archived reference. The independent Chat B review had already directly inspected and rehashed the actual original artifact; this audit only claims to repeat the static `hotLead.G` numerical behavior on its own host, not reconstruct every archived bundle byte.
+
 `audit_f01_static_rounding.py`:
 1. checks all 23 original native-plan SHA-pinned input files and original/assisted study identities, without executing that plan;
-2. reconstructs the unchanged F0 sealed checking-only bundle from the unchanged reference input and confirms the historic seal, the 4,001-point grid, 37 outputs, and `nativeQualified=false`;
+2. performs a **new host-local checking-only preparation** from unchanged F0 source and input, verifies the 4,001-point grid, 37 outputs and `nativeQualified=false`, and records its **new seal separately** from the immutable archived F0 reference seal; a host-local re-preparation is **not** assumed byte-identical to the original sealed ZIP;
 3. evaluates `hotLead.G` with exact decimal-rational arithmetic (not float subtraction alone), reproduces the **80× failure**, checks the 320×/53⅓× neighbor controls, and demands the original algorithms' zero discrepancy;
 4. emits machine-readable `status=reproduced_strict_100x_failure` and `gate=HOLD_NO_NATIVE_EXECUTION`.
 
