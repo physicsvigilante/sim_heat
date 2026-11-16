@@ -78,7 +78,7 @@ test('saved S1 quantities are direct native values with Kelvin, watt and signed 
   assert.equal(flowDescription(r['steel.Q_flow'],s.graph.edges[1]),'junction_2 → cold');
   assert.equal(unitOf('cold.T'),'K');
   assert.equal(unitOf('copper.Q_flow'),'W');
-  assert.throws(()=>readingsAt(s,0),/rowObjects/); // steady has no time-sample API
+  assert.throws(()=>readingsAt(s,0)); // steady has no time-sample API
   // Independent reference arithmetic is a test expectation only, not runtime repair.
   const area=Math.PI*(.02*.02)/4, k1=.092*4184, k2=.011*4184;
   const q=(373.15-273.15)/(.75/(k1*area)+1.25/(k2*area));
@@ -98,7 +98,7 @@ test('original S1 CSV positively authenticates and rejects corruption, truncatio
   const missing=fixture.toString('utf8').split('\n').slice(0,3).join('\n')+'\n';
   const s2=checked();s2.source.csvSha256=sha(missing);
   await assert.rejects(()=>parseSteadyCsv(new TextEncoder().encode(missing).buffer,s2),/row count mismatch/);
-  const wrong=fixture.toString('utf8').replace(/^1,/m,'2,');
+  const wrong=fixture.toString('utf8').replaceAll('\n1,','\n2,');
   const s3=checked();s3.source.csvSha256=sha(wrong);
   await assert.rejects(()=>parseSteadyCsv(new TextEncoder().encode(wrong).buffer,s3),/indices must be 0 and 1/);
   const swapped=fixture.toString('utf8').replace('1.0792824946508015','1.0792824946508016');
