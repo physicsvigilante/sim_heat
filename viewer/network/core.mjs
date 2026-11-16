@@ -151,7 +151,7 @@ export function validateCase(input, catalogEntry) {
   need(input.samples[0][0]===a.start && input.samples.at(-1)[0]===a.stop,
        'Missing native time endpoints');
   return {
-    ...input,mode:'transient',columns:[...input.columns],
+    ...input,columns:[...input.columns],
     rowObjects:input.samples.map(row=>Object.fromEntries(row.map((v,i)=>[input.columns[i],v])))
   };
 }
