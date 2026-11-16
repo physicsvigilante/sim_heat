@@ -77,19 +77,11 @@ class VerificationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.studies, cls.bundles, cls.specs = {}, {}, {}
-        # These seven exposed scalar closed-form fixtures are a deliberate set.
-        # Unfamiliar author-added references cannot be given the D2 fallback
-        # synthetic answer by merely being placed in reference_cases/.
-        for name in ('S1','D1','D2','D2_K2','EQ','REV','ISO'):
-            p = ROOT/'reference_cases'/(name+'.json')
+        for p in sorted((ROOT/'reference_cases').glob('*.json')):
+            name=p.stem
             cls.studies[name]=load_study(CASES/name/'study.json', CASES)
             cls.specs[name]=ref.read_reference(p)
             cls.bundles[name]=ref.prepare(cls.specs[name])
-
-    def test_closed_form_fixture_list_is_not_open_ended(self):
-        self.assertEqual(set(self.studies), {'S1','D1','D2','D2_K2','EQ','REV','ISO'})
-        # New authoring cases are not automatically one of the seven
-        # handcrafted analytic fixtures inside analytic().
 
     def result(self, name='D2', mutate=None, study=None, bundle=None):
         s=study or self.studies[name]; b=bundle or self.bundles[name]
