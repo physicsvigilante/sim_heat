@@ -62,13 +62,16 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
         require(z.testzip() is None, 'campaign_evidence', 'original ZIP CRC mismatch')
         require(prefix+'attempt.json' in members, 'campaign_evidence', 'selected native batch absent')
 
-        def read(name: str) -> bytes:
+        def read_outer(name: str) -> bytes:
             try:
-                return z.read(prefix+name)
+                return z.read(name)
             except KeyError:
-                require(False, 'campaign_evidence', 'missing original native member: '+name)
+                require(False, 'campaign_evidence', 'missing outer campaign member: '+name)
 
-        campaign = strict_json(z.read('campaign.json').decode('utf-8'))
+        def read(name: str) -> bytes:
+            return read_outer(prefix+name)
+
+        campaign = strict_json(read_outer('campaign.json').decode('utf-8'))
         require(campaign['schema'] == 'sim_heat.resolution_attempt/1' and
                 campaign['status'] == 'diagnostic_checks_passed_not_native_qualified' and
                 campaign['nativeQualified'] is False and
@@ -79,7 +82,7 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 batch_record['plan'].endswith('/plan_'+str(batch)+'.json'),
                 'campaign_evidence', 'wrong recorded batch path')
         plan_member = batch_record['plan'].split('/')[-1]
-        plan_bytes = z.read(plan_member)
+        plan_bytes = read_outer(plan_member)
         require(sha(plan_bytes) == batch_record['sha256'],
                 'campaign_evidence', 'original batch plan SHA mismatch')
         plan = strict_json(plan_bytes.decode('utf-8'))
@@ -117,7 +120,7 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 item['study'].endswith('/study.json'),
                 'campaign_evidence', 'recorded original study location mismatch')
         recorded_study = item['study'].removeprefix(str(PurePosixPath(batch_record['output']).parent)+'/')
-        require(z.read(recorded_study) == study.path.read_bytes() and
+        require(read_outer(recorded_study) == study.path.read_bytes() and
                 read(folder+'/study.json') == study.path.read_bytes() and
                 read(folder+'/model.mo') == (study.path.parent/study.data['model']['path']).read_bytes(),
                 'campaign_evidence', 'executed model/study differs from current admitted source')
