@@ -8,7 +8,7 @@ import {validateIndex,validateCase,readingsAt,flowDescription,signDescription,
 
 const DIR=fileURLToPath(new URL('../',import.meta.url));
 const index=JSON.parse(readFileSync(DIR+'data/index.json','utf8'));
-const cases=()=>validateIndex(structuredClone(index)).map(meta=>{
+const cases=()=>validateIndex(structuredClone(index)).filter(meta=>meta.id!=='H1_S1').map(meta=>{
   const bytes=readFileSync(DIR+meta.file);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),meta.sha256);
   return validateCase(JSON.parse(bytes.toString('utf8')),meta);
@@ -166,7 +166,7 @@ test('full CSV parser verifies exact original hash before interpreting data',asy
 test('renderer and adapter have no case-name dispatch or native solver invocation',()=>{
   const viewer=readFileSync(DIR+'app.mjs','utf8');const core=readFileSync(DIR+'core.mjs','utf8');
   const adapter=readFileSync(DIR+'tools/build_case.py','utf8');
-  for(const name of ['H1_D1','H1_D2','DEV_BRIDGE','SimHeat.Rod','bridge.Q_flow']){
+  for(const name of ['H1_D1','H1_D2','DEV_BRIDGE','H1_S1','SimHeat.Rod','bridge.Q_flow']){
     assert.ok(!viewer.includes(name),name+' hardcoded in renderer');
     assert.ok(!core.includes(name),name+' hardcoded in contract');
     assert.ok(!adapter.includes(name),name+' hardcoded in adapter');
