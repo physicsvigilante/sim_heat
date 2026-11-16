@@ -368,6 +368,26 @@ def run(evidence:Path):
             expect(pair.locator('#inspector')).to_be_visible()
             pair.screenshot(path=str(evidence/'whatif-mobile.png'),
                             full_page=True,animations='disabled')
+            # A structurally valid but mis-pinned native identity in the
+            # comparison index must refuse, clear the previous data and not
+            # claim that the self-described run is independently authenticated.
+            wrongmeta=browser.new_page(viewport={'width':1070,'height':720})
+            wrongmeta.on('pageerror',lambda exc:errors.append(str(exc)))
+            source_index=json.loads((ROOT/'data/compare_index.json').read_text())
+            source_index['pairs'][0]['sources']['successor']['runId']=12345
+            wrongmeta.route('**/data/compare_index.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body=json.dumps(source_index)))
+            wrongmeta.goto(f'http://127.0.0.1:{http.server_port}/compare.html',
+                           wait_until='networkidle')
+            expect(wrongmeta.locator('#error')).to_contain_text(
+                'Original native run/artifact/CSV identity changed')
+            expect(wrongmeta.locator('#inspector')).to_be_hidden()
+            assert wrongmeta.locator('#comparison-chart path').count()==0
+            assert wrongmeta.locator('#baseline-source').inner_text()==''
+            assert wrongmeta.locator('#successor-source').inner_text()==''
+            wrongmeta.screenshot(path=str(evidence/'whatif-provenance-refusal.png'),
+                                 full_page=True,animations='disabled')
+            wrongmeta.close()
             # Even after displaying valid values, a repinned wrong source file
             # must clear all visible comparison observations on refusal.
             pair.route('**/data/D2_K2.json',lambda route:route.fulfill(
