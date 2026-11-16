@@ -57,11 +57,12 @@ def native_source(source):
     check_keys(source, EVIDENCE_KEYS, 'externally pinned native evidence')
     require(type(source['runId']) is int and source['runId'] > 0 and
             type(source['artifactId']) is int and source['artifactId'] > 0 and
+            all(type(source[k]) is str for k in EVIDENCE_KEYS
+                if k not in ('runId','artifactId')) and
             SHA.fullmatch(source['artifactSha256']) and
             COMMIT.fullmatch(source['compiledSourceCommit']) and
             SHA.fullmatch(source['csvSha256']) and
             SHA.fullmatch(source['rawMatSha256']) and
-            isinstance(source['archiveEntry'], str) and
             re.fullmatch(r'case_[0-9]{2}/normalized\.csv', source['archiveEntry']),
             'pair_provenance', 'unusable externally pinned native identity')
     return dict(source)
@@ -172,6 +173,8 @@ def compile_pair_index(root: Path, source_plan: Path,
                 ('baseline', parent, expected_a),
                 ('successor', child, expected_b)):
             case = cases[item[label]]
+            require(type(case.get('source')) is dict, 'pair_provenance',
+                    'native source metadata missing')
             require(case.get('schema') == NATIVE_SCHEMA and
                     case.get('modelName') == study.model.name and
                     case.get('source', {}).get('modelSha256') == study.model_sha256 and
@@ -194,7 +197,8 @@ def compile_pair_index(root: Path, source_plan: Path,
                 n['energy'] for n in nodes if 'energy' in n} | {
                 n['power'] for n in nodes if 'power' in n} | {
                 e['flow'] for e in edges}
-            require(type(columns) is list and len(columns) == len(set(columns)) and
+            require(type(columns) is list and all(type(c) is str for c in columns)
+                    and len(columns) == len(set(columns)) and
                     set(columns) == required and columns[0] == 'time' and
                     type(samples) is list and len(samples) >= 2 and
                     all(type(row) is list and len(row) == len(columns) and
