@@ -45,8 +45,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
             isinstance(expected_branch, str) and expected_branch.startswith('experiment/') and
             len(expected_branch) <= 128,
             'campaign_evidence', 'externally checked source identity required')
-    require(archive.is_file() and isinstance(artifact_sha, str) and
-            SHA.fullmatch(artifact_sha) and sha(archive.read_bytes()) == artifact_sha and
+    require(archive.is_file() and archive.stat().st_size <= 32*1024*1024 and
+            isinstance(artifact_sha, str) and SHA.fullmatch(artifact_sha) and
+            sha(archive.read_bytes()) == artifact_sha and
             zipfile.is_zipfile(archive), 'campaign_evidence', 'original full ZIP mismatch')
     study = load_study(root/study_rel, root/'h1/cases')
     require(study.request_report['admitted'] and study.data['mode'] == 'transient',
@@ -55,6 +56,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
     folder = f'case_{slot:02}'
     with zipfile.ZipFile(archive) as z:
         members = z.namelist()
+        sizes = [item.file_size for item in z.infolist()]
+        require(sizes and max(sizes) <= 8*1024*1024 and sum(sizes) <= 64*1024*1024,
+                'campaign_evidence', 'original archive expansion exceeds static bounds')
         require(len(members) == len(set(members)) and len(members) < 4000 and
                 all(not n.startswith('/') and '\\' not in n and
                     '..' not in PurePosixPath(n).parts for n in members),
@@ -92,7 +96,7 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 attempt['nativeQualified'] is False and
                 attempt['planSha256'] == batch_record['sha256'] and
                 attempt['github']['GITHUB_SHA'] == expected_commit_sha and
-                int(attempt['github']['GITHUB_RUN_ID']) == expected_run_id and
+                str(attempt['github']['GITHUB_RUN_ID']) == str(expected_run_id) and
                 str(attempt['github']['GITHUB_RUN_ATTEMPT']) == '1',
                 'campaign_evidence', 'incorrect recorded native identity/status')
         require(attempt['counts'] == {'versionQueries':1,'buildModelCalls':len(attempt['cases']),
@@ -158,6 +162,7 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
         checked = check_candidate(study,bundle,csv_text,receipt,item['referenceSeal'])
         require(checked == verdict and checked['status'] == 'checks_passed' and
                 len(checked['checks']) == item['checkCount'] and
+                max(c['maximumRatio'] for c in checked['checks']) == item['maxRatio'] and
                 all(c['passed'] is True for c in checked['checks']) and
                 all(r['status'] == 'diagnostic_only' for r in checked['requests']),
                 'campaign_evidence', 'original native checking report contradiction')
