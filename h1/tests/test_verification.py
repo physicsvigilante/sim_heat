@@ -88,9 +88,8 @@ class VerificationTests(unittest.TestCase):
 
     def test_closed_form_fixture_list_is_not_open_ended(self):
         self.assertEqual(set(self.studies), {'S1','D1','D2','D2_K2','EQ','REV','ISO'})
-        # New authoring cases must not be classified as one of the seven
+        # New authoring cases are not automatically one of the seven
         # handcrafted analytic fixtures inside analytic().
-        self.assertNotIn('TEACH_RING4', self.studies)
 
     def result(self, name='D2', mutate=None, study=None, bundle=None):
         s=study or self.studies[name]; b=bundle or self.bundles[name]
