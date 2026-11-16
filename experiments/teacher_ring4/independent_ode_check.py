@@ -12,7 +12,7 @@ from scipy.integrate import solve_ivp
 from h1 import reference
 
 ROOT = Path(__file__).resolve().parents[2]
-REF = ROOT/'h1/reference_cases/TEACH_RING4.json'
+REF = ROOT/'experiments/teacher_ring4/reference.json'
 CAPACITY = np.array([500.0, 900.0, 720.0, 1100.0])
 INITIAL = np.array([303.15, 323.15, 288.15, 313.15])
 BATH_T = 353.15
