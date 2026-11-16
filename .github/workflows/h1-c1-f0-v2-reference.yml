@@ -1,0 +1,87 @@
+name: H1-C1 F0 V2 checking-only reference (no OpenModelica)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f0-v2-checking-reference
+    paths:
+      - 'qualification/h1_c1/evaluation/prepare_reference_v2.py'
+      - 'qualification/h1_c1/evaluation/C1_REFERENCE_V2_SCOPE.md'
+      - '.github/workflows/h1-c1-f0-v2-reference.yml'
+permissions:
+  contents: read
+concurrency:
+  group: simheat-c1-v2-reference-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  checking-reference-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact historic candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Checking-only Python dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Verify only additive V2 checking files, old frozen identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_v2_evidence
+          git rev-parse HEAD > c1_v2_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_v2_evidence/head-tree.txt
+          git diff --name-status feeac951b3fc732c8e3885fbf6b637791cc7be94 HEAD > c1_v2_evidence/v2-files.diff
+          git ls-files -z | xargs -0 sha256sum > c1_v2_evidence/sources.sha256
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 > c1_v2_evidence/frozen-pins.txt
+          python --version > c1_v2_evidence/python-version.txt
+          python -m pip freeze > c1_v2_evidence/dependencies.txt
+          python - <<'PY'
+          from pathlib import Path
+          allow = {'qualification/h1_c1/evaluation/prepare_reference_v2.py',
+                   'qualification/h1_c1/evaluation/C1_REFERENCE_V2_SCOPE.md',
+                   '.github/workflows/h1-c1-f0-v2-reference.yml'}
+          changes = Path('c1_v2_evidence/v2-files.diff').read_text().splitlines()
+          assert changes, 'no new checking changes'
+          for item in changes:
+              code, filename = item.split('\t', 1)
+              assert code == 'A' and filename in allow, item
+          PY
+      - name: Generate two new reference bundles and independently verify every exported value
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.evaluation.prepare_reference_v2 c1_v2_evidence             2>&1 | tee c1_v2_evidence/prepare.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('c1_v2_evidence')
+          x=json.loads((base/'C1_REFERENCE_V2_REPORT.json').read_text())
+          assert x['status']=='offline_checking_reference_prospective_not_native'
+          assert x['nativeQualified'] is False and x['nativeExecuted'] is False
+          assert x['referenceVerification']['all37ColumnsStrict100xPass']
+          assert x['referenceVerification']['assessedScalarValues']==148037
+          assert x['referenceVerification']['maxReferenceErrorFractionOfNativeAllowance']<=0.01
+          assert x['newV2BundleSeal']!=x['originalF0BundleSeal']
+          assert x['repeatEqual'] and x['newV2BundleSeal']==x['repeatV2BundleSeal']
+          assert not x['originalReferenceSealedBytesChanged']
+          print('PASS: prospective checking reference strict 100x at all 37 x 4001; no native')
+          PY
+      - name: Run original frozen H1 and F01 negative regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.evaluation.audit_f01_static_rounding > c1_v2_evidence/F01_ORIGINAL_FAILURE_STILL_REPRODUCED.json
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee c1_v2_evidence/frozen-test-log.txt
+      - name: Retain all completed/failed checking artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f0-v2-checking-${{ github.sha }}
+          path: c1_v2_evidence/
+          retention-days: 90
+          if-no-files-found: warn
