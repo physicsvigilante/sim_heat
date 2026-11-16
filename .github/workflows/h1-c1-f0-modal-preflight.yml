@@ -71,6 +71,30 @@ jobs:
           assert all(r['status']=='not_computed' for r in original['requests']+modal['requests'])
           print('First author and prospective assisted study both admitted offline, no computation of public requests.')
           PY
+      - name: Validate a sealed one-case native plan without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee c1_modal_preflight_evidence/native-plan-dry-run.json
+          import hashlib,json
+          from pathlib import Path
+          from tools.h1_native_batch import load_plan
+          root=Path.cwd()
+          file=root/'qualification/h1_c1/evaluation/C1_PRIMARY_NATIVE_PLAN_NOT_LAUNCHED.json'
+          digest=hashlib.sha256(file.read_bytes()).hexdigest()
+          plan=load_plan(root,file,digest)
+          assert plan['branch']=='experiment/h1-c1-f0-native-primary-once'
+          assert len(plan['cases'])==1
+          assert plan['cases'][0]['study']=='h1/cases/H1_C1_MODAL/study.json'
+          assert len(plan['pins'])==23
+          assert not (root/plan['output']).exists()
+          print(json.dumps({'stage':'plan_validation_only','nativeExecuted':False,
+           'versionQueries':0,'buildModelCalls':0,'modelLaunches':0,
+           'planSha256':digest,'sourceBranchForFutureRun':plan['branch'],
+           'numberOfCases':len(plan['cases']),'sourcePins':len(plan['pins']),
+           'oneShotFutureBudget':{'versionQueries':1,'buildModelCalls':1,'modelLaunches':1}},
+           sort_keys=True))
+          PY
       - name: Prepare sealed checking-only bundle before any native run
         shell: bash
         run: |
