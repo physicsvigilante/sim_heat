@@ -70,6 +70,27 @@ def pick_indices(cols: dict, edges: list, intervals: int, max_regular=20) -> lis
     return sorted(indices)
 
 
+def archive_reader(z: zipfile.ZipFile):
+    """Read original native bytes from root or a single CI-artifact subtree.
+
+    The caller must separately pin the original *whole* ZIP; no repacking,
+    invented root metadata or altered member bytes is permitted.
+    """
+    members=z.namelist()
+    require(len(members)==len(set(members)),'viewer_evidence','duplicate ZIP member')
+    attempt_paths=[n for n in members if n=='attempt.json' or n.endswith('/attempt.json')]
+    require(len(attempt_paths)==1,'viewer_evidence','missing/ambiguous native attempt')
+    prefix=attempt_paths[0][:-len('attempt.json')]
+    require(not prefix.startswith('/') and '..' not in prefix.split('/') and
+            '\\' not in prefix,'viewer_evidence','unsafe attempt directory')
+    def original(name: str) -> bytes:
+        try:
+            return z.read(prefix+name)
+        except KeyError:
+            require(False,'viewer_evidence','missing original native member: '+name)
+    return original
+
+
 def compile_case(root:Path, study_rel:str, archive:Path, expected_artifact_sha:str,
                  archive_case:int, artifact_id:int, display_title:str) -> dict:
     require(archive.is_file() and sha(archive.read_bytes())==expected_artifact_sha,
@@ -80,7 +101,8 @@ def compile_case(root:Path, study_rel:str, archive:Path, expected_artifact_sha:s
     folder=f'case_{archive_case:02}'
     with zipfile.ZipFile(archive) as z:
         require(z.testzip() is None,'viewer_evidence','archive CRC failed')
-        attempt=strict_json(z.read('attempt.json').decode('utf-8'))
+        original=archive_reader(z)
+        attempt=strict_json(original('attempt.json').decode('utf-8'))
         require(attempt['status']=='diagnostic_checks_passed_not_native_qualified',
                 'viewer_evidence','native attempt not successful diagnostic')
         require(attempt.get('nativeQualified') is False,'viewer_evidence','nativeQualified cannot be true')
@@ -89,25 +111,25 @@ def compile_case(root:Path, study_rel:str, archive:Path, expected_artifact_sha:s
         require(item['directory']==folder and item['study']==study_rel and
                 item['model']==study.model.name and item['status']=='checks_passed',
                 'viewer_evidence','case/study mismatch')
-        require(z.read(folder+'/model.mo')==(study.path.parent/study.data['model']['path']).read_bytes(),
+        require(original(folder+'/model.mo')==(study.path.parent/study.data['model']['path']).read_bytes(),
                 'viewer_evidence','native compiled model bytes differ')
-        require(z.read(folder+'/study.json')==study.path.read_bytes(),
+        require(original(folder+'/study.json')==study.path.read_bytes(),
                 'viewer_evidence','native study bytes differ')
-        csvbytes=z.read(folder+'/normalized.csv')
+        csvbytes=original(folder+'/normalized.csv')
         csv_sha=sha(csvbytes)
         require(attempt['artifactSha256'][folder+'/normalized.csv']==csv_sha,
                 'viewer_evidence','archived manifest CSV mismatch')
-        verdict=strict_json(z.read(folder+'/verification.json').decode('utf-8'))
+        verdict=strict_json(original(folder+'/verification.json').decode('utf-8'))
         require(verdict['status']=='checks_passed' and verdict['nativeQualified'] is False and
                 verdict['csvSha256']==csv_sha and verdict['studySha256']==study.sha256 and
                 verdict['modelSha256']==study.model_sha256 and
                 len(verdict['checks'])==item['checkCount'] and
                 all(x['status']=='diagnostic_only' for x in verdict['requests']),
                 'viewer_evidence','invalid native candidate checking record')
-        require(z.read(folder+'/build.returncode').strip()==b'0' and
-                z.read(folder+'/simulation.returncode').strip()==b'0',
+        require(original(folder+'/build.returncode').strip()==b'0' and
+                original(folder+'/simulation.returncode').strip()==b'0',
                 'viewer_evidence','native build/launch did not exit successfully')
-        rawmat=sha(z.read(folder+'/model_res.mat'))
+        rawmat=sha(original(folder+'/model_res.mat'))
         require(rawmat==item['rawMatSha256'] and
                 rawmat==attempt['artifactSha256'][folder+'/model_res.mat'],
                 'viewer_evidence','raw native MAT drift')
