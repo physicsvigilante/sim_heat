@@ -1,0 +1,67 @@
+{
+  "schema": "sim_heat.h1_c1_stage1_capture/1",
+  "id": "H1-C1-F0-author-stage1-6919450031",
+  "status": "task_only_captured_no_model_authored_no_admission_no_native",
+  "issue": {
+    "repository": "physicsvigilante/sim_heat",
+    "number": 26,
+    "url": "https://github.com/physicsvigilante/sim_heat/issues/26"
+  },
+  "originalComment": {
+    "id": 6919450031,
+    "url": "https://github.com/physicsvigilante/sim_heat/issues/26#issuecomment-6919450031",
+    "authorGithubLogin": "physicsvigilante",
+    "createdAtUtc": "2026-11-16T14:36:47Z",
+    "updatedAtUtcAtCapture": "2026-11-16T14:36:47Z",
+    "bodyEncoding": "UTF-8",
+    "bodySha256": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+    "bodyUtf8Bytes": 10669,
+    "verbatimPreservedAt": "qualification/h1_c1/submissions/issue-26/comment-6919450031.STAGE1_ORIGINAL.md",
+    "preservationCommit": "5d7f3f1d8d51753c1d85ab901713289fa9ec5c8d",
+    "preservedGitBlobSha": "2f7b1ff54cfe0baae264c8d2a5c625c09d517b4a",
+    "verifiedVerbatimEqualsGithubComment": true
+  },
+  "publicAuthorPacket": {
+    "frozenPublicationCommit": "ea954eee9b416498874419b9c8e5503f94821be8",
+    "authorContractSha256": "bcb4bb3b6360b5e97440bf0c91f0de6ca447711a5ec630ccb58c2d24aa38bae6",
+    "startHereSha256": "fa5d2397327ba399216563c261fb2a8c006c46e0233377957989f9c914e0a25c",
+    "noEvaluatorImplementationFilesForAuthor": true
+  },
+  "frozenAssessmentBaseline": {
+    "originalImplementationCommit": "dd8c9432abe97563414bb3ed809e61e673473812",
+    "originalSourceTree": "551904dc91ce5d70cc6dfc72b2115e8ae497fa22",
+    "originalFrozenIdentity": "H1-C1-F0",
+    "laterMainMetadataDrift": "h1/matv4.py schema v1 to v2; frozen F0 distinct"
+  },
+  "taskSummaryNotAuthoritative": {
+    "title": "Two-buffer parallel thermal bridge with opposing initial and boundary gradients",
+    "twoFiniteBodies": true,
+    "twoFixedBaths": true,
+    "fourRods": true,
+    "rodTopology": "hotBath-hotLead-leftBuffer; flatBridge and roundBridge in parallel between leftBuffer and rightBuffer; rightBuffer-coldLead-coldBath",
+    "analysisHorizon": "0–1800 seconds provisional only; evaluator must bind prescribed modal grid prospectively",
+    "requests": 9,
+    "noSolvedThermalTrajectoriesProvided": true
+  },
+  "disclosureAssessment": {
+    "stage1SameLlmSelectedAndWroteTask": true,
+    "stage1AuthorSelfIdentified": "GPT-6",
+    "stage1AuthorSaysPreviousH1DesignReviewSummariesPresent": true,
+    "stage1AuthorSaysOnlyTwoPublicDocsReadDuringThisAttempt": true,
+    "sameGithubAccountIsNotIndependentAuthorAuthentication": true,
+    "fullyBlindIndependenceClaim": false,
+    "independenceAndStructuralNoveltyPendingEvaluatorAssessment": true,
+    "firstPhysicalSubmissionNotYetCaptured": true
+  },
+  "stageGate": {
+    "taskCapturedBeforeModel": true,
+    "modelMoSubmitted": false,
+    "studyJsonSubmitted": false,
+    "authorNotesSubmitted": false,
+    "offlineAdmission": false,
+    "nativeLaunches": 0,
+    "nativeQualified": false,
+    "taskReplacementAllowed": false,
+    "next": "Same independent author Stage 2 only, using frozen task and two public documents; preserve raw model/study/notes before any evaluator fixes"
+  }
+}
