@@ -1,0 +1,45 @@
+{
+  "schema": "sim_heat.native_batch/1",
+  "branch": "experiment/h1-c1-f0-native-primary-once",
+  "caseRoot": "h1/cases",
+  "cases": [
+    {
+      "study": "h1/cases/H1_C1_MODAL/study.json",
+      "reference": "qualification/h1_c1/evaluation/C1_FIRST_CHECKING_REFERENCE.json"
+    }
+  ],
+  "compilerVersion": "OpenModelica 1.27.0",
+  "dependencies": {
+    "python": "3.13.5",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0"
+  },
+  "library": "experiments/h1_spike/SimHeat.mo",
+  "mslVersion": "4.0.0",
+  "output": "h1_c1_f0_native_primary_attempt",
+  "pins": {
+    "experiments/h1_spike/SimHeat.mo": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+    "h1/__init__.py": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+    "h1/__main__.py": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/matv4.py": "d322b5243bbdfb5b02380583b0af6631800d2bcd3cf5126148cd814fb147ba2c",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/study.py": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+    "h1/verify.py": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73",
+    "tools/h1_compare_companions.py": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+    "tools/h1_native_batch.py": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1",
+    "h1/cases/H1_C1_FIRST/model.mo": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+    "h1/cases/H1_C1_FIRST/study.json": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+    "h1/cases/H1_C1_FIRST/AUTHOR_NOTES.md": "eac5f720bb744d572a0ff7219825856e140f17f29fac0c3aff0218de15d69d0a",
+    "h1/cases/H1_C1_MODAL/model.mo": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+    "h1/cases/H1_C1_MODAL/study.json": "b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b",
+    "qualification/h1_c1/evaluation/C1_STAGE1_ORIGINAL_TASK_COMMENT.md": "3fe63b96b731af7af1b4d2a081684446e62e2a70d6c692ce9c39495c52836e4c",
+    "qualification/h1_c1/evaluation/C1_FIRST_CHECKING_REFERENCE.json": "1b4b497d7427deae9e83fd712fbe9119e0c8e6599212d7762c828eca10b594c9",
+    "qualification/h1_c1/evaluation/C1_FIRST_MODAL_PLAN_CHECKING_ONLY.json": "d3465b817af26c2fbf2accf48e91f12964ebf992648f8dd666a71b370d85cc83",
+    "qualification/h1_c1/evaluation/check_modal_accuracy.py": "361e23b9ce04c346fa01a6d18fe5440e67f73fff2dbaea22b5f261479113ef31"
+  }
+}
