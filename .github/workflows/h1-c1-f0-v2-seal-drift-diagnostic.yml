@@ -5,6 +5,7 @@ on:
       - qualification/h1-c1-f0-v2-crosshost-reproduction
     paths:
       - 'qualification/h1_c1/evaluation/diagnose_v2_reviewed_seal_drift.py'
+      - 'qualification/h1_c1/evaluation/C1_REFERENCE_V2_CROSSHOST_FINDINGS.md'
       - '.github/workflows/h1-c1-f0-v2-seal-drift-diagnostic.yml'
 permissions:
   contents: read
@@ -67,6 +68,16 @@ jobs:
           assert x["pr31_to_ubuntu2204"]["fieldComparison"]["differentLeaves"]>0
           assert x["pr31_to_ubuntu2404"]["fieldComparison"]["differentLeaves"]>0
           assert x["new_host22_to_host24"]["differentLeaves"]==0
+          for label in ("new_ubuntu2204", "new_ubuntu2404"):
+              y=x["pr31_to_"+label+"_numericalBudget"]
+              assert y["allWithinOneHundredthOfOriginalNativeAllowance"] is True
+              assert y["scalarComparisons"]==148037
+              assert y["integralComparisons"]==16004
+              assert y["maxScalarDriftFractionOfNativeAllowance"]<0.01
+              assert y["maxIntegralDriftFractionOfExisting100xBudget"]<1
+              print(label,"drift/native",y["maxScalarDriftFractionOfNativeAllowance"],
+                    "flow-integral-drift/reference-budget",
+                    y["maxIntegralDriftFractionOfExisting100xBudget"])
           assert x["nativeExecuted"] is False and x["nativeQualified"] is False
           print("PASS forensic drift capture; scientific/native qualification HOLD")
           PY
