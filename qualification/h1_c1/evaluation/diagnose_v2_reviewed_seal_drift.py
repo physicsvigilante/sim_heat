@@ -73,6 +73,69 @@ def count_numeric_changes(a, b):
     return summary
 
 
+
+def numerical_drift_under_existing_100x_budget(a, b):
+    """Assess pointwise drift conservatively; does NOT certify seal identity."""
+    result = {
+        "status": "NOT_ASSESSED",
+        "rule": "abs(old-new) <= min(old_allowance,new_allowance)/100 per saved scalar",
+        "scalarComparisons": 0,
+        "integralComparisons": 0,
+        "maxScalarDriftFractionOfNativeAllowance": 0.0,
+        "maxScalarDrift": None,
+        "maxIntegralDriftFractionOfExisting100xBudget": 0.0,
+        "maxIntegralDrift": None,
+        "physicalSpecUnchanged": a.get("spec") == b.get("spec"),
+        "unitsOwnersAndGridUnchanged": all(a.get(k) == b.get(k)
+                                            for k in ("grid", "units", "owners")),
+        "allWithinOneHundredthOfOriginalNativeAllowance": False,
+    }
+    if not result["physicalSpecUnchanged"] or not result["unitsOwnersAndGridUnchanged"]:
+        result["status"] = "REFUSED_CHANGED_PHYSICS_OR_GRID"
+        return result
+    if set(a["columns"]) != set(b["columns"]) or set(a["flowIntegrals"]) != set(b["flowIntegrals"]):
+        result["status"] = "REFUSED_CHANGED_EXPORT_SET"
+        return result
+    okay = True
+    for name, values in a["columns"].items():
+        second = b["columns"][name]
+        eps = min(a["allowances"][name], b["allowances"][name])
+        if eps <= 0 or not math.isfinite(eps) or len(values) != len(second):
+            result["status"] = "REFUSED_INVALID_REFERENCE_ALLOWANCE_OR_SHAPE"
+            return result
+        for i, (x, y) in enumerate(zip(values, second)):
+            ratio = abs(x-y) / eps
+            result["scalarComparisons"] += 1
+            if ratio > result["maxScalarDriftFractionOfNativeAllowance"]:
+                result["maxScalarDriftFractionOfNativeAllowance"] = ratio
+                result["maxScalarDrift"] = {"channel": name, "index": i,
+                                             "absoluteDrift": abs(x-y),
+                                             "conservativeNativeAllowance": eps}
+            if ratio > 0.01 or not math.isfinite(ratio):
+                okay = False
+    for name, values in a["flowIntegrals"].items():
+        second = b["flowIntegrals"][name]
+        if len(values) != len(second):
+            result["status"] = "REFUSED_CHANGED_INTEGRAL_GRID"
+            return result
+        scale = min(max(abs(x) for x in values), max(abs(y) for y in second))
+        reference_budget = (1e-3 + 1e-6*scale)/100
+        for i, (x, y) in enumerate(zip(values, second)):
+            ratio = abs(x-y) / reference_budget
+            result["integralComparisons"] += 1
+            if ratio > result["maxIntegralDriftFractionOfExisting100xBudget"]:
+                result["maxIntegralDriftFractionOfExisting100xBudget"] = ratio
+                result["maxIntegralDrift"] = {"integral": name, "index": i,
+                                              "absoluteDrift": abs(x-y),
+                                              "existingReferenceBudget": reference_budget}
+            if ratio > 1 or not math.isfinite(ratio):
+                okay = False
+    result["allWithinOneHundredthOfOriginalNativeAllowance"] = okay
+    result["status"] = ("NUMERICALLY_WITHIN_100X_BUDGET_BUT_SEAL_DISTINCT"
+                        if okay else "REFUSED_NUMERICAL_DRIFT_OUTSIDE_100X_BUDGET")
+    return result
+
+
 def run(pr31dir, h22dir, h24dir, output):
     receipt = {
         "schema": "sim_heat.c1_v2_reference_archive_drift/1",
@@ -118,6 +181,13 @@ def run(pr31dir, h22dir, h24dir, output):
         }
         receipt["new_host22_to_host24"] = differences(
             specs["new_ubuntu2204"], specs["new_ubuntu2404"])
+        for label in ("new_ubuntu2204", "new_ubuntu2404"):
+            numerical = numerical_drift_under_existing_100x_budget(
+                specs["pr31_reviewed"], specs[label])
+            receipt["pr31_to_" + label + "_numericalBudget"] = numerical
+            if not numerical["allWithinOneHundredthOfOriginalNativeAllowance"]:
+                receipt["refusals"].append(
+                    label + ": numerical drift exceeded strict existing 100x budget")
         if receipt["pr31_to_ubuntu2204"]["fieldComparison"]["differentLeaves"] or (
             receipt["pr31_to_ubuntu2404"]["fieldComparison"]["differentLeaves"]
         ):
