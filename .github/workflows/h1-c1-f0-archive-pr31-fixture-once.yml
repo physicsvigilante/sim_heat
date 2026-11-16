@@ -34,7 +34,7 @@ jobs:
           test "${GITHUB_EVENT_NAME}" = 'push'
           test "${GITHUB_RUN_ATTEMPT}" = '1'
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          test "$(git rev-parse HEAD^)" = '6bd7ae4f1c0c0dab5bfcd1ea6974339a293e55ae'
+          test "$(git rev-parse HEAD^)" = '8f97b10333f9785df378f52a8980abce6f49b9e0'
           test ! -e qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz
           test ! -e qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json
           test -z "$(git status --porcelain)"
@@ -67,12 +67,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json
+          test -f c1_original_pr31_artifact/h1-c1-f0-v2-checking-d857c8e807612026ecdf624277b4ace3977fefe3/C1_REFERENCE_V2_BUNDLE.json
           printf '%s  %s\n' \
             '0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368' \
-            'c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json' | sha256sum -c
+            'c1_original_pr31_artifact/h1-c1-f0-v2-checking-d857c8e807612026ecdf624277b4ace3977fefe3/C1_REFERENCE_V2_BUNDLE.json' | sha256sum -c
           python -B -m qualification.h1_c1.immutable_fixture.capture_pr31_fixture \
-            c1_original_pr31_artifact/C1_REFERENCE_V2_BUNDLE.json \
+            c1_original_pr31_artifact/h1-c1-f0-v2-checking-d857c8e807612026ecdf624277b4ace3977fefe3/C1_REFERENCE_V2_BUNDLE.json \
             qualification/h1_c1/immutable_fixture
           test -f qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz
           test -f qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json
