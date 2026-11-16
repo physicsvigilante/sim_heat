@@ -23,6 +23,12 @@ function checkSourcePair(sources){
   keys(sources,['baseline','successor'],'source pair');
   checkEvidence(sources.baseline);checkEvidence(sources.successor);
   const a=sources.baseline,b=sources.successor;
+  // One GitHub Actions run is tied to one executed workflow source commit,
+  // even if that run archives several distinct models and ZIP artifacts.
+  // This is only source-metadata consistency, not host attestation.
+  if(a.runId===b.runId)
+    need(a.compiledSourceCommit===b.compiledSourceCommit,
+         'Same GitHub run has conflicting executed source commits');
   if(a.artifactId===b.artifactId)
     need(a.runId===b.runId && a.artifactSha256===b.artifactSha256,
          'Same original artifact has conflicting GitHub run/ZIP identities');
