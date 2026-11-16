@@ -7,7 +7,25 @@ const numeric=(x,d=3)=>Number(x).toLocaleString('en-US',{maximumFractionDigits:d
 const showObserved=(value,unit)=>(unit==='K'?'':value>=0?'+':'')+numeric(value,4)+' '+unit;
 let index=[],pairs=[],selected=null,inputs=null,field='',selectedTime=0,epoch=0;
 function svg(tag,attrs={},txt){const n=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(txt!==undefined)n.textContent=txt;return n;}
-function clear(){selected=null;inputs=null;$('inspector').hidden=true;$('comparison-chart').replaceChildren();$('revision').textContent='No verified comparison selected.';}
+function clear(){
+  // Refusal must purge source-linked DOM data, not just hide stale readings.
+  // The pair selector remains enabled so a valid pair can be selected again.
+  selected=null;inputs=null;field='';selectedTime=0;
+  $('inspector').hidden=true;
+  $('comparison-chart').replaceChildren();
+  $('revision').textContent='No verified comparison selected.';
+  for(const id of ['time-label','time-range','sample-count','quantity-description',
+                   'gap-label','gap-details','baseline-value','successor-value',
+                   'baseline-model','successor-model','chart-title'])
+    $(id).textContent='';
+  $('baseline-source').replaceChildren();
+  $('successor-source').replaceChildren();
+  $('time-slider').disabled=true;
+  $('time-slider').value='0';
+  $('time-slider').max='0';
+  $('quantity-select').disabled=true;
+  $('quantity-select').replaceChildren();
+}
 function fail(e){clear();$('error').textContent='Source comparison refused: '+String(e?.message||e);}
 function noteSource(id,data){const p=$(id);p.replaceChildren();const link=document.createElement('a');link.href=`https://github.com/physicsvigilante/sim_heat/actions/runs/${data.source.runId}`;link.rel='noopener';link.target='_blank';link.textContent=`OpenModelica run #${data.source.runId}`;const more=document.createElement('p');more.textContent=`Model ${data.modelName} · artifact #${data.source.artifactId} · original ZIP SHA-256 ${data.source.artifactSha256} · original saved CSV SHA-256 ${data.source.csvSha256}`;p.append(link,more);}
 async function getJson(url,expected){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Source fetch failed: '+url);const bytes=await response.arrayBuffer();if(bytes.byteLength>4_000_000)throw Error('Source file exceeds static viewer limit');if(expected && await hashHex(bytes)!==expected)throw Error('Source case SHA-256 differs from catalog: '+url);return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
