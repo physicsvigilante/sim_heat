@@ -36,7 +36,7 @@ def run(evidence:Path):
             page=browser.new_page(viewport={'width':1376,'height':940})
             page.on('pageerror',lambda x:errors.append(str(x)))
             page.goto(f'http://127.0.0.1:{http.server_port}/index.html',wait_until='networkidle')
-            expect(page.locator('#case-select option')).to_have_count(5)
+            expect(page.locator('#case-select option')).to_have_count(6)
             expect(page.locator('#graph-count')).to_have_text('2 nodes · 1 rods')
             expect(page.locator('#sample-note')).to_contain_text('21 saved points')
             assert page.locator('#network .node-button').count()==2
@@ -58,6 +58,25 @@ def run(evidence:Path):
             expect(page.locator('#time-slider')).to_have_value('1')
             assert numeric_time(page)==468.75
             page.screenshot(path=str(evidence/'D2.png'),full_page=True,animations='disabled')
+
+            # A sixth data-only source is the existing, parent-linked H1
+            # conductivity revision. It uses real archived native timestamps.
+            page.locator('#case-select').select_option('H1_D2_K2')
+            expect(page.locator('#model-id')).to_have_text('H1_D2_K2')
+            expect(page.locator('#sample-note')).to_contain_text('21 saved points')
+            expect(page.locator('#check-count')).to_have_text('34 passed; diagnostic_only')
+            assert page.locator('#network .edge-button').count()==1
+            assert page.locator('#reversal').is_disabled()
+            assert page.locator('#native-run').get_attribute('href').endswith('43693191224')
+            page.locator('#observation').select_option('rod.Q_flow')
+            assert page.locator('#current-value').inner_text()=='+24.00 W'
+            page.locator('#time-slider').fill('1')
+            assert numeric_time(page)==468.75
+            assert '14.56 W' in page.locator('#current-value').inner_text()
+            page.screenshot(path=str(evidence/'D2-K2.png'),full_page=True,animations='disabled')
+            page.locator('#case-select').select_option('H1_D2')
+            expect(page.locator('#model-id')).to_have_text('H1_D2')
+            assert numeric_time(page)==0.0
 
             page.locator('#case-select').select_option('DEV_BRIDGE')
             expect(page.locator('#graph-count')).to_have_text('4 nodes · 5 rods')
@@ -319,6 +338,44 @@ def run(evidence:Path):
             assert tamper.locator('#native-run').get_attribute('href') is None
             tamper.screenshot(path=str(evidence/'steady-refusal.png'),full_page=True,animations='disabled')
             tamper.close()
+            # The separate teacher comparison is source-linked and verifies
+            # both immutable case-bundle digests before rendering.
+            pair=browser.new_page(viewport={'width':1180,'height':860})
+            pair.on('pageerror',lambda exc:errors.append(str(exc)))
+            pair.goto(f'http://127.0.0.1:{http.server_port}/compare.html',
+                      wait_until='networkidle')
+            expect(pair.locator('#inspector')).to_be_visible()
+            expect(pair.locator('#comparison-select option')).to_have_count(1)
+            expect(pair.locator('#revision')).to_contain_text('rod.k: 100 → 200')
+            expect(pair.locator('#baseline-value')).to_have_text('+12 W')
+            expect(pair.locator('#successor-value')).to_have_text('+24 W')
+            assert pair.locator('#comparison-chart path').count()==2
+            pair.locator('#time-slider').fill('1')
+            expect(pair.locator('#time-label')).to_have_text('468.75 s')
+            expect(pair.locator('#gap-label')).to_have_text('46.728 K → 36.392 K')
+            pair.locator('#quantity-select').select_option('hot.T')
+            expect(pair.locator('#baseline-value')).to_contain_text('K')
+            expect(pair.locator('#successor-value')).to_contain_text('K')
+            assert pair.locator('#baseline-source a').get_attribute('href').endswith('43691263273')
+            assert pair.locator('#successor-source a').get_attribute('href').endswith('43693191224')
+            pair.screenshot(path=str(evidence/'whatif-desktop.png'),
+                            full_page=True,animations='disabled')
+            pair.set_viewport_size({'width':390,'height':844})
+            assert pair.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
+            expect(pair.locator('#inspector')).to_be_visible()
+            pair.screenshot(path=str(evidence/'whatif-mobile.png'),
+                            full_page=True,animations='disabled')
+            # Even after displaying valid values, a repinned wrong source file
+            # must clear all visible comparison observations on refusal.
+            pair.route('**/data/D2_K2.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body='{"schema":"tampered"}'))
+            pair.reload(wait_until='networkidle')
+            expect(pair.locator('#error')).to_contain_text('Source case SHA-256 differs from catalog')
+            expect(pair.locator('#inspector')).to_be_hidden()
+            assert pair.locator('#comparison-chart path').count()==0
+            pair.screenshot(path=str(evidence/'whatif-refusal.png'),
+                            full_page=True,animations='disabled')
+            pair.close()
             assert not errors,errors
             browser.close()
             print('PASS: D1/D2/bridge, authentic S1 steady and native Ring4; four rod reversals, refusal/import races and desktop/mobile screenshots')
