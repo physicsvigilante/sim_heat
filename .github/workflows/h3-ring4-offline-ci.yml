@@ -5,7 +5,7 @@ on:
       - h3/teacher-ring4-composition
     paths:
       - 'h1/cases/TEACH_RING4/**'
-      - 'h1/reference_cases/TEACH_RING4.json'
+      - 'experiments/teacher_ring4/reference.json'
       - 'h1/tests/test_verification.py'
       - 'experiments/teacher_ring4/**'
       - 'viewer/network/**'
@@ -52,7 +52,7 @@ jobs:
           python -B -m h1 h1/cases/TEACH_RING4/study.json --root h1/cases > h3_ring4_offline_evidence/admission.json
           python -c "import json; d=json.load(open('h3_ring4_offline_evidence/admission.json')); assert d['admitted'] and not d['nativeExecuted'] and len(d['requests'])==15 and all(x['status']=='not_computed' for x in d['requests'])"
           PYTHONPATH=. python -B experiments/teacher_ring4/independent_ode_check.py > h3_ring4_offline_evidence/independent-ode.log
-          python -B -m h1.verify prepare --study h1/cases/TEACH_RING4/study.json --root h1/cases --reference h1/reference_cases/TEACH_RING4.json --out h3_ring4_offline_evidence/reference.bundle.json > h3_ring4_offline_evidence/prepare-reference.json
+          python -B -m h1.verify prepare --study h1/cases/TEACH_RING4/study.json --root h1/cases --reference experiments/teacher_ring4/reference.json --out h3_ring4_offline_evidence/reference.bundle.json > h3_ring4_offline_evidence/prepare-reference.json
           python -c "import json; x=json.load(open('h3_ring4_offline_evidence/prepare-reference.json')); b=json.load(open('h3_ring4_offline_evidence/reference.bundle.json')); assert x['seal']==b['seal']"
       - name: Preserve source, test logs, negative evidence and browser screenshots
         if: always()
