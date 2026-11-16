@@ -11,3 +11,11 @@
 - **Correction on separate authoring source branch:** bound the *seven closed-form synthetic fixture tests* to the exact original seven names. This does not alter H1 physical modules, result checking policies, the new model/study or their numerical inputs; new authoring reference files are no longer mistakenly presented as closed-form fixtures. A generic baseline fixture membership regression was added. The new authored model remains a separate, explicitly recorded diagnostic candidate, **not** a hard-coded solver branch.
 
 **Stop gate:** The consumed once-only workflow must not be rerun, even though no native build happened. First qualify the test-only correction in **fresh offline-only CI**. A new successor plan, branch, original failure reference and separately authorized one-shot native workflow are required before any second native attempt. No automatic OMC job or mainline source merge is implied.
+
+## Later author correction attempt and final architecture disposition
+
+**Offline-only CI 43844072956:** The first attempted test-fixture restriction changed `h1/tests/test_verification.py`. That workflow **failed (7 errors)** because the historical resolution-campaign plans deliberately pin that test file's original SHA. It consumed **no OpenModelica build/launch**, and its failed logs remain on GitHub. Do not erase, relabel or pretend it passed.
+
+**Final data-only correction:** Restore `h1/tests/test_verification.py` **byte-for-byte from `main`** and move the author-added reference from the reserved `h1/reference_cases/` fixture namespace into `experiments/teacher_ring4/reference.json`, leaving its source SHA-256, numerical values, Modelica model and study SHA unchanged. This prevents the hardcoded seven-fixture synthetic checker from seeing it and leaves historical test/runtime identities intact. The author-facing study stays `h1/cases/TEACH_RING4/study.json`, so the unchanged H1 runner and viewer adapter can still consume it. Rerun *offline-only* CI on the corrected source before considering any fresh native workflow.
+
+**Native-run stop remains in force:** The original once-only job is consumed. A successor, if requested, must use a *new branch and fixed plan* and must not rerun 43843168327.
