@@ -57,3 +57,15 @@ jobs:
           path: h2_s1_steady_ci_evidence/
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Preserve exact source for read-only offline native-adapter reproduction
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h2-s1-steady-source-${{ github.sha }}
+          path: |
+            h1/
+            viewer/network/
+            experiments/h1_spike/SimHeat.mo
+          if-no-files-found: error
+          retention-days: 30
