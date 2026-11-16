@@ -36,7 +36,7 @@ def run(evidence:Path):
             page=browser.new_page(viewport={'width':1376,'height':940})
             page.on('pageerror',lambda x:errors.append(str(x)))
             page.goto(f'http://127.0.0.1:{http.server_port}/index.html',wait_until='networkidle')
-            expect(page.locator('#case-select option')).to_have_count(3)
+            expect(page.locator('#case-select option')).to_have_count(4)
             expect(page.locator('#graph-count')).to_have_text('2 nodes · 1 rods')
             expect(page.locator('#sample-note')).to_contain_text('21 saved points')
             assert page.locator('#network .node-button').count()==2
@@ -80,6 +80,41 @@ def run(evidence:Path):
             expect(page.locator('#import-status')).to_contain_text('File refused: Original native CSV SHA-256 mismatch')
             assert page.locator('#sample-note').inner_text().startswith('23 saved points')
 
+            # The new fourth case has a true steady contract. The native 0/1
+            # algebraic evaluations are not elapsed seconds or a trajectory.
+            page.locator('#case-select').select_option('H1_S1')
+            expect(page.locator('#model-id')).to_have_text('H1_S1')
+            expect(page.locator('#graph-count')).to_have_text('3 nodes · 2 rods')
+            assert page.locator('#network .edge-button').count()==2
+            assert page.locator('#network .node-button').count()==3
+            assert page.locator('#steady-panel').is_visible()
+            assert page.locator('#time-panel').is_hidden()
+            assert page.locator('#temperature-panel').is_hidden()
+            assert page.locator('#observation-chart').is_hidden()
+            assert page.locator('#time-slider').is_disabled()
+            assert page.locator('#play').is_disabled()
+            assert page.locator('#reversal').is_disabled()
+            assert page.locator('#steady-note').inner_text().startswith('Native algebraic evaluation 1 of 2')
+            assert page.locator('#time-label').inner_text()=='—'
+            assert '366.46 K' in page.locator('#steady-readouts').inner_text()
+            assert '+1.08 W' in page.locator('#steady-readouts').inner_text()
+            assert 'Absorbed from network' in page.locator('#energy-readouts').inner_text()
+            assert page.locator('#current-value').inner_text()=='+1.08 W'
+            page.locator('#observation').select_option('copper.T_b')
+            assert page.locator('#current-value').inner_text()=='+366.46 K'
+            assert page.locator('#network .edge-button').count()==2
+            original=ROOT/'tests/fixtures/S1-native-normalized.csv'
+            page.locator('#native-import').set_input_files(str(original))
+            expect(page.locator('#import-status')).to_contain_text('Exact steady native CSV verified')
+            assert page.locator('#time-slider').is_disabled()
+            assert page.locator('#temperature-chart').locator('*').count()==0
+            page.screenshot(path=str(evidence/'steady.png'),full_page=True,animations='disabled')
+            # Corrupted file refusal retains current S1 only, never adds time samples.
+            page.locator('#native-import').set_input_files(str(bogus))
+            expect(page.locator('#import-status')).to_contain_text('File refused: Original native CSV SHA-256 mismatch')
+            assert page.locator('#time-label').inner_text()=='—'
+            assert page.locator('#steady-panel').is_visible()
+
             # A different source case cannot silently reuse previous good observations.
             def tampered(route): route.fulfill(status=200,content_type='application/json',body='{"schema":"tampered"}')
             page.route('**/data/D2.json',tampered)
@@ -111,6 +146,11 @@ def run(evidence:Path):
             page.locator('#reversal').click()
             assert numeric_time(page)==1730.0
             page.screenshot(path=str(evidence/'mobile.png'),full_page=True,animations='disabled')
+            page.locator('#case-select').select_option('H1_S1')
+            expect(page.locator('#steady-panel')).to_be_visible()
+            assert page.locator('#time-panel').is_hidden()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 5')
+            page.screenshot(path=str(evidence/'mobile-steady.png'),full_page=True,animations='disabled')
             # F-02: Test-only synthetic full D1 fixture, with its own
             # temporary, re-hashed D1 bundle/catalog. It exercises real
             # WebCrypto + native CSV parsing, NOT an independent native result.
@@ -188,9 +228,27 @@ def run(evidence:Path):
                 assert 'Exact native CSV verified' not in test.locator('#import-status').inner_text()
                 test.screenshot(path=str(evidence/'import-race.png'),full_page=True,animations='disabled')
                 test.close()
+            # Refusal of a tampered steady bundle after a genuine transient also
+            # clears all previous graph, numeric and source-linked evidence.
+            tamper=browser.new_page(viewport={'width':1100,'height':760})
+            tamper.on('pageerror',lambda exc:errors.append(str(exc)))
+            tamper.goto(f'http://127.0.0.1:{http.server_port}/index.html',wait_until='networkidle')
+            expect(tamper.locator('#model-id')).to_have_text('H1_D1')
+            tamper.route('**/data/S1.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body='{"schema":"tampered"}'))
+            tamper.locator('#case-select').select_option('H1_S1')
+            expect(tamper.locator('#error')).to_contain_text('Case digest differs from source catalog')
+            assert tamper.locator('#network').locator('*').count()==0
+            assert tamper.locator('#energy-readouts').inner_text()==''
+            assert tamper.locator('#steady-readouts').inner_text()==''
+            assert tamper.locator('#steady-panel').is_hidden()
+            assert tamper.locator('#current-value').inner_text()=='—'
+            assert tamper.locator('#native-run').get_attribute('href') is None
+            tamper.screenshot(path=str(evidence/'steady-refusal.png'),full_page=True,animations='disabled')
+            tamper.close()
             assert not errors,errors
             browser.close()
-            print('PASS: D1/D2/bridge, refusal clears old J/W/model, async import isolated, synthetic CSV positive-control SHA, desktop/mobile, screenshots')
+            print('PASS: D1/D2/bridge and authentic S1 steady; no fictitious time; refusal/import races; desktop/mobile screenshots')
     finally:
         http.shutdown();http.server_close();thread.join(timeout=3)
 
