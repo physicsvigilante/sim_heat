@@ -1,0 +1,156 @@
+{
+  "schema": "sim_heat.transfer_readiness_audit/1",
+  "id": "H1-C1-F0-main-comparison-20261116",
+  "recordDate": "2026-11-16",
+  "fixedImplementationCommit": "dd8c9432abe97563414bb3ed809e61e673473812",
+  "fixedImplementationTree": "551904dc91ce5d70cc6dfc72b2115e8ae497fa22",
+  "mainSnapshotCommit": "3287fafc8f1f3cb84b84a4db1c28f032f460e6ca",
+  "packetPublicationCommit": "ea954eee9b416498874419b9c8e5503f94821be8",
+  "executionSource": {
+    "totalPinned": 14,
+    "byteIdentical": 13,
+    "changed": 1,
+    "files": [
+      {
+        "path": "experiments/h1_spike/SimHeat.mo",
+        "pinnedSha256": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+        "originalGitBlob": "37d17dc38ccea5bb7669b19fb9ebabb22bb87ebc",
+        "currentMainGitBlob": "37d17dc38ccea5bb7669b19fb9ebabb22bb87ebc",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/__init__.py",
+        "pinnedSha256": "f9bf8754247e864181a35ca0f9aa01834d04b82e3e962cd03dad9fc318e8341c",
+        "originalGitBlob": "ffe43dc49e01a4a0a968f8480995e87ca27d0e37",
+        "currentMainGitBlob": "ffe43dc49e01a4a0a968f8480995e87ca27d0e37",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/__main__.py",
+        "pinnedSha256": "8d34210829a49f7a34bd495a5a481f4e14b443bb9aa82794ef3332142c79e4b8",
+        "originalGitBlob": "e2fd807c92f32d1144ece40789213ea47994f54b",
+        "currentMainGitBlob": "e2fd807c92f32d1144ece40789213ea47994f54b",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/decoder.py",
+        "pinnedSha256": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+        "originalGitBlob": "fd1bd427534d365539a1c01a503f70ab49e35da4",
+        "currentMainGitBlob": "fd1bd427534d365539a1c01a503f70ab49e35da4",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/matv4.py",
+        "pinnedSha256": "d322b5243bbdfb5b02380583b0af6631800d2bcd3cf5126148cd814fb147ba2c",
+        "originalGitBlob": "f2d2a440419b752fa65a3e5795400b26881eb1bf",
+        "currentMainGitBlob": "21aac158ed7055a570680a8de74de4219711a621",
+        "byteIdentical": false
+      },
+      {
+        "path": "h1/model.py",
+        "pinnedSha256": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+        "originalGitBlob": "791192ecaf2da54db7023070e411641b05c863d7",
+        "currentMainGitBlob": "791192ecaf2da54db7023070e411641b05c863d7",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/policy.py",
+        "pinnedSha256": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+        "originalGitBlob": "05ad449a3cd199808b60af0cc94879c6518cc775",
+        "currentMainGitBlob": "05ad449a3cd199808b60af0cc94879c6518cc775",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/reference.py",
+        "pinnedSha256": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+        "originalGitBlob": "331d31d604bf98d6ba10a97b65b42ad46cfed713",
+        "currentMainGitBlob": "331d31d604bf98d6ba10a97b65b42ad46cfed713",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/study.py",
+        "pinnedSha256": "83a914738895f6208bcf5dd008d5e9c4362cdc6fccf78bd70356240cf2cbf0ad",
+        "originalGitBlob": "7ccd1661a236ef987ae4c757f0c3046a2695b4c1",
+        "currentMainGitBlob": "7ccd1661a236ef987ae4c757f0c3046a2695b4c1",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/temporal.py",
+        "pinnedSha256": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+        "originalGitBlob": "01960b7a8b11bfcedb1f015b439bfd1160d94253",
+        "currentMainGitBlob": "01960b7a8b11bfcedb1f015b439bfd1160d94253",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/verification.py",
+        "pinnedSha256": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+        "originalGitBlob": "567a326565659da4b844efc26b0314e6994c3f6f",
+        "currentMainGitBlob": "567a326565659da4b844efc26b0314e6994c3f6f",
+        "byteIdentical": true
+      },
+      {
+        "path": "h1/verify.py",
+        "pinnedSha256": "e1050778e70b6d4805dd8860704b971501eb2c85253a4d699b057a15e7b85f73",
+        "originalGitBlob": "581e5cb685478762826f4e8eef5ca028a5035ee7",
+        "currentMainGitBlob": "581e5cb685478762826f4e8eef5ca028a5035ee7",
+        "byteIdentical": true
+      },
+      {
+        "path": "tools/h1_compare_companions.py",
+        "pinnedSha256": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+        "originalGitBlob": "accf8d253aac35bc8014cc08874a23d758249b13",
+        "currentMainGitBlob": "accf8d253aac35bc8014cc08874a23d758249b13",
+        "byteIdentical": true
+      },
+      {
+        "path": "tools/h1_native_batch.py",
+        "pinnedSha256": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1",
+        "originalGitBlob": "6e6d97f69650e695a90c48f82fcd864618e569e9",
+        "currentMainGitBlob": "6e6d97f69650e695a90c48f82fcd864618e569e9",
+        "byteIdentical": true
+      }
+    ]
+  },
+  "publicPacket": {
+    "totalPinned": 2,
+    "byteIdentical": 2,
+    "files": [
+      {
+        "path": "qualification/h1_c1/AUTHOR_CONTRACT.md",
+        "pinnedSha256": "bcb4bb3b6360b5e97440bf0c91f0de6ca447711a5ec630ccb58c2d24aa38bae6",
+        "freezePublicationGitBlob": "2be6b7fdb71ae976f9a088216c0902d36fcabe36",
+        "currentMainGitBlob": "2be6b7fdb71ae976f9a088216c0902d36fcabe36",
+        "byteIdentical": true
+      },
+      {
+        "path": "qualification/h1_c1/START_HERE.md",
+        "pinnedSha256": "fa5d2397327ba399216563c261fb2a8c006c46e0233377957989f9c914e0a25c",
+        "freezePublicationGitBlob": "339de58d9eb6cea383ba55a41a6af92362f11a7a",
+        "currentMainGitBlob": "339de58d9eb6cea383ba55a41a6af92362f11a7a",
+        "byteIdentical": true
+      }
+    ]
+  },
+  "changedSemantics": [
+    {
+      "path": "h1/matv4.py",
+      "oldAdapterSchema": "sim_heat.matv4_adapter/1",
+      "mainAdapterSchema": "sim_heat.matv4_adapter/2",
+      "oldField": "channelIsIndependentMeasurement",
+      "mainField": "hasUniqueMATChannel",
+      "note": "Output MAT evidence report semantics changed post-F0; do not silently use current-main adapter as F0."
+    }
+  ],
+  "transfer": {
+    "taskSelected": false,
+    "firstAuthorSubmissionReceived": false,
+    "frozenC1NativeRun": false,
+    "independenceClaim": false,
+    "originalSourceRequiredForF0": true
+  },
+  "trustLimits": [
+    "Git blob equality establishes exact file-byte identity between two Git refs, not physical correctness",
+    "Previously recorded SHA-256 fingerprints are copied from frozen manifest and not recomputed by this Git-tree-only audit",
+    "A new dynamic C1 run needs its own prospective plan and original evidence"
+  ]
+}
