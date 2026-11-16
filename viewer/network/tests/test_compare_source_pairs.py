@@ -230,7 +230,7 @@ class SourcePairProvenanceTests(unittest.TestCase):
                 admitted(root)
             self.assertEqual(error.exception.code,'pair_provenance')
             self.assertIn('conflicting executed source commits',
-                          error.exception.message)
+                          str(error.exception))
 
             # A consistent same-run, distinct-artifact test-only repin is
             # structurally admissible; GitHub provenance is still EXTERNAL.
