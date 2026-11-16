@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {validateIndex,validateCase,unitOf} from '../core.mjs';
-import {validateCompareIndex,compareNativeCases,recordedBodyTemperatureGap} from '../compare_core.mjs';
+import {validateCompareIndex,compareNativeCases,recordedBodyTemperatureGap,PAIR_SCHEMA} from '../compare_core.mjs';
 
 const dir=fileURLToPath(new URL('../',import.meta.url));
 const index=JSON.parse(readFileSync(dir+'data/index.json','utf8'));
@@ -44,6 +44,12 @@ test('sixth native case and the original five have immutable source-linked catal
 
 test('teacher comparison uses only matching recorded instants and unchanged topology',()=>{
   const c=paired();
+  assert.equal(pairIndex.schema,PAIR_SCHEMA);
+  const p=pairing(),base=load('H1_D2'),rev=load('H1_D2_K2');
+  for(const [side,source] of [['baseline',base.source],['successor',rev.source]])
+    for(const [field,value] of Object.entries(p.sources[side]))
+      assert.equal(source[field],value,'source pinned '+side+'.'+field);
+  assert.notEqual(p.sources.baseline.artifactId,p.sources.successor.artifactId);
   assert.equal(c.rows.length,21);
   assert.equal(c.defaultField,'rod.Q_flow');
   assert.deepEqual(c.fields,['cold.T','hot.T','cold.dU','hot.dU','rod.Q_flow']);
@@ -85,6 +91,19 @@ test('reject fake conductivity revisions and unsupported comparison metadata',()
     x=>{x.pairs[0].baseline=x.pairs[0].successor;},
     x=>{x.pairs.push(structuredClone(x.pairs[0]));},
     x=>{x.pairs[0].unsafe=true;},
+    x=>{delete x.pairs[0].sources;},
+    x=>{x.pairs[0].sources.extra='synthetic';},
+    x=>{x.pairs[0].sources.baseline.runId=0;},
+    x=>{x.pairs[0].sources.baseline.runId='43691263273';},
+    x=>{x.pairs[0].sources.successor.artifactSha256='0'.repeat(63);},
+    x=>{x.pairs[0].sources.successor.compiledSourceCommit='not-a-commit';},
+    x=>{x.pairs[0].sources.successor.archiveEntry='../fake.csv';},
+    x=>{x.pairs[0].sources.baseline.qualified=true;},
+    x=>{x.pairs[0].sources.successor={
+      ...x.pairs[0].sources.baseline
+    };},
+    x=>{x.pairs[0].sources.successor.artifactId=x.pairs[0].sources.baseline.artifactId;},
+
   ];
   for(const mutate of mutations){
     const data=structuredClone(pairIndex);mutate(data);
@@ -108,6 +127,16 @@ test('refuse mismatched source hashes, ownership, identity or time without inter
     (p,a,b)=>{b.rowObjects.pop();},
     (p,a,b)=>{b.rowObjects[0]['hot.T']=308.15;},
     (p,a,b)=>{b.rowObjects[0]['hot.dU']=1;},
+    (p,a,b)=>{p.sources.successor.runId=12;},
+    (p,a,b)=>{p.sources.baseline.artifactId=12;},
+    (p,a,b)=>{p.sources.baseline.csvSha256='f'.repeat(64);},
+    (p,a,b)=>{p.sources.successor.archiveEntry='case_02/normalized.csv';},
+    (p,a,b)=>{p.sources.successor.compiledSourceCommit='0'.repeat(40);},
+    (p,a,b)=>{p.sources.successor.artifactSha256='0'.repeat(64);},
+    (p,a,b)=>{b.source.artifactSha256='f'.repeat(64);},
+    (p,a,b)=>{a.source.runId=12345;},
+    (p,a,b)=>{b.source.rawMatSha256='1'.repeat(64);},
+
   ];
   for(const change of mutate){
     const p=structuredClone(pair),a=structuredClone(original),b=structuredClone(child);
