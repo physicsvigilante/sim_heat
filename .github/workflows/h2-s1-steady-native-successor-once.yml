@@ -1,0 +1,70 @@
+name: H2-03S S1 corrected one-shot steady native diagnostic (unqualified)
+on:
+  push:
+    branches:
+      - experiment/h2-s1-steady-native-successor-once
+    paths:
+      - .github/workflows/h2-s1-steady-native-successor-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sim-heat-h2-s1-steady-native-successor-once
+  cancel-in-progress: false
+
+jobs:
+  s1_steady_successor:
+    if: github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PLAN_PIN: 9ebeab496f3b7ea22ec5de59acc6983a6062d26be1546cf0ac3b9c9a698f0d7b
+    steps:
+      - name: Checkout exact successor source without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Select pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Capture checkout and execution-plan identities before any tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h2_s1_successor_ci_evidence
+          git rev-parse HEAD > h2_s1_successor_ci_evidence/head-sha.txt
+          sha256sum tools/h2_s1_native_plan_v2.json > h2_s1_successor_ci_evidence/plan-sha256.txt
+          test "$(sha256sum tools/h2_s1_native_plan_v2.json | cut -d' ' -f1)" = "$PLAN_PIN"
+      - name: Install checking-only Python dependencies
+        run: python -m pip install --no-cache-dir --disable-pip-version-check numpy==2.3.5 scipy==1.17.0
+      - name: Admit exact input pins and pass full H1 tests; seal S1 reference before OMC
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B tools/h1_native_batch.py prepare --plan tools/h2_s1_native_plan_v2.json --pin "$PLAN_PIN" 2>&1 | tee h2_s1_successor_ci_evidence/prepare.log
+      - name: Install OpenModelica 1.27.0 and Modelica Standard Library 4.0.0
+        uses: OpenModelica/setup-openmodelica@419f31141aa79a22f7033def5626047dd3bb5069
+        with:
+          version: '1.27.0'
+          packages: |
+            omc
+          libraries: |
+            Modelica 4.0.0
+      - name: One compiler version check, one build and at most one launch; stop on failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B tools/h1_native_batch.py execute --plan tools/h2_s1_native_plan_v2.json --pin "$PLAN_PIN" 2>&1 | tee h2_s1_successor_ci_evidence/execute.log
+      - name: Preserve original stage evidence and failures without source writeback
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h2-s1-steady-successor-evidence
+          path: |
+            h2_s1_successor_ci_evidence/
+            h2_s1_native_successor_attempt/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 30
