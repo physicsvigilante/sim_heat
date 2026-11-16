@@ -1,0 +1,198 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "H1C1TwoBufferParallelBridge",
+  "model": {
+    "path": "model.mo",
+    "sha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "leftTemperature",
+      "op": "temperature",
+      "target": "leftBuffer.port"
+    },
+    {
+      "id": "rightTemperature",
+      "op": "temperature",
+      "target": "rightBuffer.port"
+    },
+    {
+      "id": "hotLeadFlow",
+      "op": "heatFlow",
+      "target": "hotLead"
+    },
+    {
+      "id": "flatBridgeFlow",
+      "op": "heatFlow",
+      "target": "flatBridge"
+    },
+    {
+      "id": "roundBridgeFlow",
+      "op": "heatFlow",
+      "target": "roundBridge"
+    },
+    {
+      "id": "coldLeadFlow",
+      "op": "heatFlow",
+      "target": "coldLead"
+    },
+    {
+      "id": "bufferTemperatureDifference",
+      "op": "temperatureDifference",
+      "a": "leftBuffer.port",
+      "b": "rightBuffer.port"
+    },
+    {
+      "id": "leftEnergyChange",
+      "op": "energyChange",
+      "target": "leftBuffer"
+    },
+    {
+      "id": "rightEnergyChange",
+      "op": "energyChange",
+      "target": "rightBuffer"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 1800,
+    "intervals": 3600,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "leftBuffer.m",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, leftBuffer, m",
+      "note": "Original illustrative choice: mass of left buffer, 0.25 kg."
+    },
+    {
+      "target": "leftBuffer.c",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, leftBuffer, c",
+      "note": "Original illustrative choice: specific heat of left buffer, 500 J/(kg K)."
+    },
+    {
+      "target": "leftBuffer.T_initial",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, leftBuffer, T_initial",
+      "note": "Original illustrative choice: initial temperature of left buffer, 293.15 K."
+    },
+    {
+      "target": "rightBuffer.m",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, rightBuffer, m",
+      "note": "Original illustrative choice: mass of right buffer, 0.30 kg."
+    },
+    {
+      "target": "rightBuffer.c",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, rightBuffer, c",
+      "note": "Original illustrative choice: specific heat of right buffer, 600 J/(kg K)."
+    },
+    {
+      "target": "rightBuffer.T_initial",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Thermal bodies, rightBuffer, T_initial",
+      "note": "Original illustrative choice: initial temperature of right buffer, 333.15 K."
+    },
+    {
+      "target": "hotBath.T",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Ideal fixed-temperature baths, hotBath",
+      "note": "Original illustrative choice: fixed hot-bath temperature, 363.15 K."
+    },
+    {
+      "target": "coldBath.T",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Ideal fixed-temperature baths, coldBath",
+      "note": "Original illustrative choice: fixed cold-bath temperature, 283.15 K."
+    },
+    {
+      "target": "hotLead.k",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, hotLead, k",
+      "note": "Original illustrative choice: conductivity 150 W/(m K)."
+    },
+    {
+      "target": "hotLead.L",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, hotLead, L",
+      "note": "Original illustrative choice: length 0.10 m."
+    },
+    {
+      "target": "hotLead.A",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, hotLead, A",
+      "note": "Original illustrative choice: cross-sectional area 0.00030 m2."
+    },
+    {
+      "target": "flatBridge.k",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, flatBridge, k",
+      "note": "Original illustrative choice: conductivity 200 W/(m K)."
+    },
+    {
+      "target": "flatBridge.L",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, flatBridge, L",
+      "note": "Original illustrative choice: length 0.10 m."
+    },
+    {
+      "target": "flatBridge.A",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, flatBridge, A",
+      "note": "Original illustrative choice: cross-sectional area 0.00050 m2."
+    },
+    {
+      "target": "roundBridge.k",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, roundBridge, k",
+      "note": "Original illustrative choice: conductivity 50 W/(m K)."
+    },
+    {
+      "target": "roundBridge.L",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, roundBridge, L",
+      "note": "Original illustrative choice: length 0.050 m."
+    },
+    {
+      "target": "roundBridge.d",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, roundBridge, d",
+      "note": "Original illustrative choice: diameter 0.020 m; not a radius."
+    },
+    {
+      "target": "coldLead.k",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, coldLead, k",
+      "note": "Original illustrative choice: conductivity 100 W/(m K)."
+    },
+    {
+      "target": "coldLead.L",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, coldLead, L",
+      "note": "Original illustrative choice: length 0.10 m."
+    },
+    {
+      "target": "coldLead.A",
+      "kind": "illustrative",
+      "locator": "TASK.md section 2, Four massless conducting rods, coldLead, A",
+      "note": "Original illustrative choice: cross-sectional area 0.00040 m2."
+    },
+    {
+      "target": "@model",
+      "kind": "illustrative",
+      "locator": "TASK.md section 3, Exact thermal topology and rod orientation",
+      "note": "Four nodes H, L, R, C; terminal leads connect baths to buffers and two distinct rods run in parallel from leftBuffer to rightBuffer."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "TASK.md section 4, Physics and assumptions",
+      "note": "Two uniform finite thermal stores, four storage-free constant-property rods, ideal thermal junctions and fixed baths; remaining surfaces insulated, with no other heat or work channels."
+    }
+  ]
+}
