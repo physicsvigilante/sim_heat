@@ -388,6 +388,59 @@ def run(evidence:Path):
             wrongmeta.screenshot(path=str(evidence/'whatif-provenance-refusal.png'),
                                  full_page=True,animations='disabled')
             wrongmeta.close()
+            # Reviewer F-02: same-page valid -> refused -> valid, rather than
+            # only a fresh-page refusal/reload. The second menu item is a
+            # TEST-ONLY label pointing at the same approved native pair with
+            # a deliberately wrong expected source commit; no invented run.
+            samepage=browser.new_page(viewport={'width':1100,'height':790})
+            samepage.on('pageerror',lambda exc:errors.append(str(exc)))
+            amended=json.loads((ROOT/'data/compare_index.json').read_text())
+            rejected=__import__('copy').deepcopy(amended['pairs'][0])
+            rejected['id']='D2_K2_REJECTED_TEST_ONLY'
+            rejected['title']='TEST ONLY — wrong source identity refusal'
+            rejected['sources']['successor']['compiledSourceCommit']='0'*40
+            amended['pairs'].append(rejected)
+            samepage.route('**/data/compare_index.json',lambda route:route.fulfill(
+                status=200,content_type='application/json',body=json.dumps(amended)))
+            samepage.goto(f'http://127.0.0.1:{http.server_port}/compare.html',
+                          wait_until='networkidle')
+            expect(samepage.locator('#inspector')).to_be_visible()
+            expect(samepage.locator('#baseline-value')).to_have_text('+12 W')
+            expect(samepage.locator('#successor-value')).to_have_text('+24 W')
+            assert samepage.locator('#baseline-source a').count()==1
+            assert samepage.locator('#successor-source a').count()==1
+            samepage.locator('#comparison-select').select_option('D2_K2_REJECTED_TEST_ONLY')
+            expect(samepage.locator('#error')).to_contain_text(
+                'Original native run/artifact/CSV identity changed')
+            expect(samepage.locator('#inspector')).to_be_hidden()
+            assert samepage.locator('#comparison-chart path').count()==0
+            # text_content (not inner_text) exposes stale *hidden DOM* values.
+            # A refusal must purge them as well as hiding the inspector.
+            for stale_id in ('time-label','time-range','sample-count',
+                             'quantity-description','gap-label','gap-details',
+                             'baseline-value','successor-value','baseline-model',
+                             'successor-model','chart-title','baseline-source',
+                             'successor-source'):
+                assert samepage.locator('#'+stale_id).text_content()=='',stale_id
+            assert samepage.locator('#time-slider').is_disabled()
+            assert samepage.locator('#time-slider').input_value()=='0'
+            assert samepage.locator('#quantity-select').is_disabled()
+            assert samepage.locator('#quantity-select option').count()==0
+            assert samepage.locator('#comparison-select').is_enabled()
+            samepage.screenshot(path=str(evidence/'whatif-samepage-refusal-cleared.png'),
+                                full_page=True,animations='disabled')
+            samepage.locator('#comparison-select').select_option('D2_K2')
+            expect(samepage.locator('#inspector')).to_be_visible()
+            expect(samepage.locator('#baseline-value')).to_have_text('+12 W')
+            expect(samepage.locator('#successor-value')).to_have_text('+24 W')
+            expect(samepage.locator('#error')).to_have_text('')
+            assert samepage.locator('#baseline-source a').count()==1
+            assert samepage.locator('#successor-source a').count()==1
+            assert samepage.locator('#time-slider').is_enabled()
+            assert samepage.locator('#quantity-select').is_enabled()
+            samepage.screenshot(path=str(evidence/'whatif-samepage-recovered.png'),
+                                full_page=True,animations='disabled')
+            samepage.close()
             # Synthetic two-selection UI fixture uses the SAME verified source
             # pair twice, not a fabricated seventh native composition. Hold
             # one old fetch, change selection back, then release the old reply.
