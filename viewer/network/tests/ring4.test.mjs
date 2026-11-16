@@ -18,7 +18,7 @@ const mutate=fn=>{
 };
 
 test('fifth source data is exactly hashed, diagnostic-only, transient and generically owned',()=>{
-  assert.equal(index.cases.length,5);
+  assert.equal(index.cases.length,6);
   assert.deepEqual(index.cases.slice(0,4).map(x=>x.id),
                    ['H1_D1','H1_D2','DEV_BRIDGE','H1_S1']);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256);

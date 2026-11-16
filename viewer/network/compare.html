@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIM_HEAT · Original versus hypothetical</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,sans-serif;color:#18333c;background:#f1f5f3;color-scheme:light}
+*{box-sizing:border-box}body{margin:0}a{color:#126b72}h1,h2,p{margin-top:0}p{line-height:1.6}
+header{background:#153b43;color:#fff;padding:19px max(23px,calc((100vw - 1180px)/2));display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap}
+header a{color:#e5f6ef}header strong{letter-spacing:.12em;font-size:14px}
+main{max-width:1160px;margin:auto;padding:29px 22px 56px}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#2c8484;font-weight:800}
+h1{font-family:Georgia,serif;font-size:clamp(33px,4.2vw,50px);line-height:1.12;font-weight:500;margin:10px 0 16px}
+.intro{max-width:780px;color:#52666d;font-size:15px}.panel{border:1px solid #d8e2de;border-radius:12px;background:#fff;padding:22px;margin-top:17px;min-width:0}
+.panel h2{font-family:Georgia,serif;font-size:25px;font-weight:500;margin:5px 0 15px}.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.fieldrow{display:flex;gap:13px;flex-wrap:wrap;align-items:center;justify-content:space-between}.fieldrow label{font-weight:700;font-size:14px}
+select,input,button{font:inherit}select{max-width:100%;min-height:39px;background:#fff;border:1px solid #b0c9c5;border-radius:7px;padding:8px 10px}
+input[type=range]{width:100%;accent-color:#277d7d}select:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #bb7965;outline-offset:3px}
+small,.muted{color:#597077}.stats{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.result{padding:18px;background:#f4f8f5;border-radius:9px;min-width:0}.result h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 7px}.result strong{display:block;font-size:clamp(20px,3vw,29px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.result small{display:block;margin-top:8px}.result.baseline{border-top:4px solid #267e83}.result.revised{border-top:4px solid #bf7b56}
+.note{font-size:13px;color:#526970}.line{border-top:1px solid #e0e9e3;margin:14px 0}.plot-scroll{width:100%;overflow-x:auto;overscroll-behavior-x:contain}.datachart{width:100%;min-width:660px;height:auto;display:block;min-height:190px;overflow:visible}input[type=range]+.fieldrow{margin-top:12px}
+.legend{display:flex;gap:19px;flex-wrap:wrap;font-size:13px}.dot{display:inline-block;width:11px;height:11px;border-radius:999px;margin-right:7px}
+code{font-size:12px;overflow-wrap:anywhere}.source{display:grid;grid-template-columns:1fr 1fr;gap:14px}.source>div{min-width:0}.source a,.source p{overflow-wrap:anywhere;word-break:break-word}
+#error{display:none;border:1px solid #c9846e;background:#fff4ee;color:#8f382c;padding:14px;border-radius:9px;margin-top:14px}#error:not(:empty){display:block}
+#inspector[hidden]{display:none!important}@media(max-width:690px){.datachart{min-width:660px}main{padding:22px 14px 38px}.layout,.source,.stats{grid-template-columns:minmax(0,1fr)}.panel{padding:17px}}
+</style></head><body>
+<header><strong>SIM / HEAT · SOURCE-LINKED COMPARISON</strong><nav><a href="./index.html">Open network explorer</a></nav></header>
+<main>
+<div class="eyebrow">Teacher investigation · supported conductivity revision</div>
+<h1>What changes when a rod conducts heat better?</h1>
+<p class="intro">Compare two separately executed OpenModelica cases at the <strong>same recorded physical times</strong>. The original case is preserved; the hypothetical case changes one source-validated conductivity. No browser simulation, interpolated values, or fabricated native qualification.</p>
+<section class="panel"><div class="fieldrow"><label for="comparison-select">Recorded experiment pair</label><select id="comparison-select" disabled aria-label="Recorded experiment pair"><option>Loading source identities…</option></select></div><p id="revision" class="note" style="margin:13px 0 0">No pair selected.</p></section>
+<div id="error" role="alert" aria-live="assertive"></div>
+<div id="inspector" hidden>
+<div class="layout"><section class="panel"><div class="eyebrow">Saved physical time</div><h2 id="time-label">—</h2><input id="time-slider" aria-label="Synchronized saved native time" type="range" min="0" max="0" value="0" disabled><div class="fieldrow"><small id="time-range">—</small><small id="sample-count">—</small></div><p class="note" style="margin-bottom:0">The slider moves between identical saved timestamps in both source files. It never interpolates between them.</p></section>
+<section class="panel"><div class="fieldrow"><label for="quantity-select">Source-linked observation</label><select id="quantity-select" aria-label="Comparison physical observation" disabled></select></div><p class="note" id="quantity-description" style="margin:13px 0 0"></p><div class="line"></div><div class="eyebrow">Derived display aid</div><h2 id="gap-label" style="margin-bottom:5px">—</h2><p id="gap-details" class="note" style="margin-bottom:0"></p></section></div>
+<section class="panel"><div class="eyebrow">Native saved values</div><h2>Original and hypothetical</h2><div class="stats"><div class="result baseline"><h3>Original source</h3><strong id="baseline-value">—</strong><small id="baseline-model">—</small></div><div class="result revised"><h3>Hypothetical successor</h3><strong id="successor-value">—</strong><small id="successor-model">—</small></div></div></section>
+<section class="panel"><div class="eyebrow">Observation history</div><h2 id="chart-title">Recorded source samples</h2><div class="legend"><span><i class="dot" style="background:#267e83"></i>Original native</span><span><i class="dot" style="background:#bf7b56"></i>Hypothetical native</span></div><div class="plot-scroll" tabindex="0" role="region" aria-label="Horizontally scrollable native comparison chart"><svg id="comparison-chart" class="datachart" viewBox="0 0 900 300" role="img" aria-label="Two saved native observation histories at matching physical times"></svg></div><p class="note">Lines only connect recorded points as visual guides, not simulated intermediate states. Values originate from original archived native results in their own historical runs.</p></section>
+<section class="panel"><div class="eyebrow">Source and limitations</div><h2>Two native histories, two provenance records</h2><div class="source"><div><h3>Original</h3><div id="baseline-source" class="note"></div></div><div><h3>Hypothetical</h3><div id="successor-source" class="note"></div></div></div><p class="note">Both result sets are <code>diagnostic_only</code>, <code>nativeQualified=false</code>. This does not establish independent physical measurement, exact finite-time equilibrium or certified reference error. Conductivity and topology values were verified by H1 study admission; source-relative JSON digests do not attest the GitHub host.</p></section>
+</div></main><script type="module" src="./compare.mjs"></script></body></html>

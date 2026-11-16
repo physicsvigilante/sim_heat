@@ -27,11 +27,11 @@ class Ring4EvidenceTests(unittest.TestCase):
         study=load_study(ROOT/'h1/cases/TEACH_RING4/study.json',ROOT/'h1/cases')
         data=json.loads(CASE.read_text())
         catalog=json.loads((VIEW/'data/index.json').read_text())['cases']
-        self.assertEqual([x['id'] for x in catalog],
+        self.assertEqual([x['id'] for x in catalog[:5]],
                          ['H1_D1','H1_D2','DEV_BRIDGE','H1_S1','TEACH_RING4'])
         import hashlib
         self.assertEqual(hashlib.sha256(CASE.read_bytes()).hexdigest(),
-                         catalog[-1]['sha256'])
+                         next(x['sha256'] for x in catalog if x['id']=='TEACH_RING4'))
         self.assertTrue(study.request_report['admitted'])
         self.assertEqual(len(study.data['requests']),15)
         self.assertEqual(data['schema'],'sim_heat.viewer.native_case/1')
