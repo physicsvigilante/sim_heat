@@ -135,6 +135,63 @@ class NativeArtifactIntakeOfflineTests(unittest.TestCase):
                                             "nonstandard JSON constant"):
                     self.check()
 
+    def test_valid_json_exponent_overflow_rejected_at_any_depth(self):
+        # PR44 reviewer F-06: 1e999 is valid JSON but Python decodes to inf.
+        samples=(
+            b'{"reading":1e999}',
+            b'{"reading":-1e999}',
+            b'{"reading":1E+9999}',
+            b'{"nested":{"reported":[1.0,{"v":-2.5e999}]}}',
+        )
+        for name in ("source-release.json","native-run-receipt.json",
+                     "post-native-checks.json"):
+            for raw in samples:
+                with self.subTest(name=name,raw=raw):
+                    path=self.write(name,raw)
+                    with self.assertRaisesRegex(intake.IntakeRefusal,
+                                                "nonfinite JSON number"):
+                        self.check()
+                    path.unlink()
+
+    def test_finite_json_exponents_are_still_untrusted(self):
+        path=self.write("host-toolchain-attestation.json",
+                        b'{"large":1e308,"small":1e-308,'
+                        b'"fakeOwnerNativeLaunchApproved":true}')
+        report=self.check()
+        self.assert_blocked(report)
+        self.assertEqual(report["localFilesOnly"][path.name]["untrustedLocalSha256"],
+                         hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertIs(report["localFilesOnly"][path.name]["originAuthenticated"],False)
+
+    def test_json_sha_and_parser_consume_one_identical_byte_read(self):
+        path=self.write("native-run-receipt.json",
+                        b'{"nativeQualified":true,"origin":"UNTRUSTED"}')
+        real_read=Path.read_bytes
+        reads=[]
+        def tracked_read(p):
+            if p==path:
+                reads.append(p.name)
+            return real_read(p)
+        # No prior strict_metadata(path) should reopen a mutable file AFTER
+        # the SHA was calculated. This does not make the directory atomic.
+        with (
+            mock.patch.object(Path,"read_bytes",new=tracked_read),
+            mock.patch.object(staging,"strict_metadata",
+                              side_effect=AssertionError("second JSON open forbidden")),
+        ):
+            report=self.check()
+        self.assertEqual(reads,[path.name])
+        self.assert_blocked(report)
+        self.assertEqual(report["localFilesOnly"][path.name]["untrustedLocalSha256"],
+                         hashlib.sha256(real_read(path)).hexdigest())
+
+    def test_nested_duplicate_json_keys_still_refuse_with_same_bytes(self):
+        self.write("source-release.json",
+                   b'{"envelope":{"nativeAllowed":true,"nativeAllowed":false}}')
+        with self.assertRaisesRegex(staging.StageRefusal,
+                                    "duplicate JSON metadata key"):
+            self.check()
+
     def test_malformed_json_rejected(self):
         for raw in (b'{bad',b'\xff',b'[]',b'{"owner":}'):
             with self.subTest(raw=raw):
