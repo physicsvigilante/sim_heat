@@ -1,0 +1,141 @@
+name: H1-C1 F02 stale-snapshot CAS counterexamples (OFFLINE ONLY)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f02-stale-snapshot-cas-model
+  # No source-path filter: inherited drift requires full revalidation.
+permissions:
+  contents: read
+concurrency:
+  group: simheat-f02-UNTRUSTED-stale-cas-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  fake-compare-swap-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout reviewed ancestry with no stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Pin Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Offline checking dependencies, no Modelica installation
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Enforce four additions and frozen source/approved archival byte identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_f02_stale_cas_evidence
+          git rev-parse HEAD > c1_f02_stale_cas_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_f02_stale_cas_evidence/head-tree.txt
+          git diff --name-status 32cbb7d02b7db0cbc322fb0e7826861fd902a77a HEAD > c1_f02_stale_cas_evidence/source-diff.txt
+          git ls-files -z | xargs -0 sha256sum > c1_f02_stale_cas_evidence/source.sha256
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 > c1_f02_stale_cas_evidence/f0-original-shas.txt
+          python - <<'PY'
+          from pathlib import Path
+          expected={
+              '.github/workflows/h1-c1-f02-stale-snapshot-cas.yml',
+              'qualification/h1_c1/f02/offline_stale_snapshot_cas_model.py',
+              'qualification/h1_c1/f02/test_offline_stale_snapshot_cas_model.py',
+              'qualification/h1_c1/f02/STALE_SNAPSHOT_CAS_SCOPE.md',
+          }
+          rows=Path('c1_f02_stale_cas_evidence/source-diff.txt').read_text().splitlines()
+          assert len(rows)==4,rows
+          assert all(row.startswith('A\t') for row in rows),rows
+          assert {row.split('\t',1)[1] for row in rows}==expected,rows
+          PY
+          printf '%s  %s\n' 'fc5a7df5928c3fb8aef2ba4af516dfbd32b42c0450ebef1051ad4fd7efebd17f' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz' | sha256sum -c
+          printf '%s  %s\n' '50467b138ed64cdb908f2c763bc777e6babf0bb04a0711568acc559112e66f84' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json' | sha256sum -c
+          python --version > c1_f02_stale_cas_evidence/python.txt
+          python -m pip freeze > c1_f02_stale_cas_evidence/packages.txt
+      - name: Produce five honest fake receipts with source release STILL BLOCKED
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model audit-stale-fake-only > c1_f02_stale_cas_evidence/one-fake-stale-CAS.json
+          python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model demonstrate-naive-stale-read-only > c1_f02_stale_cas_evidence/unsafe-naive-double-claim.json
+          python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model demonstrate-split-brain-only > c1_f02_stale_cas_evidence/two-distinct-fakes.json
+          python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model demonstrate-reset-only > c1_f02_stale_cas_evidence/fake-reset-attack.json
+          python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model demonstrate-ack-loss-only > c1_f02_stale_cas_evidence/ack-loss-after-fake-commit.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('c1_f02_stale_cas_evidence')
+          read=lambda name:json.loads((root/name).read_text())
+          a=read('one-fake-stale-CAS.json')
+          b=read('unsafe-naive-double-claim.json')
+          c=read('two-distinct-fakes.json')
+          d=read('fake-reset-attack.json')
+          e=read('ack-loss-after-fake-commit.json')
+          assert a['fakeCounts']=={'contenders':16,'oneFakeFirstClaims':1,
+                                    'staleRefusals':15,'finalFakeVersion':1}
+          assert b['fakeCounts']['unprotectedStaleReadFirstClaims']==2
+          assert b['fakeCounts']['linearizableCASActuallyUsed'] is False
+          assert c['fakeCounts']['distinctFakeStoreFirstClaims']==2
+          assert d['fakeCounts']['firstClaimsBeforeAndAfterReset']==2
+          assert d['fakeCounts']['oldEpochReplayDenied'] is True
+          assert e['fakeCounts']['fakeCommitOccurred'] is True
+          assert e['fakeCounts']['fakeRepeatClaimAccepted'] is False
+          assert e['fakeCounts']['callerCanInferNativeEffect'] is False
+          assert e['fakeCounts']['newExternalPermitIssued'] is False
+          for report in (a,b,c,d,e):
+              assert report['releaseBlocked'] is True
+              assert report['untrustedInMemoryDemonstration'] is True
+              for key in ('ownerAuthenticated','nativeAllowed','nativeExecuted',
+                          'nativeQualified','ownerNativeLaunchApproved',
+                          'realExternalCASConnected','ownerControlledStoreAvailable',
+                          'durableOneShotReservationAllocated','crossHostAtomicityEstablished',
+                          'compilerVersionQueried','modelBuildInvoked','modelLaunched',
+                          'referenceRegenerated','originalF0Static100xPassed',
+                          'pr32BitwiseRegenerationPassed'):
+                  assert report[key] is False,key
+              for k in ('actualOmcVersionQueryBudget','actualModelBuildBudget',
+                        'actualModelLaunchBudget','actualRetryBudget'):
+                  assert type(report[k]) is int and report[k]==0,k
+          print('PASS: modeled stale CAS versus unsafe split-brain; NO real authority')
+          PY
+      - name: Native/owner/launch CLI choices are absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          for action in omc approve native release execute build launch reserve-native run retry; do
+            if python -B -m qualification.h1_c1.f02.offline_stale_snapshot_cas_model "${action}" > c1_f02_stale_cas_evidence/denied-${action}.stdout 2> c1_f02_stale_cas_evidence/denied-${action}.stderr; then
+              echo 'FAIL: a native or owner-approval verb unexpectedly succeeded'; exit 1
+            fi
+          done
+      - name: New stale-read and lost-ack adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_stale_snapshot_cas_model -v 2>&1 | tee c1_f02_stale_cas_evidence/new-stale-cas-tests.txt
+      - name: Regress every previously reviewed offline H1-C1 safety/science path
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_one_shot_state_model -v 2>&1 | tee c1_f02_stale_cas_evidence/state-model-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_release_readiness_hold -v 2>&1 | tee c1_f02_stale_cas_evidence/release-hold-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_external_cas_contract -v 2>&1 | tee c1_f02_stale_cas_evidence/default-deny-cas-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_one_shot_ledger_simulator -v 2>&1 | tee c1_f02_stale_cas_evidence/local-sqlite-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_build_script_preview -v 2>&1 | tee c1_f02_stale_cas_evidence/nonexecuted-modelica-text-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_stage_immutable_inputs -v 2>&1 | tee c1_f02_stale_cas_evidence/immutable-input-stage-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_control_preflight -v 2>&1 | tee c1_f02_stale_cas_evidence/disabled-control-tests.txt
+          python -B -m unittest qualification.h1_c1.option_a.test_offline_reference_consumer -v 2>&1 | tee c1_f02_stale_cas_evidence/owner-offline-consumer-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_option_a_binding_preflight -v 2>&1 | tee c1_f02_stale_cas_evidence/immutable-binding-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_pr31_fixture -v 2>&1 | tee c1_f02_stale_cas_evidence/archived-reference-tests.txt
+      - name: Retest 149 original frozen H1 checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee c1_f02_stale_cas_evidence/frozen-h1-tests.txt
+      - name: Archive fake-only evidence and all failures for independent R2
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f02-stale-snapshot-cas-${{ github.sha }}
+          path: c1_f02_stale_cas_evidence/
+          if-no-files-found: warn
+          retention-days: 90
