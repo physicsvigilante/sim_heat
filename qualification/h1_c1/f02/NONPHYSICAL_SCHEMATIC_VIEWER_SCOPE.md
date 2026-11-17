@@ -1,3 +1,13 @@
+## Project-audit correction — rendered connectivity and actual browser evidence
+
+The original PR49 head `04461dd840c3249ced06c4bf0bdeecc25babe962` drew its two parallel horizontal rod lanes without connectors to either junction circle. Real Chromium inspection reproduced the visible disconnected graph despite the original 20 source/DOM tests passing. This prospective correction adds diagram-only endpoint connections to the original junction rims, selects those paths with their rod, and gives sign labels clearance from arrowheads. The source graph, reference, physical units and all native-null/owner-HOLD fields are unchanged.
+
+The successor adds an exact four-rod connector-path regression and `browser_nonphysical_schematic_smoke.py`, which executes the actual emitted HTML and CSP in Chromium with `page.set_content`, checks all nine highlight selections plus reset/keyboard behavior, verifies geometric endpoints and mobile scroll behavior, and records screenshots, script errors and network requests. Local Chromium 144.0.7559.96 passed with no requests/errors; 410 offline Python tests passed. This is not cross-browser or screen-reader certification, local-file-navigation certification, a physical result or a native permission. The old PR49 review remains uncommitted in the audited central snapshot; this correction does not invent a PASS for it.
+
+The historical original-scope text below describes the pre-audit candidate. Its statements about lack of browser tests apply to that original head; the corrective branch has the explicitly scoped browser evidence above. No historical failed run or frozen scientific evidence is rewritten.
+
+---
+
 # SIM_HEAT H1-C1-F02 — offline self-contained NONPHYSICAL schematic and request highlighting
 
 **Status: UNREVIEWED SOURCE/VIEWER CANDIDATE.** This is a **static, self-contained HTML + SVG schematic VIEW**, not a physical apparatus drawing, native numerical simulation, MAT/CSV result, actual Modelica export, owner-authenticated source release or real CAS reservation. Historical source PRs are draft and MUST NEVER merge into production `main` on this evidence.

@@ -237,6 +237,27 @@ class OfflineNonphysicalSchematicViewerTests(unittest.TestCase):
         self.assertNotIn("nativeValue",match.group())
         self.assertNotIn("temperature=293",match.group())
 
+    def test_each_rendered_rod_is_visibly_connected_to_both_source_junctions(self):
+        root=ET.fromstring(re.search(r'<svg\b[^>]*>.*?</svg>',self.html,re.S).group())
+        nodes={n["id"]:n for n in self.baseline["schematicJunctions"]}
+        groups={g.attrib.get("data-element"):g for g in root.iter("g")
+                if g.attrib.get("class")=="rod"}
+        self.assertEqual(len(groups),4)
+        for rod in self.baseline["schematicOrientedRods"]:
+            with self.subTest(rod=rod["name"]):
+                group=groups["rod-"+rod["name"]]
+                paths=[e for e in group if e.tag=="path" and e.get("class")=="connector"]
+                self.assertEqual(len(paths),1)
+                a,b=nodes[rod["fromJunctionId"]],nodes[rod["toJunctionId"]]
+                direction=1 if b["diagramX"]>a["diagramX"] else -1
+                wanted=(f'M {a["diagramX"]+direction*29} {a["diagramY"]} '
+                        f'H {rod["diagramStartX"]} V {rod["diagramY"]} '
+                        f'M {rod["diagramEndX"]} {rod["diagramY"]} '
+                        f'V {b["diagramY"]} H {b["diagramX"]-direction*29}')
+                self.assertEqual(paths[0].get("d"),wanted)
+                self.assertEqual(len(group.findall("line")),1)
+        self.assertIn('.rod.selected line,.rod.selected .connector',viewer.CSS)
+
     def test_text_escaping_is_safe_for_untrusted_labels_even_if_mistakenly_passed(self):
         bad='<script>alert("nativeApproved")</script>'
         escaped=viewer._text(bad)
