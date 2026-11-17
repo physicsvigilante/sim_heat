@@ -99,8 +99,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 str(attempt['github']['GITHUB_RUN_ID']) == str(expected_run_id) and
                 str(attempt['github']['GITHUB_RUN_ATTEMPT']) == '1',
                 'campaign_evidence', 'incorrect recorded native identity/status')
-        require(attempt['counts'] == {'versionQueries':1,'buildModelCalls':len(attempt['cases']),
-                                     'modelLaunches':len(attempt['cases'])} and
+        require(stable_json(attempt['counts']) == stable_json({
+                    'versionQueries':1,'buildModelCalls':len(attempt['cases']),
+                    'modelLaunches':len(attempt['cases'])}) and
                 1 <= slot <= len(attempt['cases']),
                 'campaign_evidence', 'unexpected native command counts')
         manifest = attempt['artifactSha256']
@@ -157,10 +158,11 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 reference_check.fingerprint({k:v for k,v in bundle.items() if k!='seal'}) ==
                 item['referenceSeal'], 'campaign_evidence', 'checking reference seals disagree')
         csv_text = csv_bytes.decode('utf-8')
-        require(receipt == candidate_receipt(study,bundle,csv_text,'unattested_output'),
+        require(stable_json(receipt) == stable_json(candidate_receipt(study,bundle,csv_text,'unattested_output')),
                 'campaign_evidence', 'original native candidate receipt mismatch')
         checked = check_candidate(study,bundle,csv_text,receipt,item['referenceSeal'])
-        require(checked == verdict and checked['status'] == 'checks_passed' and
+        require(stable_json(checked) == stable_json(verdict) and checked['status'] == 'checks_passed' and
+                type(item['checkCount']) is int and
                 len(checked['checks']) == item['checkCount'] and
                 max(c['maximumRatio'] for c in checked['checks']) == item['maxRatio'] and
                 all(c['passed'] is True for c in checked['checks']) and

@@ -34,6 +34,8 @@ python -B viewer/network/tools/build_case.py \
   --archive /path/to/pinned-native-run.zip \
   --archive-sha <recorded-full-zip-sha256> \
   --case-slot 1 --artifact-id <recorded-artifact-id> \
+  --expected-run-id <independently-checked-run-id> \
+  --expected-commit-sha <independently-checked-source-sha> \
   --title 'An example body and reservoir' \
   --out viewer/network/data/ANOTHER_CASE.json
 ```
@@ -84,6 +86,8 @@ python -B viewer/network/tools/build_case.py \
   --archive /path/to/h3-ring4-native-successor-evidence.zip \
   --archive-sha 0bc1433be66df2827f8907d100ca264f6a721fe8ad40644b962500b97fa9b8b2 \
   --case-slot 1 --artifact-id 14215520616 \
+  --expected-run-id 43845664024 \
+  --expected-commit-sha 39b2067c9b6ea5f903dc4c360a78241b24df7c09 \
   --title 'Ring4 · four bodies, loop and shortcut' \
   --out /tmp/TEACH_RING4-replayed.json
 ```
@@ -111,7 +115,26 @@ See [H3-06 scope and adversarial refusal policy](../../../docs/H3_06_SOURCE_PAIR
 
 - `node --test viewer/network/tests/*.test.mjs`: all three original transient bundles plus the strict steady S1 case, hashes, graph uniqueness, signed direction, units, energy ownership, negative/refusal and synthetic parser tests.
 - `python -B -m unittest discover -s viewer/network/tests -v`: adapter topology, unseen-junction and sample-selection tests.
-- `python -B viewer/network/tests/browser_smoke.py --out /tmp/h2-02-images`: **real Chromium** desktop/mobile, four-case switch, keyboard/playback, reversal jump and SHA rejection.
-- Project CI additionally runs 151 existing H1 and four analytical offline tests, with zero OpenModelica builds or launches. The original viewer/engine remains unchanged.
+- `python -B viewer/network/tests/browser_smoke.py --out /tmp/h2-02-images`: **real Chromium** desktop/mobile, six-case switch, keyboard/playback, reversal jump and SHA rejection.
+- Project CI additionally runs 152 H1 and four analytical offline tests, with zero OpenModelica builds or launches. The original viewer/engine remains unchanged.
 
 H2-03S is **R2 for a new steady-evidence presentation contract**, while H2-02 remains immutable historical scope and receives one separate-chat review through `review_sandbox`, after CI is green at exact commit SHA. Owner approval is still required for a merge. Physical solver ownership, reference error budgets, native qualification, unfamiliar-author C1 and classroom effectiveness remain out of scope. See [scope](../../../docs/H2_02_GENERIC_VIEWER_SCOPE.md).
+
+
+## Project-audit hardening (2026-11-17 successor)
+
+All archive adapters now compare recomputed receipts by canonical serialized JSON,
+not Python dictionary equality: numerical `0/1` cannot impersonate false/true
+flags. The transient adapter verifies the complete saved manifest, presealed
+reference, original checking report and MAT/CSV provenance instead of trusting
+a top-level success label. It replays saved checks without preparing a reference
+or executing OMC. Its CLI now requires `--expected-run-id` and
+`--expected-commit-sha`, just like the steady/campaign adapters. Those identifiers
+and the original whole-ZIP SHA must be checked outside the supplied archive;
+internal consistency is not owner or host authentication. Existing archived
+preview data and scientific acceptance thresholds are unchanged.
+
+Generated ideal-junction IDs now avoid all authored component IDs, including
+component names such as `junction_2`. This preserves valid generic composition
+without introducing false self-loop edges. Existing six published graphs retain
+their original names and bytes.

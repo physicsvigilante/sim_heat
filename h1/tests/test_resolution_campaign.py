@@ -31,7 +31,7 @@ class ResolutionCampaignTests(unittest.TestCase):
         # The historical pinned plans stay byte-identical and must fail closed
         # against new code. Tests use an explicitly repinned, TEMPORARY
         # successor plan, never a rewritten historical execution artifact.
-        for path in ('h1/matv4.py','h1/tests/test_matv4.py',
+        for path in ('h1/matv4.py','h1/tests/test_matv4.py','h1/study.py',
                      'h1/tests/test_resolution_campaign.py'):
             pin=sha(root/path)
             if path in b['pins']:
@@ -52,6 +52,13 @@ class ResolutionCampaignTests(unittest.TestCase):
         with self.assertRaises(Refusal) as caught:
             load_plan(ROOT,archival,sha(archival))
         self.assertEqual(caught.exception.code,'identity')
+
+    def test_historical_plan_remains_bound_to_original_json_parser(self):
+        archival=ROOT/'tools/h1_d1d2_plan.json'
+        original=json.loads(archival.read_text())
+        self.assertNotEqual(original['pins']['h1/study.py'],sha(ROOT/'h1/study.py'))
+        with self.assertRaises(Refusal):
+            load_plan(ROOT,archival,sha(archival))
 
     def test_only_analysis_and_metadata_change(self):
         for k in ('D1','D2','D2_K2'):
