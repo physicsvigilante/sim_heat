@@ -225,7 +225,9 @@ class OfflineNonphysicalSchematicViewerTests(unittest.TestCase):
         ns={"s":"http://www.w3.org/2000/svg"}
         # HTML inline SVG defaults to an unnamespaced XML view, which the
         # XML parser can inspect without using a browser or executing JS.
-        groups=[g for g in root.iter() if g.tag.endswith("g")]
+        # The SVG root tag itself ends in "g": do not count it as a <g>.
+        groups=[g for g in root.iter()
+                if g.tag=="g" or g.tag.endswith("}g")]
         self.assertEqual(len(groups),8)
         self.assertEqual(sum(x.attrib.get("class")=="node" for x in groups),4)
         self.assertEqual(sum(x.attrib.get("class")=="rod" for x in groups),4)
