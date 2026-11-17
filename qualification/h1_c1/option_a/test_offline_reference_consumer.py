@@ -97,7 +97,7 @@ class ApprovedOfflineReferenceTests(unittest.TestCase):
         compromised = deepcopy(original)
         compromised["bundle"]["columns"]["hotLead.G"][0] = 0.44999999999999996
         with mock.patch.object(consumer.inspect_pr31_fixture, "load_candidate",
-                               return_value=compromised):
+                               side_effect=[original, compromised]):
             with self.assertRaisesRegex(consumer.AdoptionRefusal, "approved reference changed"):
                 consumer.load_for_offline_checking()
 
@@ -105,7 +105,7 @@ class ApprovedOfflineReferenceTests(unittest.TestCase):
         compromised = deepcopy(fixture.load_candidate(inspect_only=True))
         compromised["rawSha256"] = "f"*64
         with mock.patch.object(consumer.inspect_pr31_fixture, "load_candidate",
-                               return_value=compromised):
+                               side_effect=[original, compromised]):
             with self.assertRaisesRegex(consumer.AdoptionRefusal, "approved reference changed"):
                 consumer.load_for_offline_checking()
 
