@@ -321,14 +321,16 @@ class OfflineNonphysicalSchematicViewerTests(unittest.TestCase):
 
     def test_model_path_fork_or_split_brain_adversarially_refused(self):
         d=self.baseline
-        good=viewer._path_from_source(d["schematicJunctions"],
-                                      d["schematicOrientedRods"])
+        # Exercise the pre-layout helper using its ORIGINAL input schema,
+        # not the already-rendered schematic's compact label schema.
+        originals=[{"id":n["id"],"owningComponent":n["label"]}
+                   for n in d["schematicJunctions"]]
+        rods=deepcopy(d["schematicOrientedRods"])
+        good=viewer._path_from_source(originals,rods)
         self.assertEqual(good,d["sourceJunctionOrder"])
-        split=self.copy()
-        split["schematicOrientedRods"][1]["toJunctionId"]="junction-00"
+        rods[1]["toJunctionId"]="junction-00"
         with self.assertRaises(viewer.SchematicRefusal):
-            viewer._path_from_source(split["schematicJunctions"],
-                                     split["schematicOrientedRods"])
+            viewer._path_from_source(originals,rods)
 
     def test_full_integrated_source_render_never_calls_native_or_reference_generator(self):
         with mock.patch.object(reference,"prepare",side_effect=AssertionError(
