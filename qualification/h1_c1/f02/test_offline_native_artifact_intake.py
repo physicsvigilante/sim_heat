@@ -59,11 +59,7 @@ class NativeArtifactIntakeOfflineTests(unittest.TestCase):
                 self.assertIs(report[key],False,key)
 
     def test_integrated_real_science_HOLD_and_absent_evidence(self):
-        with mock.patch.object(intake.readiness,"audit",
-                               wraps=intake.readiness.audit) as real:
-            # This wrapper wraps the class-level patched fake. Override
-            # explicitly with the underlying original bound call below.
-            pass
+        # setUpClass ran the full pinned scientific HOLD audit once.
         # Metadata/staging is deliberately absent: still successful HOLD.
         report=self.check()
         self.assert_blocked(report)
@@ -111,7 +107,6 @@ class NativeArtifactIntakeOfflineTests(unittest.TestCase):
         self.assertEqual(len(x["localFilesOnly"]),4)
 
     def test_forged_evidence_metadata_numeric_zero_remains_untrusted(self):
-        self.write("owner-native-bad.json",b"{}") if False else None
         self.write("source-release.json",
                    b'{"ownerNativeLaunchApproved":0,"nativeAllowed":0.0}')
         self.assert_blocked(self.check())
