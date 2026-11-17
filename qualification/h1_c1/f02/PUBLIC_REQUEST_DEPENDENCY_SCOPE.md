@@ -8,7 +8,7 @@ This work follows [PR46's independent scoped R2 PASS](https://github.com/physics
 
 `offline_public_request_dependencies.py` uses the original modal study `h1/cases/H1_C1_MODAL/study.json` and unchanged `h1.model` port/component kinds to construct a **name-only dependency mapping** for all nine requests. The mapping follows the projection semantics already present in frozen `h1.verification.check_candidate`: direct `temperature` maps an authored thermal component port to its expected `.T`, `.T_a` or `.T_b` field depending on component kind/port; direct `heatFlow` maps a RodArea/RodCircular component to `.Q_flow` (the positive original `Q_flow` orientation, never a guessed port-sign flip); direct `energyChange` maps a Body to `.dU`; and `temperatureDifference` is **first authored port temperature minus second authored port temperature**, represented as two ordered terms with literal signs `+1` and `-1`. No subtraction or physical value is evaluated.
 
-<escape>Original nine mapping (source-derived expected field names, NOT observed native values):
+Original nine mapping (source-derived expected field names, NOT observed native values):
 
 | Original public ID | Expected source terms | Unit / status |
 |---|---|---|
@@ -20,7 +20,7 @@ This work follows [PR46's independent scoped R2 PASS](https://github.com/physics
 | coldLeadFlow | +coldLead.Q_flow | W / not_computed |
 | bufferTemperatureDifference | +leftBuffer.T − rightBuffer.T | K / not_computed |
 | leftEnergyChange | +leftBuffer.dU | J / not_computed |
-| rightEnergyChange | +rightBuffer.dU | J / not_computed |</escape>
+| rightEnergyChange | +rightBuffer.dU | J / not_computed |
 
 No exporter is invoked; these are **intended frozen Modelica field names**, not evidence that OMC actually publishes them. Expected exports are validated against the complete original source-derived PR46 37-field inventory and saved PR31 original analytical reference field names/units; original first-author Modelica and evaluator modal study raw SHA identities remain unchanged. The report intentionally includes NO numerical analytical series, native MAT/CSV or public values.
 
