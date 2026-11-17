@@ -1,0 +1,175 @@
+name: H1-C1 F02 expected 37-4-9 export coverage ONLY (NO OMC)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f02-expected-export-coverage
+  # No paths filter; any inherited source/input drift is checked.
+permissions:
+  contents: read
+concurrency:
+  group: simheat-f02-EXPECTED-only-coverage-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  deny-native-proof-from-local-files:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout reviewed historical source without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Pin Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Only offline checking packages, no OpenModelica
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: "Verify exactly four new expected-only files and old frozen source"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_f02_expected_coverage_evidence
+          git rev-parse HEAD > c1_f02_expected_coverage_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_f02_expected_coverage_evidence/head-tree.txt
+          git diff --name-status 278f8224fa23ec20bc6c7342ab433b9be17e4434 HEAD > c1_f02_expected_coverage_evidence/source-diff.txt
+          git ls-files -z | xargs -0 sha256sum > c1_f02_expected_coverage_evidence/source.sha256
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 > c1_f02_expected_coverage_evidence/frozen-f0-pins.txt
+          python - <<'PY'
+          from pathlib import Path
+          expected={
+              'A\tqualification/h1_c1/f02/offline_expected_export_coverage.py',
+              'A\tqualification/h1_c1/f02/test_offline_expected_export_coverage.py',
+              'A\tqualification/h1_c1/f02/EXPECTED_EXPORT_COVERAGE_SCOPE.md',
+              'A\t.github/workflows/h1-c1-f02-expected-export-coverage.yml',
+          }
+          rows=Path('c1_f02_expected_coverage_evidence/source-diff.txt').read_text().splitlines()
+          assert len(rows)==4 and set(rows)==expected,rows
+          PY
+          printf '%s  %s\n' 'fc5a7df5928c3fb8aef2ba4af516dfbd32b42c0450ebef1051ad4fd7efebd17f' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz' | sha256sum -c
+          printf '%s  %s\n' '50467b138ed64cdb908f2c763bc777e6babf0bb04a0711568acc559112e66f84' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json' | sha256sum -c
+          python --version > c1_f02_expected_coverage_evidence/python.txt
+          python -m pip freeze > c1_f02_expected_coverage_evidence/packages.txt
+      - name: Read-only intake with NO local native data must stay BLOCKED
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_native_artifact_intake inspect-untrusted-files-only --label ci-not-native > c1_f02_expected_coverage_evidence/untrusted-native-INCOMPLETE.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('c1_f02_expected_coverage_evidence/untrusted-native-INCOMPLETE.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='BLOCKED_UNAUTHENTICATED_NATIVE_ARTIFACT_INTAKE'
+          assert x['releaseBlocked'] is True
+          assert len(x['elevenReleaseGatesStillMissing'])==11
+          assert len(x['expectedUntrustedFilenames'])==9
+          assert x['missingFilenames']==x['expectedUntrustedFilenames']
+          assert x['localFilesOnly']=={}
+          assert x['nativePublicRequestsStillNotComputed']==9
+          assert x['allFileNamesPresentWouldBeNativeProof'] is False
+          assert x['localFileHashesAreAuthenticProvenance'] is False
+          for k in ('nativeAllowed','nativeExecuted','nativeQualified',
+                    'ownerNativeLaunchApproved','trustedReleaseReady',
+                    'ownerAuthenticated','compilerVersionQueried','buildInvoked',
+                    'modelLaunched','matDecoded','publicReadingsComputed',
+                    'realAcrossRunReservationAllocated','referenceRegenerated',
+                    'historicalF0Static100xPassed','pr32BitwiseRegenerationPassed'):
+              assert x[k] is False,k
+          assert x['referenceRawSha256']=='0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368'
+          assert x['referenceSeal']=='d2b8e2ca8e1f929cac7b028dcc3f7d0b453921d193f877eb091e23ac70aa4ce9'
+          print('PASS: all missing, fake files never evidence, zero native authority')
+          PY
+      - name: Record original expected 37-channel 4-integral 9-request coverage with NO native outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_expected_export_coverage describe-expected-only > c1_f02_expected_coverage_evidence/expected-not-observed.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('c1_f02_expected_coverage_evidence/expected-not-observed.json')
+          r=json.loads(p.read_bytes())
+          assert r['status']=='EXPECTED_ANALYTICAL_COVERAGE_ONLY_NO_NATIVE_OBSERVATION'
+          assert r['releaseBlocked'] is True
+          assert r['sourcePinsVerified']==23 and r['analyticalGridSamples']==4001
+          assert (r['expectedModelExportCount'],r['expectedIntegralCount'],
+                  r['publicRequestCount'])==(37,4,9)
+          assert len({x['name'] for x in r['expectedModelExports']})==37
+          assert len({x['name'] for x in r['expectedFlowIntegrals']})==4
+          assert len({x['id'] for x in r['publicRequests']})==9
+          assert all(x['nativeStatus']=='not_computed'
+                     and x['observedNativeSamples'] is None
+                     and x['savedAnalyticalReferenceSamples']==4001
+                     for x in r['expectedModelExports'])
+          assert all(x['nativeStatus']=='not_computed'
+                     and x['observedNativeSamples'] is None
+                     and x['savedAnalyticalIntegralSamples']==4001
+                     for x in r['expectedFlowIntegrals'])
+          assert all(x['nativeStatus']=='not_computed'
+                     and x['nativeValue'] is None for x in r['publicRequests'])
+          assert r['nativeObservationCount']==0
+          assert r['nativeExportSeriesObtained']==0
+          assert r['nativeIntegralSeriesObtained']==0
+          assert r['nativePublicRequestsStillNotComputed']==9
+          assert len(r['missingNativeReleaseGates'])==11
+          for key in ('nativeAllowed','nativeExecuted','nativeQualified',
+                      'modelBuilt','compilerQueried',
+                      'realAcrossRunReservationAllocated',
+                      'ownerNativeLaunchApproved','trustedReleaseReady',
+                      'matDecoded','referenceRegenerated',
+                      'originalF0Strict100xPassed',
+                      'pr32BitwiseRegenerationPassed',
+                      'nativeObservationsComputed'):
+              assert r[key] is False,key
+          assert r['originalSavedReferenceRawSha256']=='0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368'
+          assert r['originalSavedReferenceSeal']=='d2b8e2ca8e1f929cac7b028dcc3f7d0b453921d193f877eb091e23ac70aa4ce9'
+          print('PASS: original 37+4+9 EXPECTED only, ZERO native observations')
+          PY
+      - name: New expected versus observed native coverage negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_expected_export_coverage -v 2>&1 | tee c1_f02_expected_coverage_evidence/expected-coverage-tests.txt
+      - name: Actual native, owner, qualified, compiler CLI actions all refused
+        shell: bash
+        run: |
+          set -euo pipefail
+          for action in native execute approve run build launch omc reserve-native verify-native qualify; do
+            if python -B -m qualification.h1_c1.f02.offline_native_artifact_intake "${action}" --label ci-not-native > c1_f02_expected_coverage_evidence/forbidden-${action}.stdout 2> c1_f02_expected_coverage_evidence/forbidden-${action}.stderr; then
+              echo 'FAIL: forbidden native/owner action accepted'; exit 1
+            fi
+          done
+      - name: New untrusted evidence and forged provenance negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_native_artifact_intake -v 2>&1 | tee c1_f02_expected_coverage_evidence/untrusted-intake-tests.txt
+      - name: All previously reviewed offline source, safety and reference regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_stale_snapshot_cas_model -v 2>&1 | tee c1_f02_expected_coverage_evidence/stale-snapshot-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_one_shot_state_model -v 2>&1 | tee c1_f02_expected_coverage_evidence/one-shot-model-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_release_readiness_hold -v 2>&1 | tee c1_f02_expected_coverage_evidence/readiness-HOLD-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_external_cas_contract -v 2>&1 | tee c1_f02_expected_coverage_evidence/untrusted-external-CAS-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_one_shot_ledger_simulator -v 2>&1 | tee c1_f02_expected_coverage_evidence/local-sqlite-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_build_script_preview -v 2>&1 | tee c1_f02_expected_coverage_evidence/build-text-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_stage_immutable_inputs -v 2>&1 | tee c1_f02_expected_coverage_evidence/staged-input-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_control_preflight -v 2>&1 | tee c1_f02_expected_coverage_evidence/disabled-f02-tests.txt
+          python -B -m unittest qualification.h1_c1.option_a.test_offline_reference_consumer -v 2>&1 | tee c1_f02_expected_coverage_evidence/owner-offline-consumer-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_option_a_binding_preflight -v 2>&1 | tee c1_f02_expected_coverage_evidence/reference-binding-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_pr31_fixture -v 2>&1 | tee c1_f02_expected_coverage_evidence/pr31-archive-tests.txt
+      - name: Retest all original frozen H1 physics/source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee c1_f02_expected_coverage_evidence/frozen-h1-tests.txt
+      - name: Archive BLOCKED intake receipts and all offline tests, including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f02-EXPECTED-only-coverage-${{ github.sha }}
+          path: c1_f02_expected_coverage_evidence/
+          retention-days: 90
+          if-no-files-found: warn
