@@ -1,0 +1,42 @@
+{
+  "schema": "sim_heat.c1_f02_readiness_absence_declaration/1",
+  "status": "EXPLICITLY_MISSING_PRE_NATIVE_GATES_NOT_AN_APPROVAL",
+  "reviewedOfflineSourceCommit": "ebe203781e87ba108e8dec845074ca7ca47972ef",
+  "reviewedOfflineSourceTree": "ca0254a94bb2f6785608c0ad8700a693a00f647e",
+  "frozenOriginalF0Commit": "dd8c9432abe97563414bb3ed809e61e673473812",
+  "originalFirstModelSha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+  "modalStudySha256": "b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b",
+  "approvedArchivedReferenceRawSha256": "0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368",
+  "approvedArchivedReferenceSeal": "d2b8e2ca8e1f929cac7b028dcc3f7d0b453921d193f877eb091e23ac70aa4ce9",
+  "ownerDirectionScope": "option_a_exact_saved_reference_offline_checking_only",
+  "ownerIdentityAuthenticatedExternally": false,
+  "referenceRegenerated": false,
+  "originalFrozenF0Static100xPassed": false,
+  "pr32BitwiseReproductionPassed": false,
+  "nativeAllowed": false,
+  "nativeExecuted": false,
+  "nativeQualified": false,
+  "nativePlanApproved": false,
+  "ownerNativeLaunchApproved": false,
+  "trustedReleaseReady": false,
+  "realAcrossRunReservationAllocated": false,
+  "unresolvedNativeReleaseGates": {
+    "owner_native_launch_approval_for_named_budgets": null,
+    "owner_authenticated_protected_reviewed_reference_release": null,
+    "independent_retained_verified_reference_backup": null,
+    "live_fresh_source_ref_and_signed_commit_attestation": null,
+    "reviewed_nonregenerating_executable_native_adapter": null,
+    "exact_sha_pinned_native_runner_and_executable_plan": null,
+    "trusted_actual_host_image_and_omc_executable_hash": null,
+    "observed_omc_msl_compiler_and_runtime_identity": null,
+    "owner_controlled_shared_external_transactional_store": null,
+    "durable_across_runs_unique_reservation_and_crash_receipts": null,
+    "independent_pre_native_r2_and_post_native_evidence_policy": null
+  },
+  "limits": [
+    "All native release evidence gates are explicitly absent; this is NOT a release declaration",
+    "Read-only local source/reference identity cannot authenticate a GitHub owner or a live protected release",
+    "None of the untrusted local/fake CAS providers is a real owner-controlled native reservation",
+    "No OMC version query, Modelica build or native launch has been approved or performed"
+  ]
+}
