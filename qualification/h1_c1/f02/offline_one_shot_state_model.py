@@ -93,6 +93,34 @@ def check_state(s: HypotheticalState):
     if s.phase == DONE:
         need(len(s.history)>0 and s.history[-1]=="simulate-ok",
              "complete toy sequence requires final simulated success")
+    # Never accept a state whose fake counts/phase were edited to disagree
+    # with its fictional event sequence. This is self-consistency only, NOT
+    # a signature or a protected native audit ledger.
+    phase=AWAIT[0]
+    claims=[0,0,0]
+    claim_events=("claim-version","claim-build","claim-launch")
+    for e in s.history:
+        need(phase not in (DONE,STOP),
+             "event invented after terminal fictional state")
+        if e in claim_events:
+            i=claim_events.index(e)
+            need(phase==AWAIT[i] and claims[i]==0,
+                 "impossible fictional claim history")
+            claims[i]=1
+            phase=CONSUMED[i]
+        elif e=="simulate-ok":
+            need(phase in CONSUMED,
+                 "fictional success without a consumed slot")
+            i=CONSUMED.index(phase)
+            phase=AWAIT[i+1] if i<2 else DONE
+        elif e=="simulate-failure":
+            need(phase in CONSUMED,
+                 "fictional failure without a consumed slot")
+            phase=STOP
+        elif e in ("crash","outage"):
+            phase=STOP
+    need(phase==s.phase and tuple(claims)==s.simulated_claims,
+         "fictional state does not match its complete event history")
 
 
 def move(s: HypotheticalState, event: str) -> HypotheticalState:
