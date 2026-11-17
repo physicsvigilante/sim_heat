@@ -34,6 +34,20 @@ REFERENCE_FILE = "reference.bundle.json"
 MANIFEST_FILE = "STAGED_INPUTS_MANIFEST.json"
 STATE_FILE = "STAGE_STATE.json"
 ALLOWED_FILES = set(SOURCE_FILES) | {REFERENCE_FILE, MANIFEST_FILE, STATE_FILE}
+# Independent of the editable stage manifest. Reviewed disabled PR36 plan raw
+# SHA-256; f02.load_preview ALSO checks its independently pinned Git blob.
+EXPECTED_DISABLED_PLAN_SHA256 = "7e03896563ae8b4762b56bb8807612a93cddb759145a23fa94326363ea706326"
+STAGED_FALSE_FIELDS = (
+    "nativeAllowed", "nativeExecuted", "nativePlanCreated",
+    "nativePlanApproved", "ownerNativeLaunchApproved", "referenceRegenerated",
+    "oneShotReservationAllocated", "buildScriptIncluded",
+    "executableIncluded", "compilerQueryIncluded",
+    "originalF0Static100xPassed", "pr32CrossHostBitwiseRegenerationPassed",
+)
+STATE_FALSE_FIELDS = (
+    "nativeAllowed", "nativeExecuted", "nativePlanCreated",
+    "oneShotReservationAllocated",
+)
 
 
 class StageRefusal(ValueError):
@@ -51,6 +65,41 @@ def sha(raw: bytes) -> str:
 
 def json_raw(obj: dict) -> bytes:
     return (json.dumps(obj, sort_keys=True, indent=2, allow_nan=False)+"\n").encode()
+
+
+def _no_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict:
+    value = {}
+    for key, item in pairs:
+        need(key not in value, "duplicate JSON metadata key: " + key)
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite(token: str):
+    raise StageRefusal("nonstandard JSON constant in staged metadata: " + token)
+
+
+def strict_metadata(path: Path, maximum: int = 16_384) -> dict:
+    """Reject duplicate keys (including nested), NaN/Infinity and oversized JSON."""
+    need(path.is_file() and not path.is_symlink() and
+         0 < path.stat().st_size <= maximum, "invalid staged metadata file")
+    try:
+        result = json.loads(path.read_bytes().decode("utf-8"),
+                            object_pairs_hook=_no_duplicate_pairs,
+                            parse_constant=_reject_nonfinite)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise StageRefusal("invalid JSON in staged metadata") from exc
+    need(type(result) is dict, "staged metadata must be a JSON object")
+    return result
+
+
+def pinned_disabled_preview(root: Path) -> str:
+    """The plan must match a fixed reviewed identity, not stage-manifest data."""
+    preview, digest = f02.load_preview(root / f02.PLAN)
+    need(digest == EXPECTED_DISABLED_PLAN_SHA256,
+         "independently pinned disabled preview SHA mismatch")
+    f02.validate_preview(preview)
+    return digest
 
 
 def source_file(root: Path, rel: str, expected: str) -> bytes:
@@ -107,6 +156,7 @@ def stage(*, label: str, root: Path=ROOT) -> dict:
          "staging must be fresh; never overwrite an attempt")
     out.mkdir(exist_ok=False)
     state={"schema":"sim_heat.c1_f02_stage_state/1",
+           "label":label,
            "status":"INCOMPLETE_NONNATIVE",
            "nativeAllowed":False,"nativeExecuted":False,
            "nativePlanCreated":False,"oneShotReservationAllocated":False}
@@ -121,8 +171,9 @@ def stage(*, label: str, root: Path=ROOT) -> dict:
         "sourceMode":"original_frozen_model_plus_saved_PR31_V2",
         "ownerScope":"reference_checking_only",
         "case":"H1_C1_MODAL",
+        "label":label,
         "sourcePinCount":23,
-        "disabledPreviewSha256":sha((root/f02.PLAN).read_bytes()),
+        "disabledPreviewSha256":pinned_disabled_preview(root),
         "referenceSeal":captured.V2_SEAL,
         "referenceRawSha256":captured.V2_RAW_SHA,
         "sourceFilesSha256":{name:expected for name,(_,expected) in SOURCE_FILES.items()},
@@ -150,20 +201,31 @@ def stage(*, label: str, root: Path=ROOT) -> dict:
 def verify(*,label: str,root: Path=ROOT) -> dict:
     need(isinstance(label,str) and LABEL.fullmatch(label) is not None,"unsafe stage name")
     root=Path(root).resolve(strict=True)
-    directory=root/STAGE_PARENT/label
+    parent=root/STAGE_PARENT
+    need(parent.is_dir() and not parent.is_symlink(),
+         "staging parent missing or symlink")
+    directory=parent/label
     need(directory.is_dir() and not directory.is_symlink(),"stage directory missing")
     files=list(directory.iterdir())
     need({p.name for p in files}==ALLOWED_FILES and all(
         p.is_file() and not p.is_symlink() for p in files),
         "staged payload incomplete, extra or symlink")
-    state=json.loads((directory/STATE_FILE).read_text())
+    state=strict_metadata(directory/STATE_FILE)
+    need(state.get("label")==label, "staged attempt label mismatch in state")
     need(state=={
         "schema":"sim_heat.c1_f02_stage_state/1",
+        "label":label,
         "status":"STAGED_NOT_EXECUTED",
         "nativeAllowed":False,"nativeExecuted":False,
         "nativePlanCreated":False,"oneShotReservationAllocated":False
-    },"refused incomplete/untrusted stage state")
-    doc=json.loads((directory/MANIFEST_FILE).read_text())
+    } and all(state.get(key) is False for key in STATE_FALSE_FIELDS),
+         "refused incomplete/untrusted stage state")
+    doc=strict_metadata(directory/MANIFEST_FILE)
+    need(doc.get("label")==label, "staged attempt label mismatch in manifest")
+    # Independent exact file identity, not mutual agreement of two mutable inputs.
+    disabled_preview_sha=pinned_disabled_preview(root)
+    need(type(doc.get("sourcePinCount")) is int,
+         "staged source pin count must be JSON integer")
     expected={name:digest for name,(_,digest) in SOURCE_FILES.items()}
     expected[REFERENCE_FILE]=captured.V2_RAW_SHA
     need(doc.get("schema")=="sim_heat.c1_f02_immutable_stage/1" and
@@ -172,7 +234,7 @@ def verify(*,label: str,root: Path=ROOT) -> dict:
          doc.get("ownerScope")=="reference_checking_only" and
          doc.get("case")=="H1_C1_MODAL" and
          doc.get("sourcePinCount")==23 and
-         doc.get("disabledPreviewSha256")==sha((root/f02.PLAN).read_bytes()) and
+         doc.get("disabledPreviewSha256")==disabled_preview_sha and
          doc.get("referenceSeal")==captured.V2_SEAL and
          doc.get("referenceRawSha256")==captured.V2_RAW_SHA and
          doc.get("sourceFilesSha256")=={
@@ -186,7 +248,7 @@ def verify(*,label: str,root: Path=ROOT) -> dict:
          ==captured.V2_SEAL,"staged canonical reference mismatch")
     # A manifest is an evidence statement, not an extensible command envelope.
     need(set(doc)=={
-        "schema","status","sourceMode","ownerScope","case","sourcePinCount",
+        "schema","status","sourceMode","ownerScope","case","label","sourcePinCount",
         "disabledPreviewSha256","referenceSeal","referenceRawSha256",
         "sourceFilesSha256","stagedFilesSha256","nativeAllowed","nativeExecuted",
         "nativePlanCreated","nativePlanApproved","ownerNativeLaunchApproved",
@@ -200,13 +262,7 @@ def verify(*,label: str,root: Path=ROOT) -> dict:
         "The original F0 and PR32 negative histories remain failed",
         "Future native requires distinct R2, trusted host, and owner launch approval",
     ],"stage limitation/provenance statement changed")
-    false_fields=("nativeAllowed","nativeExecuted","nativePlanCreated",
-                  "nativePlanApproved","ownerNativeLaunchApproved",
-                  "referenceRegenerated","oneShotReservationAllocated",
-                  "buildScriptIncluded","executableIncluded",
-                  "compilerQueryIncluded","originalF0Static100xPassed",
-                  "pr32CrossHostBitwiseRegenerationPassed")
-    need(all(doc.get(k) is False for k in false_fields),
+    need(all(doc.get(k) is False for k in STAGED_FALSE_FIELDS),
          "staged manifest asserts forbidden execution/claim")
     return {
         "schema":"sim_heat.c1_f02_stage_receipt/1",
