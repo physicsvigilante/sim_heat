@@ -425,7 +425,7 @@ def render_html() -> str:
         f'<footer>Original Modelica SHA-256: <code>{source_label}</code>. '
         'Offline-only checking reference; 11 required native-release safeguards '
         'are missing. No external scripts, fonts, images or network requests.</footer>'
-        '<script>'+JS+'</script></main></body></html>\n")
+        '<script>'+JS+'</script></main></body></html>\n')
 
 
 def main(argv=None) -> int:
