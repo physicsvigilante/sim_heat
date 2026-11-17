@@ -1,6 +1,7 @@
 """Negative tests for F02 immutable INPUT snapshot. No Modelica/OMC runs."""
 import json
 from pathlib import Path
+import tempfile
 import shutil
 import unittest
 from unittest import mock
@@ -145,6 +146,126 @@ class F02OfflineStagingTests(unittest.TestCase):
                 with self.subTest(command=command),self.assertRaises(SystemExit) as x:
                     staging.main([command,"--label",self.label])
                 self.assertEqual(x.exception.code,2)
+
+    def test_duplicate_stage_manifest_keys_refuse(self):
+        self.make()
+        path=self.path/staging.MANIFEST_FILE
+        raw=path.read_text()
+        for key,old in (
+            ("nativeAllowed", '"nativeAllowed": false'),
+            ("nativeExecuted", '"nativeExecuted": false'),
+            ("ownerNativeLaunchApproved", '"ownerNativeLaunchApproved": false'),
+            ("status", '"status": "STAGED_FOR_OFFLINE_INSPECTION_ONLY"'),
+        ):
+            with self.subTest(key=key):
+                self.assertEqual(raw.count(old),1)
+                injected=old.replace(": ", ': true, "'+key+'": ',1) if key!="status" else (
+                    '"status": "NATIVE_RUNNING", '+old)
+                path.write_text(raw.replace(old,injected,1))
+                with self.assertRaisesRegex(staging.StageRefusal,"duplicate JSON metadata key"):
+                    staging.verify(label=self.label)
+                path.write_text(raw)
+
+    def test_duplicate_state_keys_refuse(self):
+        self.make()
+        path=self.path/staging.STATE_FILE
+        raw=path.read_text()
+        for key,old in (
+            ("nativeAllowed", '"nativeAllowed": false'),
+            ("nativeExecuted", '"nativeExecuted": false'),
+            ("status", '"status": "STAGED_NOT_EXECUTED"'),
+        ):
+            with self.subTest(key=key):
+                self.assertEqual(raw.count(old),1)
+                injected=old.replace(": ", ': true, "'+key+'": ',1) if key!="status" else (
+                    '"status": "RUNNING_NATIVE", '+old)
+                path.write_text(raw.replace(old,injected,1))
+                with self.assertRaisesRegex(staging.StageRefusal,"duplicate JSON metadata key"):
+                    staging.verify(label=self.label)
+                path.write_text(raw)
+
+    def test_nested_duplicate_and_nonfinite_json_refuse(self):
+        self.make()
+        path=self.path/staging.MANIFEST_FILE
+        raw=path.read_text()
+        needle='"model.mo": "'+staging.SOURCE_FILES["model.mo"][1]+'"'
+        self.assertEqual(raw.count(needle),2)
+        # One instance inside sourceFilesSha256 and one in stagedFilesSha256.
+        path.write_text(raw.replace(needle,needle+', '+needle,1))
+        with self.assertRaisesRegex(staging.StageRefusal,"duplicate JSON metadata key"):
+            staging.verify(label=self.label)
+        path.write_text(raw.replace('"sourcePinCount": 23',
+                                    '"sourcePinCount": NaN',1))
+        with self.assertRaisesRegex(staging.StageRefusal,"nonstandard JSON constant"):
+            staging.verify(label=self.label)
+
+    def test_staged_metadata_rejects_bool_numeric_zero_and_float_source_count(self):
+        self.make()
+        state=self.path/staging.STATE_FILE
+        original=state.read_bytes()
+        altered=json.loads(original)
+        altered["nativeAllowed"]=0
+        state.write_text(json.dumps(altered))
+        with self.assertRaisesRegex(staging.StageRefusal,"incomplete/untrusted"):
+            staging.verify(label=self.label)
+        state.write_bytes(original)
+        path=self.path/staging.MANIFEST_FILE
+        original=path.read_bytes()
+        for value in (23.0, True):
+            with self.subTest(value=repr(value)):
+                doc=json.loads(original)
+                doc["sourcePinCount"]=value
+                path.write_text(json.dumps(doc))
+                with self.assertRaisesRegex(staging.StageRefusal,"JSON integer"):
+                    staging.verify(label=self.label)
+        path.write_bytes(original)
+
+    def test_renamed_stage_refuses_even_when_all_data_bytes_match(self):
+        self.make()
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            parent=root/staging.STAGE_PARENT
+            parent.mkdir()
+            shutil.copytree(self.path,parent/"new-label")
+            with self.assertRaisesRegex(staging.StageRefusal,"attempt label mismatch"):
+                staging.verify(root=root,label="new-label")
+
+    def test_symlinked_staging_parent_is_refused(self):
+        self.make()
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            (root/staging.STAGE_PARENT).symlink_to(self.path.parent,
+                                                    target_is_directory=True)
+            with self.assertRaisesRegex(staging.StageRefusal,"parent missing or symlink"):
+                staging.verify(root=root,label=self.label)
+
+    def test_post_stage_coordinated_preview_and_manifest_drift_refuses(self):
+        self.make()
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            plan=root/staging.f02.PLAN
+            plan.parent.mkdir(parents=True,exist_ok=True)
+            original=(staging.ROOT/staging.f02.PLAN).read_bytes()
+            changed=original+b"\\n"
+            plan.write_bytes(changed)
+            parent=root/staging.STAGE_PARENT
+            parent.mkdir()
+            new_stage=parent/self.label
+            shutil.copytree(self.path,new_stage)
+            manifest=new_stage/staging.MANIFEST_FILE
+            changed_doc=json.loads(manifest.read_text())
+            changed_doc["disabledPreviewSha256"]=staging.sha(changed)
+            manifest.write_text(json.dumps(changed_doc))
+            with self.assertRaisesRegex(staging.f02.PreviewRefusal,"original pinned"):
+                staging.verify(root=root,label=self.label)
+
+    def test_standalone_preview_pin_is_independent_of_parser_result(self):
+        preview,original_sha=staging.f02.load_preview()
+        self.assertEqual(staging.pinned_disabled_preview(staging.ROOT),original_sha)
+        with mock.patch.object(staging.f02,"load_preview",return_value=(preview,"f"*64)):
+            with self.assertRaisesRegex(staging.StageRefusal,"independently pinned"):
+                staging.verify(label=self.label) if self.path.exists() else (
+                    staging.pinned_disabled_preview(staging.ROOT))
 
     def test_verify_before_staging_fails(self):
         with self.assertRaisesRegex(staging.StageRefusal,"stage directory missing"):
