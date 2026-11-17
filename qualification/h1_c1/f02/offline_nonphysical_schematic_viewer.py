@@ -297,13 +297,13 @@ svg{width:100%;min-width:760px;height:auto;display:block}
 .node circle{fill:#e5effa;stroke:#335f83;stroke-width:3}
 .node .owner{font-size:16px;font-weight:700;fill:#17354c;text-anchor:middle}
 .node .node-id{font-size:13px;fill:#526679;text-anchor:middle}
-.rod line{stroke:#25495d;stroke-width:4}
+.rod line,.rod .connector{stroke:#25495d;stroke-width:4;fill:none}
 .rod .rod-name{fill:#204257;font-size:15px;font-weight:700;text-anchor:middle}
 .rod .rod-sign{fill:#425971;font-size:11px;text-anchor:middle}
 svg.has-selection [data-element]{opacity:.22}
 svg.has-selection [data-element].selected{opacity:1}
 .node.selected circle{fill:#f0e3ff;stroke:#65329b;stroke-width:5}
-.rod.selected line{stroke:#65329b;stroke-width:7}
+.rod.selected line,.rod.selected .connector{stroke:#65329b;stroke-width:7}
 .rod.selected .rod-name{fill:#512285}
 footer{border-top:1px solid #d9e0e8;margin-top:1rem;font-size:.88rem;color:#304760;padding-top:.6rem}
 code{overflow-wrap:anywhere}
@@ -353,18 +353,30 @@ def render_html() -> str:
             '</g>'
         )
     edge_markup=[]
+    nodes_by_id={n["id"]:n for n in nodes}
     for e in edges:
         name=_text(e["name"])
         middle=(e["diagramStartX"]+e["diagramEndX"])//2
         ey=e["diagramY"]
-        label_y=ey-19 if name!="roundBridge" else ey+28
+        label_y=ey-34 if name!="roundBridge" else ey+32
         sign_y=label_y+14
+        # Join both ends to the actual source-junction circles. The old
+        # horizontal-only lane rendering left the parallel rods floating.
+        # These bends are diagram routing, never physical dimensions/pose.
+        first=nodes_by_id[e["fromJunctionId"]]
+        last=nodes_by_id[e["toJunctionId"]]
+        direction=1 if last["diagramX"]>first["diagramX"] else -1
+        connection=(f'M {first["diagramX"]+direction*29} {first["diagramY"]} '
+                    f'H {e["diagramStartX"]} V {ey} '
+                    f'M {e["diagramEndX"]} {ey} '
+                    f'V {last["diagramY"]} H {last["diagramX"]-direction*29}')
         edge_markup.append(
             f'<g class="rod" role="group" data-element="rod-{name}" '
             f'aria-label="{name}, source port a to b positive sign convention; '
             f'native flow not computed">'
             f'<title>{name}: port_a → port_b is the source-positive Q_flow convention. '
             f'Actual heat direction NOT observed.</title>'
+            f'<path class="connector" d="{connection}" aria-hidden="true"/>'
             f'<line x1="{e["diagramStartX"]}" y1="{ey}" '
             f'x2="{e["diagramEndX"]}" y2="{ey}" marker-end="url(#sign-arrow)"/>'
             f'<text class="rod-name" x="{middle}" y="{label_y}">{name}</text>'

@@ -1,0 +1,66 @@
+name: Corrective schematic connectivity and offline Chromium verification
+on:
+  push:
+    branches: ["audit/2026-11-17-schematic-connectivity*"]
+  pull_request:
+    branches: [qualification/h1-c1-f02-nonphysical-schematic-viewer]
+permissions:
+  contents: read
+concurrency:
+  group: simheat-schematic-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact candidate and frozen source history without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Pin historical Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install offline test and browser dependencies only
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 playwright==1.57.0
+      - name: Select browser runtime, never OpenModelica
+        run: |
+          if command -v google-chrome >/dev/null; then google-chrome --version
+          elif command -v chromium >/dev/null; then chromium --version
+          else python -m playwright install --with-deps chromium; fi
+      - name: Preserve exact source and frozen H1-C1 pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p schematic_audit_evidence
+          git rev-parse HEAD > schematic_audit_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > schematic_audit_evidence/head-tree.txt
+          git diff --name-status 04461dd840c3249ced06c4bf0bdeecc25babe962 HEAD > schematic_audit_evidence/source-diff.txt
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 > schematic_audit_evidence/frozen-source-pins.txt
+          python -m pip freeze > schematic_audit_evidence/packages.txt
+      - name: All inherited offline tests and the new endpoint regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in $(find qualification/h1_c1 -name 'test_*.py' | sort); do
+            module="${path%.py}"
+            module="${module//\//.}"
+            python -B -m unittest "$module" -v 2>&1 | tee "schematic_audit_evidence/$(basename "$path").log"
+          done
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee schematic_audit_evidence/original-h1-tests.log
+      - name: Execute actual standalone HTML interaction in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_nonphysical_schematic_viewer print-offline-html-only > schematic_audit_evidence/corrected-schematic.html
+          python -B qualification/h1_c1/f02/browser_nonphysical_schematic_smoke.py --html schematic_audit_evidence/corrected-schematic.html --out schematic_audit_evidence/browser | tee schematic_audit_evidence/browser.log
+      - name: Retain successes, failures and browser screenshots without native claims
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: schematic-audit-verification-${{ github.sha }}
+          path: schematic_audit_evidence/
+          retention-days: 90
+          if-no-files-found: error
