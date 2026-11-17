@@ -1,0 +1,140 @@
+name: H1-C1 F02 untrusted external CAS CONTRACT (OFFLINE FAKE, no native)
+on:
+  push:
+    branches:
+      - qualification/h1-c1-f02-external-cas-contract-preview
+  # No paths filter; dependency drift must be checked at each new source SHA.
+permissions:
+  contents: read
+concurrency:
+  group: simheat-h1c1-f02-UNTRUSTED-cas-demo-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  pure-python-default-deny:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact historical source without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Pinned Python 3.13.5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Offline-only Python checking deps, NOT Modelica
+        run: python -m pip install --disable-pip-version-check --no-cache-dir numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Verify exactly four new paths and original scientific source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p c1_f02_untrusted_cas_evidence
+          git rev-parse HEAD > c1_f02_untrusted_cas_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > c1_f02_untrusted_cas_evidence/head-tree.txt
+          git diff --name-status ffc96e743a78cb3c63c01d6bf292d1fa84c6164f HEAD > c1_f02_untrusted_cas_evidence/source-diff.txt
+          git ls-files -z | xargs -0 sha256sum > c1_f02_untrusted_cas_evidence/source.sha256
+          sha256sum --check qualification/h1_c1/evaluation/F0_ORIGINAL_PINS.sha256 > c1_f02_untrusted_cas_evidence/frozen-f0-pins.txt
+          python - <<'PY'
+          from pathlib import Path
+          allowed={
+             '.github/workflows/h1-c1-f02-external-cas-contract-preview.yml',
+             'qualification/h1_c1/f02/offline_external_cas_contract.py',
+             'qualification/h1_c1/f02/test_offline_external_cas_contract.py',
+             'qualification/h1_c1/f02/EXTERNAL_CAS_CONTRACT_SCOPE.md',
+          }
+          rows=Path('c1_f02_untrusted_cas_evidence/source-diff.txt').read_text().splitlines()
+          assert len(rows)==4,rows
+          assert all(row.startswith('A\t') for row in rows),rows
+          assert {row.split('\t',1)[1] for row in rows}==allowed,rows
+          PY
+          printf '%s  %s\n' 'fc5a7df5928c3fb8aef2ba4af516dfbd32b42c0450ebef1051ad4fd7efebd17f' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE.json.xz' | sha256sum --check
+          printf '%s  %s\n' '50467b138ed64cdb908f2c763bc777e6babf0bb04a0711568acc559112e66f84' 'qualification/h1_c1/immutable_fixture/PR31_V2_REFERENCE_MANIFEST.json' | sha256sum --check
+          python --version > c1_f02_untrusted_cas_evidence/python.txt
+          python -m pip freeze > c1_f02_untrusted_cas_evidence/packages.txt
+      - name: Inspect default-denied owner/native authority (zero actual budgets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_external_cas_contract inspect-unavailable-authority > c1_f02_untrusted_cas_evidence/default-deny.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('c1_f02_untrusted_cas_evidence/default-deny.json').read_text())
+          assert x['status']=='REFUSED_NO_TRUSTED_EXTERNAL_AUTHORITY_OR_OWNER_NATIVE_PERMISSION'
+          assert len(x['missingGates'])==11
+          assert x['fakeProviderOnly'] is True
+          for flag in ('nativeAllowed','nativeExecuted','nativeQualified',
+                       'ownerNativeLaunchApproved','realAcrossRunReservationAllocated',
+                       'crossHostAtomicityProved','externalStoreConnected',
+                       'compilerQueried','buildInvoked','modelLaunched',
+                       'referenceRegenerated','originalF0Reference100xPassed',
+                       'pr32BitwiseReferenceRegenerationPassed'):
+              assert x[flag] is False,flag
+          PY
+      - name: Demonstrate fake contention AND split-brain AND reset insecurity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m qualification.h1_c1.f02.offline_external_cas_contract simulate-contention-only > c1_f02_untrusted_cas_evidence/fake-contention.json
+          python -B -m qualification.h1_c1.f02.offline_external_cas_contract demonstrate-split-brain-only > c1_f02_untrusted_cas_evidence/two-independent-stores.json
+          python -B -m qualification.h1_c1.f02.offline_external_cas_contract demonstrate-reset-only > c1_f02_untrusted_cas_evidence/reset-vulnerability.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('c1_f02_untrusted_cas_evidence')
+          read=lambda name:json.loads((root/name).read_text())
+          a=read('fake-contention.json')
+          b=read('two-independent-stores.json')
+          c=read('reset-vulnerability.json')
+          assert a['status']=='UNTRUSTED_MEMORY_CAS_SIMULATION_NOT_NATIVE'
+          assert a['fakeResults']=={
+              'contenders':16,'fakeFirstClaims':1,'fakeDuplicateRefusals':15}
+          assert b['fakeResults']['fakeIndependentFirstClaims']==2
+          assert c['fakeResults']['fakeFirstClaimsBeforeAndAfterReset']==2
+          for x in (a,b,c):
+              assert x['realAcrossRunReservationAllocated'] is False
+              assert x['crossHostAtomicityProved'] is False
+              assert x['nativeAllowed'] is False
+              assert x['ownerNativeLaunchApproved'] is False
+              assert x['externalStoreConnected'] is False
+          print('PASS: fake two-store/reset counterexamples; NO real external/native reservation')
+          PY
+      - name: Forbidden owner/native actions are not CLI choices
+        shell: bash
+        run: |
+          set -euo pipefail
+          for action in native reserve-native approve omc execute build launch prepare run; do
+            if python -B -m qualification.h1_c1.f02.offline_external_cas_contract "${action}" > c1_f02_untrusted_cas_evidence/forbidden-${action}.stdout 2> c1_f02_untrusted_cas_evidence/forbidden-${action}.stderr; then
+              echo "FAIL: forbidden authority/native action accepted"; exit 1
+            fi
+          done
+      - name: New external CAS fake adverse tests (no native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_external_cas_contract -v 2>&1 | tee c1_f02_untrusted_cas_evidence/fake-external-cas-tests.txt
+      - name: Previously reviewed local SQLite, text, staged source and original checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest qualification.h1_c1.f02.test_offline_one_shot_ledger_simulator -v 2>&1 | tee c1_f02_untrusted_cas_evidence/local-sqlite-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_build_script_preview -v 2>&1 | tee c1_f02_untrusted_cas_evidence/build-text-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_stage_immutable_inputs -v 2>&1 | tee c1_f02_untrusted_cas_evidence/immutable-stage-tests.txt
+          python -B -m unittest qualification.h1_c1.f02.test_offline_control_preflight -v 2>&1 | tee c1_f02_untrusted_cas_evidence/control-plan-tests.txt
+          python -B -m unittest qualification.h1_c1.option_a.test_offline_reference_consumer -v 2>&1 | tee c1_f02_untrusted_cas_evidence/offline-owner-consumer-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_option_a_binding_preflight -v 2>&1 | tee c1_f02_untrusted_cas_evidence/reference-binding-tests.txt
+          python -B -m unittest qualification.h1_c1.immutable_fixture.test_pr31_fixture -v 2>&1 | tee c1_f02_untrusted_cas_evidence/archive-integrity-tests.txt
+      - name: All original 149 frozen H1 offline regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee c1_f02_untrusted_cas_evidence/frozen-original-h1-tests.txt
+      - name: Archive all offline fake/adverse evidence (even failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-c1-f02-untrusted-external-cas-preview-${{ github.sha }}
+          path: c1_f02_untrusted_cas_evidence/
+          retention-days: 90
+          if-no-files-found: warn
