@@ -1,0 +1,48 @@
+name: One-shot pinned audit-source transfer (not verification)
+on:
+  push:
+    branches: [audit/2026-11-17-schematic-connectivity]
+    paths: [.github/workflows/audit-materialize.yml]
+permissions:
+  contents: write
+jobs:
+  materialize:
+    if: github.repository == 'physicsvigilante/sim_heat' && github.ref == 'refs/heads/audit/2026-11-17-schematic-connectivity'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Verify captured patch and materialize exactly the locally tested tree
+        env:
+          BASE: 04461dd840c3249ced06c4bf0bdeecc25babe962
+          TARGET_TREE: 5032e07f26f0010105466dd7ff4231d7d41f5d56
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code "$BASE" HEAD -- . ':(exclude).audit-transfer-*' ':(exclude).github/workflows/audit-materialize.yml'
+          python - <<'PY'
+          import base64,gzip,hashlib
+          from pathlib import Path
+          parts=sorted(Path('.').glob('.audit-transfer-*.b64'))
+          assert [p.name for p in parts]==[f'.audit-transfer-{i:02d}.b64' for i in range(9)]
+          raw=base64.b64decode(''.join(p.read_text().strip() for p in parts),validate=True)
+          assert hashlib.sha256(raw).hexdigest()=='1765be939177b8e08d85e90b02ca7870ea8d1dc73ea01e9d0d9bf24b6bc5cd4c'
+          patch=gzip.decompress(raw)
+          assert len(patch)==17352
+          assert hashlib.sha256(patch).hexdigest()=='0e36d121bf0edf5c2e0607e868fd89b744ecb3df00f3011ca849f6046a105440'
+          Path('/tmp/audit-corrections.patch').write_bytes(patch)
+          PY
+          git apply --check /tmp/audit-corrections.patch
+          git apply --index /tmp/audit-corrections.patch
+          git rm .audit-transfer-*.b64 .github/workflows/audit-materialize.yml
+          test "$(git write-tree)" = "$TARGET_TREE"
+          git config user.name 'SIM_HEAT audit source transfer'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Audit: materialize locally tested schematic connectivity repair; no native work'
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          git rev-parse HEAD
+          git rev-parse HEAD^{tree}
+          echo 'TRANSFER ONLY. No project code, tests, compiler or model executed here. Subsequent exact-head verification is read-only.'
