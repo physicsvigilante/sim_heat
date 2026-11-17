@@ -1,0 +1,69 @@
+{
+  "schema": "sim_heat.h1_c1_f02_control_preview/1",
+  "status": "DESIGN_ONLY_UNREVIEWED_NO_NATIVE_EXECUTION",
+  "ownerDecisionScope": "option_a_offline_reference_checking_only",
+  "caseId": "H1_C1_MODAL",
+  "originalFrozenSourceCommit": "dd8c9432abe97563414bb3ed809e61e673473812",
+  "approvedOfflineConsumerSourceCommit": "f7c69954490c8dcd48d152906e8e2a6d5699481d",
+  "firstModelSha256": "9a165e5ce2cc85da84ecc8bc4e63e2990f2066f3547dc6ba8508fa1afbe5f435",
+  "firstStudySha256": "b235d4242728c44dd994e09db3ffd92d197398dde3fe6c8f006a801981997fdc",
+  "modalStudyPath": "h1/cases/H1_C1_MODAL/study.json",
+  "modalStudySha256": "b43e85b6b10afd6550a43322cf98097fe9781a606ee01bc031eadbfd4783b31b",
+  "modelPath": "h1/cases/H1_C1_MODAL/model.mo",
+  "originalUnlaunchedNativePlanSha256": "f46b2621b38427ffc098d16d91695a134b7dc4d7f913021be625ee74b8a9319a",
+  "frozenCheckerAndSourcePinsCount": 23,
+  "checkingReference": {
+    "source": "one_immutable_saved_PR31_V2_bundle",
+    "archivedRawSha256": "0db511dd8dba023d16518667de256029cf3e073463ea21e2478aeac8afd1f368",
+    "archivedCanonicalSeal": "d2b8e2ca8e1f929cac7b028dcc3f7d0b453921d193f877eb091e23ac70aa4ce9",
+    "archivedCompressedSha256": "fc5a7df5928c3fb8aef2ba4af516dfbd32b42c0450ebef1051ad4fd7efebd17f",
+    "originalWholeManifestSha256": "50467b138ed64cdb908f2c763bc777e6babf0bb04a0711568acc559112e66f84",
+    "regenerationPermitted": false,
+    "sourceAnchorCommit": "bf51e7721bca73720aa9b5f5f2de90defee821ec"
+  },
+  "plannedStudySettings": {
+    "startTime": 0,
+    "stopTime": 1810.609003248995,
+    "intervals": 4000,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "expectedToolchain": {
+    "openModelicaVersion": "OpenModelica 1.27.0",
+    "modelicaStandardLibraryVersion": "4.0.0",
+    "pythonVersion": "3.13.5",
+    "numpyVersion": "2.3.5",
+    "scipyVersion": "1.17.0"
+  },
+  "requiredNotYetEstablished": {
+    "ownerSignedOrExternallyAuthenticatedReleaseRef": null,
+    "protectionAndBackupAttestation": null,
+    "approvedNativeSourceHead": null,
+    "nativeRunnerArtifactSha256": null,
+    "sourceCommitAndPlanSha256": null,
+    "observedCompilerExecutableSha256": null,
+    "observedMSLSourceTreeSha256": null,
+    "independentRunnerReview": null,
+    "durableAcrossRunReservation": null,
+    "hostIdentityAndImage": null,
+    "ownerNativeLaunchAuthorization": null
+  },
+  "launchPolicy": {
+    "nativeAllowed": false,
+    "createExecutable": false,
+    "queryCompilerVersion": false,
+    "buildModel": false,
+    "launchModel": false,
+    "retryAllowed": false,
+    "maxLaunchesAfterSeparateApproval": 1,
+    "allowSimulationEvidenceClaim": false,
+    "allowAutomaticReferenceRegeneration": false
+  },
+  "historicalLimitations": {
+    "originalFrozenF0Static100xReferencePassed": false,
+    "pr32ReviewedV2BitwiseRegenerationPassed": false,
+    "firstAttemptAuthoringEvidenceUnchanged": true,
+    "nativeObserved": false
+  },
+  "purpose": "An offline-only design preview that refuses runtime; cannot be supplied to original native_batch/1 runner"
+}
