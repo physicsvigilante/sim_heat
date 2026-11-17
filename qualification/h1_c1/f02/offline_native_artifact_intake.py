@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 
@@ -66,6 +67,32 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _finite_float(token: str) -> float:
+    # parse_constant only catches NONSTANDARD NaN/Infinity tokens. Legal
+    # JSON exponent syntax such as 1e999 otherwise converts to float('inf').
+    value = float(token)
+    need(math.isfinite(value), "nonfinite JSON number in untrusted file")
+    return value
+
+
+def _strict_untrusted_object(raw: bytes) -> dict:
+    """Check format only; parse EXACTLY the same bytes recorded in the SHA.
+
+    Reuse the previously reviewed duplicate-key and nonstandard-constant
+    callbacks. This does NOT authenticate a writer, provide a filesystem
+    snapshot, or establish any native provenance.
+    """
+    try:
+        obj = json.loads(raw.decode("utf-8"),
+                         object_pairs_hook=staged._no_duplicate_pairs,
+                         parse_constant=staged._reject_nonfinite,
+                         parse_float=_finite_float)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise IntakeRefusal("malformed or non-UTF8 untrusted JSON") from exc
+    need(type(obj) is dict, "untrusted JSON was not a bounded object")
+    return obj
+
+
 def _label(label: str) -> None:
     need(type(label) is str and LABEL.fullmatch(label) is not None,
          "unsafe local candidate label")
@@ -108,12 +135,11 @@ def _inventory(folder: Path) -> tuple[dict, list[str]]:
              "untrusted evidence directory exceeds bounded bytes")
         raw=path.read_bytes()
         need(len(raw)==size,"concurrent untrusted file size changed")
-        # Strict JSON here checks format only, not owner identity or semantics.
+        # Parse the SAME captured bytes used for this local SHA inventory.
+        # No second pathname reopen; this reduces read inconsistency but does
+        # NOT solve stat/read, directory-swap or adversarial TOCTOU races.
         if path.suffix==".json":
-            # This parser rejects duplicate keys, nonfinite literals and
-            # malformed files, but does NOT authenticate JSON assertions.
-            parsed = staged.strict_metadata(path,maximum=maximum)
-            need(type(parsed) is dict, "untrusted JSON was not a bounded object")
+            _strict_untrusted_object(raw)
         present[path.name] = {
             "sizeBytes":size,
             "untrustedLocalSha256":_sha(raw),
