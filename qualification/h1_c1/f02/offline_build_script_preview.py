@@ -129,8 +129,16 @@ def verify(*,label,root=ROOT):
          all(p.is_file() and not p.is_symlink() for p in files),
          "incomplete or unexpected build-preview files")
     saved=(target/SCRIPT).read_bytes()
+    # First validate JSON shape and duplicate-key/non-finite refusal using the
+    # reviewed strict staging parser. Its decoded dict alone is NOT sufficient:
+    # Python treats 0 == False and 4000.0 == 4000. Preserve literal types and
+    # exact source-to-evidence serialization by pinning the entire raw manifest.
     doc=staging.strict_metadata(target/MANIFEST)
-    need(saved==raw and doc==contract(label,raw),
+    expected=contract(label,raw)
+    manifest_raw=(target/MANIFEST).read_bytes()
+    need(saved==raw and
+         manifest_raw==encoded(expected) and
+         doc==expected,
          "build text/manifest differs from verified source")
     return {
         "schema":"sim_heat.c1_f02_build_text_receipt/1",
