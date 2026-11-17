@@ -80,7 +80,7 @@ def receipt(status: str, *, recorded: bool, local_token: str | None=None) -> dic
         "referenceRawSha256":REFERENCE_SHA,
         "referenceSeal":REFERENCE_SEAL,
         "disabledPreviewRawSha256":PREVIEW_SHA,
-        "approvedOfflineSourceCommit":PR38_REVIEWED_HEAD,
+        "reviewedOfflinePreviewSourceCommit":PR38_REVIEWED_HEAD,
         "simulatedLocalSlotRecorded":recorded,
         "localDemoNonce":local_token,
         "nativeAllowed":False,
