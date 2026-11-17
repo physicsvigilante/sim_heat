@@ -88,6 +88,8 @@ def validate_preview(plan: dict) -> None:
          and plan["originalFrozenSourceCommit"] ==
          "dd8c9432abe97563414bb3ed809e61e673473812",
          "wrong source/case lineage")
+    need(type(plan.get("frozenCheckerAndSourcePinsCount")) is int,
+         "frozen source pin count must be a JSON integer")
     need(plan["modelPath"] == "h1/cases/H1_C1_MODAL/model.mo"
          and plan["modalStudyPath"] == STUDY.as_posix()
          and plan["firstModelSha256"] == MODEL_SHA
