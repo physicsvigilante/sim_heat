@@ -1,3 +1,4 @@
+# Resumed full-project audit: capture interrupted correction work without executing it.
 name: Project audit source snapshot (read-only, no simulation)
 on:
   push:
