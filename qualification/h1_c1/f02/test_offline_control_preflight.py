@@ -93,6 +93,14 @@ class F02ControlPreviewTests(unittest.TestCase):
                 with self.assertRaisesRegex(f02.PreviewRefusal, "JSON scalar type"):
                     f02.validate_preview(altered)
 
+    def test_frozen_pin_count_requires_exact_integer_type(self):
+        for value in (23.0, True):
+            with self.subTest(value=repr(value)):
+                changed=self.plan()
+                changed["frozenCheckerAndSourcePinsCount"]=value
+                with self.assertRaisesRegex(f02.PreviewRefusal,"JSON integer"):
+                    f02.validate_preview(changed)
+
     def test_fake_native_owner_or_host_reservation_refused(self):
         keys = self.plan()["requiredNotYetEstablished"]
         for k in keys:
