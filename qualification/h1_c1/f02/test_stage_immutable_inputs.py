@@ -80,7 +80,7 @@ class F02OfflineStagingTests(unittest.TestCase):
         self.make()
         with (self.path/"build.mos").open("xb") as f:
             f.write(b"fake")
-        with self.assertRaisesRegex(staging.StageRefusal,"unexpected/missing"):
+        with self.assertRaisesRegex(staging.StageRefusal,"incomplete, extra or symlink"):
             staging.verify(label=self.label)
 
     def test_stage_incomplete_or_relabelled_running_refused(self):
@@ -89,7 +89,7 @@ class F02OfflineStagingTests(unittest.TestCase):
         state=json.loads(target.read_text())
         state["status"]="RUNNING_NATIVE"
         target.write_text(json.dumps(state))
-        with self.assertRaisesRegex(staging.StageRefusal,"untrusted/incomplete"):
+        with self.assertRaisesRegex(staging.StageRefusal,"incomplete/untrusted stage state"):
             staging.verify(label=self.label)
 
     def test_forged_native_permission_in_manifest_refused(self):
@@ -122,7 +122,7 @@ class F02OfflineStagingTests(unittest.TestCase):
     def test_missing_stage_member_refused(self):
         self.make()
         (self.path/"study.json").unlink()
-        with self.assertRaisesRegex(staging.StageRefusal,"unexpected/missing"):
+        with self.assertRaisesRegex(staging.StageRefusal,"incomplete, extra or symlink"):
             staging.verify(label=self.label)
 
     def test_refuse_when_non_executable_design_source_changed(self):
