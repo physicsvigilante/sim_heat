@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from h1 import reference
 from qualification.h1_c1.immutable_fixture import inspect_pr31_fixture
 from qualification.h1_c1.immutable_fixture import option_a_binding_preflight
 
@@ -135,6 +136,11 @@ def load_for_offline_checking(*, purpose: str = "offline_checking",
          "checked artifact seal/provenance drift")
     need(checked["manifest"]["approvedForNative"] is False,
          "archived integrity record cannot approve native use")
+    # Defense in depth for the second read: a returned Python object from
+    # an audit API must never bypass the canonical scientific identity.
+    need(checked["rawSha256"] == record["exactRawReferenceSha256"] and
+         reference.fingerprint({k: v for k, v in bundle.items() if k != "seal"})
+             == EXPECTED_REFERENCE_SEAL, "approved reference changed between checks")
     receipt = {
         "schema": "sim_heat.c1_option_a_offline_reference_receipt/1",
         "status": "APPROVED_REFERENCE_DATA_OFFLINE_CHECKING_ONLY",
