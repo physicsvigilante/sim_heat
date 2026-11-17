@@ -184,6 +184,22 @@ def verify(*,label: str,root: Path=ROOT) -> dict:
              "staged bytes changed: "+name)
     need(captured.verify_original((directory/REFERENCE_FILE).read_bytes())["seal"]
          ==captured.V2_SEAL,"staged canonical reference mismatch")
+    # A manifest is an evidence statement, not an extensible command envelope.
+    need(set(doc)=={
+        "schema","status","sourceMode","ownerScope","case","sourcePinCount",
+        "disabledPreviewSha256","referenceSeal","referenceRawSha256",
+        "sourceFilesSha256","stagedFilesSha256","nativeAllowed","nativeExecuted",
+        "nativePlanCreated","nativePlanApproved","ownerNativeLaunchApproved",
+        "referenceRegenerated","oneShotReservationAllocated","buildScriptIncluded",
+        "executableIncluded","compilerQueryIncluded","originalF0Static100xPassed",
+        "pr32CrossHostBitwiseRegenerationPassed","limitations"
+    }, "unexpected field in staged manifest")
+    need(doc["limitations"]==[
+        "Offline data only, not a runnable native_batch/1 plan",
+        "No compiler/version query, build, launch, or reservation",
+        "The original F0 and PR32 negative histories remain failed",
+        "Future native requires distinct R2, trusted host, and owner launch approval",
+    ],"stage limitation/provenance statement changed")
     false_fields=("nativeAllowed","nativeExecuted","nativePlanCreated",
                   "nativePlanApproved","ownerNativeLaunchApproved",
                   "referenceRegenerated","oneShotReservationAllocated",
