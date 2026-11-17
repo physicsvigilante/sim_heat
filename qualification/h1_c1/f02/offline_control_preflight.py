@@ -88,6 +88,8 @@ def validate_preview(plan: dict) -> None:
          and plan["originalFrozenSourceCommit"] ==
          "dd8c9432abe97563414bb3ed809e61e673473812",
          "wrong source/case lineage")
+    need(type(plan.get("frozenCheckerAndSourcePinsCount")) is int,
+         "frozen source pin count must be a JSON integer")
     need(plan["modelPath"] == "h1/cases/H1_C1_MODAL/model.mo"
          and plan["modalStudyPath"] == STUDY.as_posix()
          and plan["firstModelSha256"] == MODEL_SHA
@@ -109,6 +111,13 @@ def validate_preview(plan: dict) -> None:
          ref["sourceAnchorCommit"] == "bf51e7721bca73720aa9b5f5f2de90defee821ec" and
          ref["regenerationPermitted"] is False, "unauthorized reference or regeneration")
     settings = plan["plannedStudySettings"]
+    # Explicit types matter: Python considers True == 1 and 1.0 == 1.
+    # This predicate will also be reused by future OFFLINE staging checks.
+    need(type(settings.get("startTime")) is int and
+         type(settings.get("stopTime")) is float and
+         type(settings.get("intervals")) is int and
+         type(settings.get("tolerance")) is float and
+         type(settings.get("solver")) is str, "wrong modal setting JSON scalar type")
     need(settings == {
         "startTime": 0, "stopTime": 1810.609003248995, "intervals": 4000,
         "solver": "dassl", "tolerance": 1e-8
@@ -127,6 +136,8 @@ def validate_preview(plan: dict) -> None:
         "durableAcrossRunReservation", "hostIdentityAndImage", "ownerNativeLaunchAuthorization"
     } and all(x is None for x in missing.values()), "runtime authority incorrectly claimed present")
     policy = plan["launchPolicy"]
+    need(type(policy.get("maxLaunchesAfterSeparateApproval")) is int,
+         "proposed one-shot budget must be JSON integer, not bool/float")
     need(set(policy) == {
         "nativeAllowed", "createExecutable", "queryCompilerVersion", "buildModel",
         "launchModel", "retryAllowed", "maxLaunchesAfterSeparateApproval",

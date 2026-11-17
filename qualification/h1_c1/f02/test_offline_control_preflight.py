@@ -70,6 +70,37 @@ class F02ControlPreviewTests(unittest.TestCase):
                 with self.assertRaises(f02.PreviewRefusal):
                     f02.validate_preview(altered)
 
+    def test_one_shot_bool_and_float_are_refused_even_when_equal_to_one(self):
+        # PR36 reviewer F-06: Python True == 1 and 1.0 == 1.
+        for value in (True, 1.0):
+            with self.subTest(value=repr(value)):
+                altered = self.plan()
+                altered["launchPolicy"]["maxLaunchesAfterSeparateApproval"] = value
+                with self.assertRaisesRegex(f02.PreviewRefusal, "JSON integer"):
+                    f02.validate_preview(altered)
+
+    def test_modal_numeric_types_are_strict(self):
+        replacements = (
+            ("startTime", False), ("startTime", 0.0),
+            ("intervals", True), ("intervals", 4000.0),
+            ("stopTime", 1810), ("stopTime", True),
+            ("tolerance", 0), ("solver", True),
+        )
+        for field, value in replacements:
+            with self.subTest(field=field,value=repr(value)):
+                altered = self.plan()
+                altered["plannedStudySettings"][field] = value
+                with self.assertRaisesRegex(f02.PreviewRefusal, "JSON scalar type"):
+                    f02.validate_preview(altered)
+
+    def test_frozen_pin_count_requires_exact_integer_type(self):
+        for value in (23.0, True):
+            with self.subTest(value=repr(value)):
+                changed=self.plan()
+                changed["frozenCheckerAndSourcePinsCount"]=value
+                with self.assertRaisesRegex(f02.PreviewRefusal,"JSON integer"):
+                    f02.validate_preview(changed)
+
     def test_fake_native_owner_or_host_reservation_refused(self):
         keys = self.plan()["requiredNotYetEstablished"]
         for k in keys:
