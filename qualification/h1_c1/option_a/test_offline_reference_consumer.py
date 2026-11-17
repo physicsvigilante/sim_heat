@@ -102,7 +102,8 @@ class ApprovedOfflineReferenceTests(unittest.TestCase):
                 consumer.load_for_offline_checking()
 
     def test_second_read_cannot_swap_raw_identity(self):
-        compromised = deepcopy(fixture.load_candidate(inspect_only=True))
+        original = fixture.load_candidate(inspect_only=True)
+        compromised = deepcopy(original)
         compromised["rawSha256"] = "f"*64
         with mock.patch.object(consumer.inspect_pr31_fixture, "load_candidate",
                                side_effect=[original, compromised]):
