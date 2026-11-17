@@ -1,0 +1,42 @@
+name: Project audit source snapshot (read-only, no simulation)
+on:
+  push:
+    branches: [audit/2026-11-17-project-wide]
+    paths: [.github/workflows/project-audit-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Read source history without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export source refs and public review records without running project code
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p audit_snapshot
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags
+          git rev-parse HEAD > audit_snapshot/snapshot-workflow-head.txt
+          git show-ref > audit_snapshot/source-refs.txt
+          git bundle create audit_snapshot/sim_heat.bundle --all
+          git clone --mirror https://github.com/physicsvigilante/review_sandbox.git /tmp/review-snapshot.git
+          git -C /tmp/review-snapshot.git show-ref > audit_snapshot/review-refs.txt
+          git -C /tmp/review-snapshot.git bundle create "$GITHUB_WORKSPACE/audit_snapshot/review_sandbox.bundle" --all
+          gh api --paginate 'repos/physicsvigilante/sim_heat/pulls?state=all&per_page=100' > audit_snapshot/pull-requests.json
+          gh api --paginate 'repos/physicsvigilante/sim_heat/issues?state=all&per_page=100' > audit_snapshot/issues.json
+          sha256sum audit_snapshot/*.bundle > audit_snapshot/bundles.sha256
+          printf '%s\n' 'SOURCE SNAPSHOT ONLY. No project Python, reference generation, Modelica installation, compiler query, build, native launch, or production merge performed.' > audit_snapshot/BOUNDARY.txt
+      - name: Retain bounded audit source snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: project-audit-source-${{ github.sha }}
+          path: audit_snapshot/
+          retention-days: 14
+          if-no-files-found: error
