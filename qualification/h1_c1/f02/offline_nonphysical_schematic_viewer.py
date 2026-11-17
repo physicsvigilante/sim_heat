@@ -331,6 +331,7 @@ update();
 def render_html() -> str:
     """One complete offline HTML document; NO script/network/dependency loads."""
     doc=contract()
+    validate_shape(doc)  # In addition to the fresh exact source binding.
     need(doc["nativeObservationCount"]==0 and doc["releaseBlocked"] is True,
          "untrusted source viewer cannot render claimed native data")
     nodes=doc["schematicJunctions"]
