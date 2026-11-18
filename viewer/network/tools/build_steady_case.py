@@ -63,7 +63,7 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
     study = load_study(root / study_rel, root / 'h1/cases')
     require(study.request_report['admitted'] and study.data['mode'] == 'steady',
             'steady_study', 'steady admitted study required')
-    require(1 <= case_slot <= 2, 'steady_evidence', 'invalid case slot')
+    require(type(case_slot) is int and 1 <= case_slot <= 2, 'steady_evidence', 'invalid case slot')
     require(zipfile.is_zipfile(archive), 'steady_evidence', 'invalid ZIP archive')
     folder = f'case_{case_slot:02}'
     with zipfile.ZipFile(archive) as z:
@@ -88,7 +88,9 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
         require(attempt['status'] == 'diagnostic_checks_passed_not_native_qualified' and
                 attempt['nativeQualified'] is False,
                 'steady_evidence', 'native attempt not a completed diagnostic')
-        require(attempt['counts']['versionQueries'] == 1 and
+        require(all(type(attempt['counts'].get(k)) is int for k in
+                    ('versionQueries','buildModelCalls','modelLaunches')) and
+                attempt['counts']['versionQueries'] == 1 and
                 attempt['counts']['buildModelCalls'] == len(attempt['cases']) and
                 attempt['counts']['modelLaunches'] == len(attempt['cases']) and
                 attempt['github']['GITHUB_RUN_ATTEMPT'] == '1',
@@ -119,6 +121,7 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
         item = attempt['cases'][case_slot - 1]
         require(item['directory'] == folder and item['study'] == study_rel and
                 item['model'] == study.model.name and item['status'] == 'checks_passed' and
+                type(item.get('canonicalSamples')) is int and
                 item['canonicalSamples'] == 2,
                 'steady_evidence', 'model/study/case mismatch')
         require(read(folder+'/model.mo') ==
@@ -138,7 +141,9 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
         provenance = strict_json(read(folder+'/mat_provenance.json').decode('utf-8'))
         require(provenance['rawMatSha256'] == raw_mat_sha and
                 provenance['canonicalCsvSha256'] == csv_sha and
+                type(provenance.get('samples')) is int and
                 provenance['samples'] == 2 and
+                type(provenance.get('duplicateRowsCollapsed')) is int and
                 provenance['duplicateRowsCollapsed'] == 1 and
                 provenance['nativeQualified'] is False,
                 'steady_evidence', 'MAT/CSV provenance mismatch')
@@ -157,14 +162,15 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
                                              if k != 'seal'}) == item['referenceSeal'],
                 'steady_evidence', 'mismatched/unsealed checking reference')
         csv_text = csv_bytes.decode('utf-8')
-        require(receipt == candidate_receipt(study, bundle, csv_text, 'unattested_output'),
+        require(stable_json(receipt) == stable_json(candidate_receipt(study, bundle, csv_text, 'unattested_output')),
                 'steady_evidence', 'candidate receipt does not bind original native data')
 
         # Verify ALL saved numerical checks and public observations against the
         # unchanged H1 checker, not supplied status/count labels alone.
         verified = check_candidate(study, bundle, csv_text, receipt, item['referenceSeal'])
-        require(verified == verdict and verified['status'] == 'checks_passed' and
+        require(stable_json(verified) == stable_json(verdict) and verified['status'] == 'checks_passed' and
                 verified['nativeQualified'] is False and
+                type(item['checkCount']) is int and
                 len(verified['checks']) == item['checkCount'] and
                 all(c['passed'] is True for c in verified['checks']) and
                 all(r['status'] == 'diagnostic_only' for r in verified['requests']) and

@@ -99,8 +99,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 str(attempt['github']['GITHUB_RUN_ID']) == str(expected_run_id) and
                 str(attempt['github']['GITHUB_RUN_ATTEMPT']) == '1',
                 'campaign_evidence', 'incorrect recorded native identity/status')
-        require(attempt['counts'] == {'versionQueries':1,'buildModelCalls':len(attempt['cases']),
-                                     'modelLaunches':len(attempt['cases'])} and
+        require(stable_json(attempt['counts']) == stable_json({
+                    'versionQueries':1,'buildModelCalls':len(attempt['cases']),
+                    'modelLaunches':len(attempt['cases'])}) and
                 1 <= slot <= len(attempt['cases']),
                 'campaign_evidence', 'unexpected native command counts')
         manifest = attempt['artifactSha256']
@@ -116,7 +117,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
 
         item = attempt['cases'][slot-1]
         require(item['directory'] == folder and item['status'] == 'checks_passed' and
-                item['model'] == study.model.name and item['canonicalSamples'] == len(study.grid),
+                item['model'] == study.model.name and
+                type(item.get('canonicalSamples')) is int and
+                item['canonicalSamples'] == len(study.grid),
                 'campaign_evidence', 'selected native case/study mismatch')
         require(plan['cases'][slot-1]['study'] == item['study'] and
                 plan['branch'] == expected_branch and
@@ -141,7 +144,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
         provenance = strict_json(read(folder+'/mat_provenance.json').decode('utf-8'))
         require(provenance['rawMatSha256'] == mat_digest and
                 provenance['canonicalCsvSha256'] == csv_digest and
+                type(provenance.get('samples')) is int and
                 provenance['samples'] == len(study.grid) and
+                type(provenance.get('duplicateRowsCollapsed')) is int and
                 provenance['duplicateRowsCollapsed'] == 1 and
                 provenance['nativeQualified'] is False,
                 'campaign_evidence', 'native MAT/CSV provenance invalid')
@@ -157,10 +162,11 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
                 reference_check.fingerprint({k:v for k,v in bundle.items() if k!='seal'}) ==
                 item['referenceSeal'], 'campaign_evidence', 'checking reference seals disagree')
         csv_text = csv_bytes.decode('utf-8')
-        require(receipt == candidate_receipt(study,bundle,csv_text,'unattested_output'),
+        require(stable_json(receipt) == stable_json(candidate_receipt(study,bundle,csv_text,'unattested_output')),
                 'campaign_evidence', 'original native candidate receipt mismatch')
         checked = check_candidate(study,bundle,csv_text,receipt,item['referenceSeal'])
-        require(checked == verdict and checked['status'] == 'checks_passed' and
+        require(stable_json(checked) == stable_json(verdict) and checked['status'] == 'checks_passed' and
+                type(item['checkCount']) is int and
                 len(checked['checks']) == item['checkCount'] and
                 max(c['maximumRatio'] for c in checked['checks']) == item['maxRatio'] and
                 all(c['passed'] is True for c in checked['checks']) and

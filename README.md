@@ -1,50 +1,101 @@
 # SIM_HEAT
 
-A compositional **heat-transfer teaching sandbox**. An author describes supported physical components, their connections and initial/boundary conditions; OpenModelica evaluates the native model; a separate reference and verification pipeline checks and labels the resulting observations.
+A compositional **heat-transfer teaching sandbox**, with a working read-only
+thermal-network explorer and an intentionally restricted Modelica authoring
+and verification pipeline. This is not a general-purpose thermodynamics engine.
 
-## H1 integration candidate
+## What works now
 
-The initial implementation supports ideal lumped heat-capacity bodies, storage-free conductive rods (area or circular cross-section), and fixed-temperature boundaries. It admits a deliberately small, typed Modelica composition grammar, one study descriptor with source provenance and public observation requests, and signed/conservation-aware checking. It **does not** accept unrestricted Modelica programs, invent missing physical inputs, or replace the numerical solver with an LLM answer.
+The [network explorer](viewer/network/index.html) displays **six source-linked
+archived native diagnostic cases**: D1, D2, the developer thermal bridge, steady
+S1, the four-body teacher ring, and the D2-K2 conductivity revision. It supports
+case switching, saved-time playback, temperature/flow/energy inspection, flow
+reversal markers, original-CSV hash checking and a [saved what-if comparison](viewer/network/compare.html).
+It selects **previously archived OpenModelica output**; it does not launch a solver
+from the browser or invent values between saved samples.
 
-This repository now contains the *candidate source and offline tests*. The historical H0/H1 draft documents under [docs/](docs/) describe stages at the time they were written; earlier "not implemented" notices there are historical, not an accurate statement about this integration candidate. **Source presence and passing diagnostics do not mean final H1 qualification.** The checker deliberately labels results `diagnostic_only` and `nativeQualified=false`.
+The supported physical library contains ideal lumped heat-capacity bodies,
+storage-free conductive rods with area or circular cross-section, and fixed-
+temperature boundaries. The engine admits a small typed Modelica grammar,
+port connections, explicit initial/boundary conditions, provenance and public
+observation requests. It checks topology, units, source identity, signed flows,
+energy accounting and numerical comparisons. New supported combinations are
+source-authoring tasks, not new apparatus-specific renderer code.
 
-The entire implementation has previously been exercised using OpenModelica **1.27.0** and Modelica Standard Library **4.0.0** on explicitly bounded cloud runs. Real native evidence and failures remain linked to the original GitHub Actions runs and experimental PRs, not copied into Git history:
-- [Steady S1 MATv4 exploration](https://github.com/physicsvigilante/sim_heat/pull/6) — original workflow failure and saved-output diagnostic recovery.
-- [D1/D2 native transients](https://github.com/physicsvigilante/sim_heat/actions/runs/43691263273).
-- [Conductivity/resolution campaign](https://github.com/physicsvigilante/sim_heat/actions/runs/43693191224).
-- [Developer-authored thermal bridge](https://github.com/physicsvigilante/sim_heat/actions/runs/43699424883) — new topology, 98 diagnostic checks passed; **not** an independent author test.
-- [H1-C1 technical freeze](qualification/h1_c1/FREEZE.md) — reserved external-author challenge not yet selected or executed.
+**Evidence labels matter:** published cases remain `diagnostic_only` and
+`nativeQualified=false`. Actual archived solver execution is not the same as
+independent numerical qualification, a measured apparatus or a classroom trial.
+See [the viewer guide](viewer/network/README.md) for original run/artifact hashes,
+source provenance, supported operations and limits.
 
-## Offline usage
+## Run the read-only explorer
 
-From the repository root, with Python 3.13.5, NumPy 2.3.5 and SciPy 1.17.0:
+From the repository root:
+
+```bash
+python -m http.server 8000 --bind 127.0.0.1 --directory viewer/network
+```
+
+Open `http://127.0.0.1:8000/` in a browser. This local server serves static
+JavaScript/data, not OpenModelica. An imported full CSV must match its original
+recorded SHA-256; an arbitrary file is not accepted as native evidence.
+
+## Keep the three development tracks distinct
+
+| Track | Status | What it does not establish |
+|---|---|---|
+| `main`: H1 engine and H2/H3 explorer | Implemented source, six original archived diagnostic cases and saved comparison | Unrestricted physics, independently certified native accuracy or arbitrary browser-run simulations |
+| Frozen H1-C1 first-author experiment | Submission and offline evaluation exist on separate qualification branches; original failures retained | A successful C1 native transfer or nine computed C1 public readings |
+| Unmerged C1 offline/viewer experiments | Source-bound expected fields, request dependencies, topology and nonphysical schematic | Actual C1 solver output, physical pose/geometry, owner execution permission or a durable global launch lock |
+
+The C1 first-attempt reference error margin was **80× against a required ≥100×**;
+that failure is not rewritten. Later cross-host reproduction did not reproduce
+the exact original saved V2 reference seal. The owner-adopted original saved
+reference is approved **for offline checking only**. Historical qualification
+branches must not be merged wholesale into `main`.
+
+Earlier H0/H1 documents and [the original C1 freeze](qualification/h1_c1/FREEZE.md)
+are historical stage records, not a current feature checklist. See the
+[project audit and forward plan](docs/PROJECT_AUDIT_2026_11_17.md) for the current
+capability boundary and tested corrections.
+
+## Offline development checks
+
+With Python 3.13.5 and [pinned checking dependencies](requirements-h1-ci.txt):
 
 ```bash
 python -B -m unittest discover -s h1/tests -v
 python -B -m unittest discover -s experiments/h1_spike/checks -v
+python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v
+node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs
 python -B -m h1 h1/cases/D2/study.json --root h1/cases
-python -B -m h1 h1/cases/DEV_BRIDGE/study.json --root h1/cases
 ```
 
-Admission prints a status report, **not calculated temperatures or simulated results**. No local compiler installation or native execution is triggered by these commands.
+Admission prints a descriptor/topology report, **not simulated temperatures**.
+Reference preparation is a checking-data operation, not a substitute for a native
+solver. Never regenerate a frozen/adopted C1 reference while replaying evidence.
+The prospective corrective CI also exercises real Chromium and read-only replay
+of the existing archived native data; it never installs or invokes OpenModelica.
+“Offline” here means no physical/native simulation, not air-gapped dependency
+installation.
 
-The checking-only reference can be prepared without a native run:
+## Limitations and next direction
 
-```bash
-python -B -m h1.verify prepare \
-  --study h1/cases/DEV_BRIDGE/study.json --root h1/cases \
-  --reference experiments/dev_bridge/reference/DEV_BRIDGE.json \
-  --out /tmp/h1-bridge-reference.bundle.json
-```
+No general symbolic or inverse solver, convection/radiation library, fluid flow,
+phase change, moving mechanics, unrestricted Modelica service or autonomous
+natural-language-to-validated-model workflow is implemented. Teacher usability
+and blind unfamiliar-author transfer remain unproven. Next work should consolidate
+the existing explorer and real evidence path, not add more toy authorization
+layers. A new native attempt requires a separately approved, bounded plan and
+appropriate independent review; this audit grants no such permission.
 
-That preparation is not independent validation or a native result. See [H1 implementation contract](docs/H1_IMPLEMENTATION_CONTRACT.md), [H1 code notes](h1/README.md), and [H2-00 source-integration record](docs/H2_00_INTEGRATION_SCOPE.md) for the exact allowed domain and pending gates.
+The original [01_heat.pdf](01_heat.pdf) is preserved; its presence does not grant
+redistribution rights or introduce a project license.
 
-## Runtime and CI boundaries
+## Development and review
 
-[`h2-h1-offline-ci.yml`](.github/workflows/h2-h1-offline-ci.yml) runs the current offline suite, arithmetic checks and a bridge study/reference smoke on pushes to its integration branch and to `main`. It cannot build or launch OpenModelica. It installs pinned Python dependencies with `pip` on a network-capable GitHub runner; **offline means no physical/native simulation, not air-gapped execution or no dependency installation**. The separate pinned batch runner's SHA and GitHub environment guards do not sandbox or authenticate hostile Modelica input. **No historical one-shot native workflow is installed here as an active production trigger.** The reusable native batch helper is restricted to explicit pinned, host-checked execution plans and is **not** run by standard CI.
-
-The project is not yet an interactive viewer, general symbolic or inverse solver, or unrestricted physics authoring environment. Classroom usefulness and an independent-author transfer case remain untested. Read-only original source [01_heat.pdf](01_heat.pdf) is preserved; its inclusion does not grant redistribution rights or introduce a project license.
-
-## Development and independent review
-
-Developer Chat A creates a tested draft PR in `sim_heat`. Risk-based separate-chat reviews use [review_sandbox](https://github.com/physicsvigilante/review_sandbox), with an immutable source SHA and one report authored directly by reviewer Chat B. **Only the owner approves a production merge.** Details: [AGENTS.md](AGENTS.md) and [H2-00 issue](https://github.com/physicsvigilante/sim_heat/issues/11).
+Develop and test in this repository. Publish a draft PR with an exact SHA, then
+use risk-based independent review in [review_sandbox](https://github.com/physicsvigilante/review_sandbox).
+Batch related corrections into coherent milestones. **Only the owner approves
+production merges.** Preserve original source submissions, failed runs and
+scientific evidence. See [AGENTS.md](AGENTS.md).

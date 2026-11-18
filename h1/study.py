@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path, PurePosixPath
 import re
 from .model import (Refusal, Model, Topology, identifier, require, parse_model,
@@ -30,10 +31,23 @@ def strict_json(text: str) -> dict:
         return result
     def bad_constant(value):
         raise Refusal('descriptor', f'nonfinite JSON constant {value}')
+    def finite_float(token):
+        value = float(token)
+        require(math.isfinite(value), 'descriptor', 'nonfinite JSON number')
+        return value
+    def bounded_int(token):
+        require(len(token.lstrip('-')) <= 4300, 'descriptor', 'oversized JSON integer')
+        return int(token)
     try:
-        value = json.loads(text, object_pairs_hook=pairs, parse_constant=bad_constant)
-    except (json.JSONDecodeError, RecursionError) as exc:
-        raise Refusal('descriptor', 'invalid/too deeply nested JSON') from exc
+        value = json.loads(text, object_pairs_hook=pairs,
+                           parse_constant=bad_constant, parse_float=finite_float,
+                           parse_int=bounded_int)
+    except Refusal:
+        raise
+    except (ValueError, OverflowError, RecursionError) as exc:
+        # Includes legal exponent overflow, Python's integer-length guard and
+        # excessive nesting. These are descriptor refusals, not tracebacks.
+        raise Refusal('descriptor', 'invalid/oversized/too deeply nested JSON') from exc
     require(isinstance(value, dict), 'descriptor', 'study must be an object')
     return value
 
