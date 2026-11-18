@@ -45,16 +45,18 @@ jobs:
           mkdir -p source_preview_evidence
           git rev-parse HEAD > source_preview_evidence/head-sha.txt
           git rev-parse HEAD^{tree} > source_preview_evidence/head-tree.txt
-          # PR checks must compare only this branch's changes against the
-          # current PR base; previously merged unrelated CI fixes belong to
-          # main, not to this candidate's 14 owned source-preview paths.
-          # The branch-push check preserves the original reviewed ancestry.
+          # On pull_request, the actual checkout is GitHub's synthetic merge.
+          # Its first parent is the ACTUAL current base; event.base.sha may
+          # remain stale briefly after another PR has already merged.
+          # Its second parent must be this reviewed candidate HEAD.
+          # Branch pushes remain checked against the original reviewed base.
           scope_base=0278b79b4da1c3196edca7903189713e0482f3f6
           if [ "${{ github.event_name }}" = pull_request ]; then
-            scope_base="${{ github.event.pull_request.base.sha }}"
-            test -n "$scope_base"
-            git cat-file -e "${scope_base}^{commit}"
+            scope_base="$(git rev-parse HEAD^1)"
+            candidate_parent="$(git rev-parse HEAD^2)"
+            test "$candidate_parent" = "${{ github.event.pull_request.head.sha }}"
           fi
+          git cat-file -e "${scope_base}^{commit}"
           printf '%s\n' "$scope_base" > source_preview_evidence/scope-base-sha.txt
           git diff --name-status "$scope_base" HEAD > source_preview_evidence/source-diff.txt
           python - <<'PY'
