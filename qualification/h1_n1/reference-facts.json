@@ -1,0 +1,136 @@
+{
+  "analysis": {
+    "intervals": 2400,
+    "solver": "dassl",
+    "startTime": 0,
+    "stopTime": 2400,
+    "tolerance": 1e-08
+  },
+  "bodies": {
+    "T_Collar": {
+      "T_initial": 303,
+      "c": 830,
+      "m": 0.24,
+      "node": "B"
+    },
+    "T_Plug": {
+      "T_initial": 318,
+      "c": 390,
+      "m": 0.41,
+      "node": "P"
+    },
+    "T_Ridge": {
+      "T_initial": 337,
+      "c": 460,
+      "m": 0.32,
+      "node": "R"
+    }
+  },
+  "boundaries": {
+    "T_Cool": {
+      "T": 289,
+      "node": "K"
+    },
+    "T_Warm": {
+      "T": 367,
+      "node": "W"
+    }
+  },
+  "id": "H1T1TFirstAttemptV1",
+  "mode": "transient",
+  "modelSha256": "2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+  "nodes": [
+    "W",
+    "K",
+    "R",
+    "B",
+    "P",
+    "J_Upper",
+    "J_Lower"
+  ],
+  "provenance": "NEW N1 same-author reference FACTS ONLY, directly transcribed from original public selector T1-T comment 6981681502. Not extracted from H1 graph, native values or lost private scoring key. Independent reviewer must verify all original values and signed port incidence. No certified numeric reference or native result yet.",
+  "rods": {
+    "T01": {
+      "A": 0.00016,
+      "L": 0.28,
+      "a": "W",
+      "b": "J_Upper",
+      "k": 65,
+      "kind": "RodArea"
+    },
+    "T02": {
+      "A": 0.00023,
+      "L": 0.34,
+      "a": "W",
+      "b": "J_Lower",
+      "k": 45,
+      "kind": "RodArea"
+    },
+    "T03": {
+      "A": 0.0001,
+      "L": 0.19,
+      "a": "J_Upper",
+      "b": "R",
+      "k": 180,
+      "kind": "RodArea"
+    },
+    "T04": {
+      "A": 0.00016,
+      "L": 0.26,
+      "a": "R",
+      "b": "J_Lower",
+      "k": 25,
+      "kind": "RodArea"
+    },
+    "T05": {
+      "A": 0.00025,
+      "L": 0.3,
+      "a": "J_Upper",
+      "b": "B",
+      "k": 42,
+      "kind": "RodArea"
+    },
+    "T06": {
+      "L": 0.22,
+      "a": "B",
+      "b": "P",
+      "d": 0.016,
+      "k": 75,
+      "kind": "RodCircular"
+    },
+    "T07": {
+      "A": 0.00014,
+      "L": 0.33,
+      "a": "P",
+      "b": "J_Lower",
+      "k": 120,
+      "kind": "RodArea"
+    },
+    "T08": {
+      "A": 0.00028,
+      "L": 0.24,
+      "a": "B",
+      "b": "K",
+      "k": 20,
+      "kind": "RodArea"
+    },
+    "T09": {
+      "A": 0.00021,
+      "L": 0.27,
+      "a": "R",
+      "b": "K",
+      "k": 16,
+      "kind": "RodArea"
+    },
+    "T10": {
+      "A": 0.00013,
+      "L": 0.4,
+      "a": "J_Upper",
+      "b": "J_Lower",
+      "k": 95,
+      "kind": "RodArea"
+    }
+  },
+  "schema": "sim_heat.reference/1",
+  "studySha256": "12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a"
+}

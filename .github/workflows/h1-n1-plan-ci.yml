@@ -1,0 +1,83 @@
+name: H1-N1 pre-native PLAN checks - no native
+on:
+  push:
+    branches: [plan/h1-n1-transient]
+  pull_request:
+    branches: [main]
+    paths:
+      - qualification/h1_n1/**
+      - .github/workflows/h1-n1-plan-ci.yml
+permissions:
+  contents: read
+concurrency:
+  group: h1-n1-plan-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record exact source and strictly plan-only additions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir n1_plan_evidence
+          git rev-parse HEAD > n1_plan_evidence/head-sha.txt
+          git rev-parse 'HEAD^{tree}' > n1_plan_evidence/head-tree.txt
+          base=f52613c39c539b2d4543a9838e5658d526fca10e
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git diff --name-status "$base" HEAD > n1_plan_evidence/source-diff.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          expected={"A\t"+p for p in (
+              '.github/workflows/h1-n1-plan-ci.yml',
+              'qualification/h1_n1/PLAN.md',
+              'qualification/h1_n1/plan.json',
+              'qualification/h1_n1/reference-facts.json',
+              'qualification/h1_n1/check_plan.py')}
+          actual=Path('n1_plan_evidence/source-diff.txt').read_text().splitlines()
+          assert len(actual)==len(expected) and set(actual)==expected,actual
+          PY
+          git diff --exit-code "$base" HEAD -- h1 experiments viewer tools docs qualification/h1_c1
+          git archive --format=tar HEAD > n1_plan_evidence/source.tar
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: physicsvigilante/sim_heat
+          ref: 7234a53a5022441a912eb09240138e9c6c5945d8
+          path: .author-source
+          persist-credentials: false
+      - name: Bind original author evidence source, not a mutable branch
+        run: |
+          test "$(git -C .author-source rev-parse HEAD)" = 7234a53a5022441a912eb09240138e9c6c5945d8
+          test "$(git -C .author-source rev-parse 'HEAD^{tree}')" = 6405d89cfcc6f2b899975cafb56310f13fe20ea1
+          git -C .author-source rev-parse HEAD > n1_plan_evidence/author-head-sha.txt
+          git -C .author-source rev-parse 'HEAD^{tree}' > n1_plan_evidence/author-tree.txt
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install checking dependencies only - never Modelica
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Plan tests and explicitly unresolved numerical gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip freeze > n1_plan_evidence/packages.txt
+          python -B qualification/h1_n1/check_plan.py --author-source .author-source --out n1_plan_evidence/plan-checks.json 2>&1 | tee n1_plan_evidence/plan-checks.log
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee n1_plan_evidence/h1-regressions.log
+          git diff --exit-code
+          git -C .author-source diff --exit-code
+      - name: Preserve plan evidence even when a check fails
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-n1-plan-${{ github.sha }}
+          path: n1_plan_evidence/
+          retention-days: 90
+          if-no-files-found: error

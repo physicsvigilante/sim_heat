@@ -1,0 +1,133 @@
+{
+  "authorEvidence": {
+    "case": "T",
+    "caseRoot": "experiments/h1_t1_unsealed",
+    "commit": "7234a53a5022441a912eb09240138e9c6c5945d8",
+    "extraction": "Original code-fence text plus terminal LF; preserve original authoring and UNSEALED scoring limitation.",
+    "modelSha256": "2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+    "originalComment": 6982616288,
+    "originalCommentSha256": "fa96e40b24fe3b039e823a78f54546bdf0ed2400e0f3b1b9519bbeb764e3c893",
+    "studySha256": "12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a",
+    "tree": "6405d89cfcc6f2b899975cafb56310f13fe20ea1"
+  },
+  "base": {
+    "commit": "f52613c39c539b2d4543a9838e5658d526fca10e",
+    "tree": "0c44961b473d23737b0c9f3b3f2cd3db65b9f264"
+  },
+  "coverage": {
+    "mandatoryExports": 77,
+    "nativeQualifiedMayBecomeTrue": false,
+    "publicRequests": 8,
+    "referenceErrorFractionMaximum": 0.01,
+    "samples": {
+      "dense": 4801,
+      "primary": 2401,
+      "tight": 2401
+    },
+    "timeAssociation": "existing sealed h1.temporal policy; no interpolation/row repair"
+  },
+  "executionGates": {
+    "companionComparisonImplementationReviewed": false,
+    "exactRuntimeAndSourceReviewComplete": false,
+    "independentReferenceAccuracyCertificate": false,
+    "oneShotAuthorizationControllerReviewed": false,
+    "sameHostReferenceReproductionSealed": false,
+    "separateOwnerNativeApproval": false
+  },
+  "futureMaximumBudget": {
+    "automaticRetries": 0,
+    "batchLayout": [
+      [
+        "primary",
+        "tight"
+      ],
+      [
+        "dense"
+      ]
+    ],
+    "buildModelCalls": 3,
+    "buildTimeoutSeconds": 600,
+    "compilerVersionInvocations": 2,
+    "installationCommands": 0,
+    "launchTimeoutSeconds": 120,
+    "modelLaunches": 3,
+    "physicalModels": 1
+  },
+  "futureRuntimeTarget": {
+    "MSL": "4.0.0",
+    "OpenModelica": "1.27.0",
+    "compilerBinarySha256": null,
+    "currentHostInspected": false,
+    "immutableRuntimeImageDigest": null,
+    "mslManifestSha256": null,
+    "numpy": "2.3.5",
+    "python": "3.13.5",
+    "runnerLabel": "ubuntu-24.04",
+    "scipy": "1.17.0"
+  },
+  "knownBlockers": [
+    "Existing float64 expm/eigensystem agreement is NOT an independent certified reference bound.",
+    "Grid-specific reference allowances can differ; unchanged companion comparator requires exact equality.",
+    "Existing resolution campaign only accepts 1000/2000-interval fixtures, not this 2400/4800 original study.",
+    "Actual execution host and immutable compiler/MSL identities are not yet bound.",
+    "Existing native runner permits push events, not a manually dispatched event; do not spoof environment or restore historical triggers."
+  ],
+  "milestone": "H1-N1",
+  "nativeExecutionAuthorized": false,
+  "nativeOperationsPerformed": {
+    "builds": 0,
+    "installs": 0,
+    "launches": 0,
+    "versionQueries": 0
+  },
+  "protectedSha256": {
+    "experiments/h1_spike/SimHeat.mo": "e57955b6c32cb34321a6b1908306c4ea9a63ae259b95a5fd48c7e8d3b4da10ea",
+    "h1/decoder.py": "e593741b68a510016552f47369d98a3688745ad550f52c5e1f4f7c90a6540d45",
+    "h1/matv4.py": "bb0a5194e1235af132a729d5287ecd1756eaad09585269eff18bc046589d1b8e",
+    "h1/model.py": "97cfeab032fda88c3a644dbfc459348d0307b3930ba034637f7f62c5b427627b",
+    "h1/policy.py": "915874bf1c14c2e4db4c9438e528c426db218c5fcb5e4188319b6bdeac975647",
+    "h1/reference.py": "ae9e4f3adc9cd0a4f5327b3da8e2f11f73ff989e1b38655cfc202f9f21a15ea8",
+    "h1/study.py": "0205d016a50f359a6d42e17117fb2908ff5916849c51d4fd5b0d3124b92eec69",
+    "h1/temporal.py": "f1e284b5d0ed1119198fe070388d63e61de9b602d536524b641b0e31b9f0653d",
+    "h1/verification.py": "338c13934ac073603304503201edf9e25ba9ad410643b8347b2f83492a1f6648",
+    "qualification/h1_c1/FREEZE.json": "95c98f8d5932fb539e2685badd55636e293009b9d9e2aef2d2dd0a1b673f30e1",
+    "tools/h1_compare_companions.py": "25d30b42862f19a9bfd4cfc585d0dda5d8db2642c95cb8493c22a7abbadd8ec6",
+    "tools/h1_native_batch.py": "f2e43274f2eb08f58dcff34b327bac7c36bdba7c367efe6994cdb4fb335b61e1",
+    "tools/h1_resolution_campaign.py": "6415da48435b78a85412d7b1e4128185be167d9bee27882ab680dd276208c91b"
+  },
+  "publicTask": {
+    "bodySha256": "8f45ad3d4a763952e25d60658ae4d8eeae37fd266bd372b3cd80fb19b81fa2a2",
+    "comment": 6981681502,
+    "scope": "T1-T illustrative public inputs only; private evaluator key lost.",
+    "snapshotCommit": "3ea30eb390660cf541fca95e95b668ac17ee02fc"
+  },
+  "schema": "sim_heat.h1_n1_pre_native_design/1",
+  "scope": "ONE_PHYSICAL_COMPOSITION_THREE_NUMERICAL_VARIANTS",
+  "state": "PLAN_ONLY_NOT_EXECUTION_READY",
+  "time": {
+    "horizonExtensionAuthorized": false,
+    "solver": "dassl",
+    "startTime": 0,
+    "stopTime": 2400
+  },
+  "variants": [
+    {
+      "intervals": 2400,
+      "label": "primary",
+      "originalStudyUnchanged": true,
+      "tolerance": 1e-08
+    },
+    {
+      "intervals": 2400,
+      "label": "tight",
+      "originalStudyUnchanged": false,
+      "tolerance": 1e-10
+    },
+    {
+      "intervals": 4800,
+      "label": "dense",
+      "originalStudyUnchanged": false,
+      "tolerance": 1e-08
+    }
+  ]
+}
