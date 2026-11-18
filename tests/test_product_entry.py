@@ -48,7 +48,7 @@ class ProductEntryTests(unittest.TestCase):
     def test_primary_destinations_and_unique_ids(self):
         self.assertEqual(self.page.links['enter-explorer'], 'viewer/network/index.html')
         self.assertEqual(self.page.links['compare-saved'], 'viewer/network/compare.html')
-        self.assertEqual(self.page.links['read-registry'], 'docs/CAPABILITIES.md')
+        self.assertEqual(self.page.links['read-registry'], 'docs/CAPABILITIES.html')
         self.assertFalse([key for key, count in Counter(self.page.ids).items() if count > 1])
 
     def test_three_categories_and_unqualified_status_remain_explicit(self):

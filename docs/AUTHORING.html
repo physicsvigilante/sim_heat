@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="source-sha256" content="49c44b6b59fc52f7198f3c5a2304d8195a0f725c93140b32a4ee94edcef0bb7d"><title>Author a supported thermal model</title><style>:root{font-family:system-ui,sans-serif;color:#173c43;background:#f5f7f3;line-height:1.7;color-scheme:light}
+*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1120px;margin:auto;padding:24px}
+header,footer{border-bottom:1px solid #ccdcd5}nav{display:flex;gap:20px;flex-wrap:wrap}
+a{color:#116973;text-underline-offset:3px}a:focus-visible,.table-scroll:focus-visible{outline:3px solid #a65124;outline-offset:4px}
+.skip{position:absolute;top:-90px;left:12px;background:white;padding:12px;z-index:2}.skip:focus{top:8px}
+h1{font:500 clamp(2rem,4vw,3.3rem)/1.2 Georgia,serif}h2{margin-top:2.1em;line-height:1.3}
+p{max-width:90ch}code{overflow-wrap:anywhere;font-size:.91em}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:18px;background:#e8efeb;border-radius:8px}
+.table-scroll{max-width:100%;overflow-x:auto;margin:20px 0;background:white;border:1px solid #cbd9d3;border-radius:8px}
+table{width:100%;border-collapse:collapse;min-width:650px}caption{text-align:left;font-weight:700;padding:12px 16px}
+th,td{padding:12px 16px;border-top:1px solid #d7e1dc;text-align:left;vertical-align:top}th{background:#e8efeb}td{overflow-wrap:anywhere}
+.note,footer{color:#4d676d;font-size:.88rem}main{min-width:0}main:focus{outline:none}
+@media(max-width:600px){header,main,footer{padding:18px}pre{padding:12px}}</style></head>
+<body><a class="skip" id="skip-link" href="#main">Skip to main content</a>
+<header><nav aria-label="Product documentation"><a href="../index.html">Start</a><a href="../viewer/network/index.html">Thermal explorer</a><a href="CAPABILITIES.html">Capabilities</a><a href="AUTHORING.html">Authoring guide</a></nav></header>
+<main id="main" tabindex="-1"><p class="note">Static rendering of <a id="markdown-source" href="AUTHORING.md">the Markdown source</a>. Tables can be scrolled horizontally. Source-code and historical-document links open their original files.</p>
+<article id="document"><h1 id="author-a-supported-thermal-model">Author a supported thermal model</h1>
+<p>Current, source-backed guide for the read-only H1 admission path. This guide covers drafting and checking input, not running OpenModelica. It does not complete an unfamiliar author-to-native transfer, establish source fidelity, or qualify numerical results. See the <a href="CAPABILITIES.html">capability registry</a> for the distinction between admission, analytical checking data and archived native diagnostics.</p>
+<p>The <a href="H1_IMPLEMENTATION_CONTRACT.md">historical H1 foundation contract</a> retains its original proposed-contract header. It is a design/history record, not a current implementation-status page or execution authorization. The <a href="H1_OFFLINE_AMENDMENT.md">offline amendment</a> is also a dated record. Current behavior described here is checked against <a href="../h1/__main__.py">the CLI</a>, <a href="../h1/study.py">study admission</a>, <a href="../h1/model.py">model and observation admission</a> and <a href="../h1/policy.py">analysis policy</a>.</p>
+<h2 id="start-with-an-isolated-draft">Start with an isolated draft</h2>
+<p>Use a checkout of the repository and the project&#x27;s Python 3.13.5 checking environment. The <a href="../requirements-h1-ci.txt">pinned checking dependencies</a> support offline checks; they are not an OpenModelica installation. Run commands from the repository root. No native tool is required for the walkthrough below. Do not edit original examples, archived studies, frozen references or historical execution plans to make a draft pass.</p>
+<p>A draft has two UTF-8 files: a restricted Modelica file describing components and connections, and a study JSON file describing identity, mode, analysis, provenance and requested observations. The model is authoritative; the descriptor does not override physical parameters. The descriptor&#x27;s model SHA-256 must match the exact model bytes, including line endings.</p>
+<p>For an existing unmodified example, run:</p>
+<pre><code class="language-sh">python -B -m h1 h1/cases/D1/study.json --root h1/cases</code></pre>
+<p>A successful admission has exit code 0, <code>stage: offline_validation</code>, <code>admitted: true</code> and <code>nativeExecuted: false</code>. Every admitted public request remains <code>not_computed</code>; its unit is a declared interface, not a measured or simulated value. Topology and internal-export names are source-derived descriptions. The scaled junction condition is an admission preflight, not a temperature solution.</p>
+<h2 id="walk-through-an-edit-and-two-refusals">Walk through an edit and two refusals</h2>
+<p>Save the following Python block as a temporary script outside the tracked source and run it from the repository root with <code>python -B /path/to/your-script.py</code>. It makes an isolated temporary copy of <a href="../h1/cases/D1/model.mo">D1&#x27;s model</a> and <a href="../h1/cases/D1/study.json">study</a>, changes the body initial temperature to an explicitly illustrative 298.15 K, and demonstrates a stale-hash refusal before refreshing only that new draft&#x27;s model digest. It then demonstrates an unknown observation target. The temporary directory is removed on completion, including failures. No original file is overwritten.</p>
+<p>This is an editing/admission exercise using an existing composition, not a new physical law, native experiment, held-out authoring test or computed answer. The code block itself is executed by the documentation regression tests; expected outcomes must agree with the real CLI.</p>
+<pre><code class="language-python">import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+
+root = Path.cwd()
+original = root / &quot;h1/cases/D1&quot;
+
+with TemporaryDirectory(prefix=&quot;simheat-authoring-&quot;) as temporary:
+    draft = Path(temporary)
+    model_path = draft / &quot;model.mo&quot;
+    study_path = draft / &quot;study.json&quot;
+    model_path.write_bytes((original / &quot;model.mo&quot;).read_bytes())
+    study_path.write_bytes((original / &quot;study.json&quot;).read_bytes())
+
+    def admit():
+        run = subprocess.run(
+            [sys.executable, &quot;-B&quot;, &quot;-m&quot;, &quot;h1&quot;, str(study_path),
+             &quot;--root&quot;, str(draft)],
+            cwd=root, capture_output=True, text=True, timeout=30,
+        )
+        result = json.loads(run.stdout)
+        assert result[&quot;stage&quot;] == &quot;offline_validation&quot;
+        assert result[&quot;nativeExecuted&quot;] is False
+        return run.returncode, result
+
+    code, result = admit()
+    assert code == 0 and result[&quot;admitted&quot;] is True
+
+    text = model_path.read_text(encoding=&quot;utf-8&quot;)
+    assert &quot;T_initial=293.15&quot; in text
+    text = text.replace(&quot;H1_D1&quot;, &quot;TeacherDraft&quot;)
+    text = text.replace(&quot;T_initial=293.15&quot;, &quot;T_initial=298.15&quot;)
+    model_path.write_text(text, encoding=&quot;utf-8&quot;)
+    code, result = admit()
+    assert code == 2 and result[&quot;code&quot;] == &quot;identity&quot;
+    print(&quot;PASS: edited model with stale digest refused&quot;)
+
+    study = json.loads(study_path.read_text(encoding=&quot;utf-8&quot;))
+    study[&quot;id&quot;] = &quot;TeacherDraft&quot;
+    study[&quot;model&quot;][&quot;sha256&quot;] = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    for record in study[&quot;provenance&quot;]:
+        if record[&quot;target&quot;] == &quot;body.T_initial&quot;:
+            record.update(kind=&quot;illustrative&quot;, locator=&quot;authoring walkthrough&quot;,
+                          note=&quot;Chosen 298.15 K for this scratch draft, not a textbook given.&quot;)
+    study_path.write_text(json.dumps(study, indent=2) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
+    code, result = admit()
+    assert code == 0 and result[&quot;admitted&quot;] is True
+    assert all(item[&quot;status&quot;] == &quot;not_computed&quot; for item in result[&quot;requests&quot;])
+    print(&quot;PASS: attributed scratch edit admitted; all readings not_computed&quot;)
+
+    study[&quot;requests&quot;][0][&quot;target&quot;] = &quot;missing.port&quot;
+    study_path.write_text(json.dumps(study, indent=2) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
+    code, result = admit()
+    assert code == 2 and result[&quot;admitted&quot;] is False
+    assert result[&quot;requests&quot;][0][&quot;code&quot;] == &quot;unknown_observation_target&quot;
+    print(&quot;PASS: unknown observation refused; no native execution&quot;)</code></pre>
+<p>Only a newly authored disposable draft is repinned here. Updating a draft digest neither authenticates its source nor repairs a frozen submission, archived native record, parent revision, or native execution plan. Reusing D1&#x27;s archived results after changing its model would be invalid.</p>
+<h2 id="describe-supported-components-and-connections">Describe supported components and connections</h2>
+<p>The supported constructors and mandatory physical fields are:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Describe supported components and connections"><table><caption>Describe supported components and connections</caption><thead><tr><th scope="col">Constructor</th><th scope="col">Required fields</th><th scope="col">Thermal ports</th></tr></thead><tbody><tr><td><code>SimHeat.Body</code></td><td><code>m</code>, <code>c</code>, <code>T_initial</code></td><td><code>port</code></td></tr><tr><td><code>SimHeat.RodArea</code></td><td><code>k</code>, <code>L</code>, <code>A</code></td><td><code>port_a</code>, <code>port_b</code></td></tr><tr><td><code>SimHeat.RodCircular</code></td><td><code>k</code>, <code>L</code>, <code>d</code></td><td><code>port_a</code>, <code>port_b</code></td></tr><tr><td><code>SimHeat.FixedTemperature</code></td><td><code>T</code></td><td><code>port</code></td></tr></tbody></table></div>
+<p>Use the SI quantities represented by these slots: kg, J/(kg K), K, W/(m K), m and square metres as applicable. Values must be finite and positive after conversion. The admitted language supports typed scalar parameters, supported conversion functions and <code>connect</code> statements; it is not unrestricted Modelica and does not accept arbitrary equations, algorithms or expressions. Read <a href="../h1/model.py">the current parser</a> before extending a draft beyond the demonstrated syntax.</p>
+<p>Rods must have both endpoints connected. A single ideal node cannot contain multiple body/boundary owners; connect such owners through rods rather than directly identifying their ports. A transient study requires a body. A steady study requires rods and boundaries, contains no bodies, and has an empty analysis object. Existing <a href="../h1/cases/S1/study.json">S1</a> demonstrates the steady descriptor. Component, topology and numerical-conditioning limits are enforced by admission; a syntactically valid connection is not necessarily a supported system.</p>
+<h2 id="request-observations-without-supplying-answers">Request observations without supplying answers</h2>
+<p>The current public request schema is:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Request observations without supplying answers"><table><caption>Request observations without supplying answers</caption><thead><tr><th scope="col">Operation</th><th scope="col">Fields besides a unique <code>id</code> and <code>op</code></th><th scope="col">Valid target</th></tr></thead><tbody><tr><td><code>temperature</code></td><td><code>target</code></td><td>Existing thermal port, for example <code>body.port</code></td></tr><tr><td><code>temperatureDifference</code></td><td><code>a</code>, <code>b</code></td><td>Two existing thermal ports, in the authored order</td></tr><tr><td><code>heatFlow</code></td><td><code>target</code></td><td>Rod component name, for example <code>rod</code></td></tr><tr><td><code>energyChange</code></td><td><code>target</code></td><td>Body component name, for example <code>body</code></td></tr></tbody></table></div>
+<p>Do not supply expected numerical answers in the requests. One refused request refuses the investigation; the report can retain per-request reasons rather than a single top-level error. An invented operation or a physically incompatible target is refused, even when other requests are valid. Internal export names are not additional public request operations.</p>
+<h2 id="record-assumptions-and-analysis-settings">Record assumptions and analysis settings</h2>
+<p>Every effective physical slot needs an attributable provenance record, directly or through a parameter dependency. Each record has <code>target</code>, <code>kind</code>, <code>locator</code> and <code>note</code>. Use truthful source locations; illustrative choices must be labeled <code>illustrative</code>. The <code>@model</code> regime record requires an <code>adopted_assumption</code> or <code>solution_assumption</code>. The parser checks these links and allowed kinds, not whether the text faithfully interprets a textbook or diagram.</p>
+<p>Transient analysis currently requires <code>startTime</code> zero, finite <code>stopTime</code> from 0.000001 to 10000000 seconds, an even integer <code>intervals</code> from 1000 to 20000, <code>solver</code> equal to <code>dassl</code>, and <code>tolerance</code> equal to 1e-8 or 1e-10. These are descriptor-admission bounds, not permission to run those settings or evidence of accuracy. The separate frozen C1 budget and qualification conditions are not expanded by this guide. Preserve historical/reference tolerances rather than loosening them to pass a check.</p>
+<p>A declared hypothetical conductivity revision has additional parent-source hashes and structural checks. Do not create such a relationship merely by changing an ID or copying archived provenance. Follow the existing <a href="../h1/cases/D2_K2/study.json">D2_K2 descriptor</a> and <a href="../h1/study.py">revision implementation</a>; the walkthrough above creates a standalone scratch draft, not a qualified revision pair.</p>
+<h2 id="understand-a-refusal">Understand a refusal</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Understand a refusal"><table><caption>Understand a refusal</caption><thead><tr><th scope="col">Report location or code</th><th scope="col">What to inspect</th></tr></thead><tbody><tr><td><code>identity</code></td><td>The draft&#x27;s model bytes and its recorded SHA-256; never repin an old native plan to bypass this.</td></tr><tr><td><code>descriptor</code>, <code>path</code></td><td>Required JSON fields, finite numbers, duplicate keys, UTF-8 and allowed paths; keep the model inside the study directory.</td></tr><tr><td><code>syntax</code>, <code>parameters</code>, <code>units</code></td><td>Supported constructors, mandatory fields, scalar bindings and compatible quantities.</td></tr><tr><td><code>connection</code>, <code>unsupported_topology</code>, <code>underdetermined</code></td><td>Named ports, required endpoints, owners and floating conductor networks.</td></tr><tr><td>Per-request <code>unknown_observation_target</code> or <code>unsupported_observation</code></td><td>The operation and full referenced port/component, not just its first word.</td></tr><tr><td><code>provenance</code>, <code>analysis</code>, <code>numerical_domain</code></td><td>Attributions, regime assumptions, admissible settings and numerical preflight.</td></tr></tbody></table></div>
+<p>Read the actual <code>reason</code> and any <code>requests</code> entries. Do not relabel a refusal as a solver failure: no solver has been run by this command.</p>
+<h2 id="stop-before-new-native-execution">Stop before new native execution</h2>
+<p>An admitted draft does not yet have simulated values or an archive suitable for the existing result explorer. The complete unfamiliar-model source-view/native-result path is unfinished. Keep source drafts separate from archived-native displays; never substitute analytical references or made-up values for missing native output.</p>
+<p>Before a new native attempt, a separately reviewed bounded plan must cover source/reference custody, the actual host/toolchain, permitted operations and attempt budget, followed by explicit owner authorization. This guide does not install or invoke OpenModelica, generate or adopt a checking reference, alter historical C1 failures, or grant native permission. Existing six-case playback remains available through the <a href="../viewer/network/index.html">thermal explorer</a>.</p></article>
+</main><footer>Generated from AUTHORING.md. Edit the Markdown, then run <code>python -B tools/render_product_docs.py</code>. No scripts, solver or native execution.</footer></body></html>

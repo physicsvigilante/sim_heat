@@ -16,8 +16,8 @@ The browser shows archived data only. Hash agreement is integrity relative to su
 
 | Capability | Available now | Boundary / source |
 |---|---|---|
-| Thermal composition | Lumped bodies, storage-free conducting rods, fixed-temperature boundaries and thermal-port connections | Restricted linear lumped domain. [H1 contract](H1_IMPLEMENTATION_CONTRACT.md). |
-| Structured authoring | Restricted Modelica plus study metadata, provenance and requested observations | Admission checks source and supported quantities; it does not simulate or authorize a run. [Offline amendment](H1_OFFLINE_AMENDMENT.md). |
+| Thermal composition | Lumped bodies, storage-free conducting rods, fixed-temperature boundaries and thermal-port connections | Restricted linear lumped domain. [Historical H1 foundation contract](H1_IMPLEMENTATION_CONTRACT.md). |
+| Structured authoring | Restricted Modelica plus study metadata, provenance and requested observations | Admission checks source and supported quantities; it does not simulate or authorize a run. [Current authoring guide](AUTHORING.md); [dated offline amendment](H1_OFFLINE_AMENDMENT.md). |
 | Archived result inspection | Select cases and quantities; inspect saved temperatures, signed flows and energy changes | Logical graph, not apparatus geometry; no invented intermediate samples. [Viewer guide](../viewer/network/README.md). |
 | Steady presentation | S1's saved algebraic state | Backend evaluation indices are not seconds or a transient history. |
 | Conductivity comparison | Saved D2 versus D2_K2 | [Comparison](../viewer/network/compare.html) selects recorded histories, not live parameter simulation. |
