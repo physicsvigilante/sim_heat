@@ -1,0 +1,104 @@
+name: H1 local authoring workbench - OFFLINE source only
+on:
+  push:
+    branches: [product/local-authoring-workbench]
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/authoring-workbench-ci.yml
+      - docs/LOCAL_AUTHORING_WORKBENCH.md
+      - tools/authoring_workbench.py
+      - tests/test_authoring_workbench.py
+      - tests/browser_authoring_workbench.py
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-local-authoring-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install pinned checking and browser dependencies only - NEVER OMC
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 playwright==1.57.0
+      - name: Select Chromium
+        run: |
+          if command -v google-chrome >/dev/null; then google-chrome --version
+          elif command -v chromium >/dev/null; then chromium --version
+          else python -m playwright install --with-deps chromium; fi
+      - name: Verify exact source boundary and run full offline suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p local_authoring_evidence
+          git rev-parse HEAD > local_authoring_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > local_authoring_evidence/head-tree.txt
+          scope_base=20f5605d28f22d4a7dc86ad478a4cf44347157d4
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            scope_base="$(git rev-parse HEAD^1)"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git cat-file -e "${scope_base}^{commit}"
+          printf '%s\n' "$scope_base" > local_authoring_evidence/scope-base-sha.txt
+          git diff --name-status "$scope_base" HEAD > local_authoring_evidence/source-diff.txt
+          python - <<'PY'
+          from pathlib import Path
+          actual=Path('local_authoring_evidence/source-diff.txt').read_text().splitlines()
+          expected={
+             'A\t.github/workflows/authoring-workbench-ci.yml',
+             'A\tdocs/LOCAL_AUTHORING_WORKBENCH.md',
+             'A\ttools/authoring_workbench.py',
+             'A\ttests/test_authoring_workbench.py',
+             'A\ttests/browser_authoring_workbench.py',
+          }
+          assert set(actual)==expected and len(actual)==len(expected), actual
+          PY
+          git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer tools/h1_native_batch.py docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+          git archive --format=tar HEAD > local_authoring_evidence/source.tar
+          python -m pip freeze > local_authoring_evidence/packages.txt
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee local_authoring_evidence/h1.log
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee local_authoring_evidence/arithmetic.log
+          python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v 2>&1 | tee local_authoring_evidence/adapters.log
+          python -B -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee local_authoring_evidence/product.log
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/core.test.mjs 2>&1 | tee local_authoring_evidence/node.log
+          python -B tools/render_product_docs.py --check
+          python -B viewer/network/tools/build_compare_index.py --out local_authoring_evidence/compare-replayed.json
+          cmp viewer/network/data/compare_index.json local_authoring_evidence/compare-replayed.json
+          python -B -m h1.source_preview h1/cases/TEACH_SPLIT3/study.json --root h1/cases --out local_authoring_evidence/preview-replayed.json
+          cmp viewer/source_preview/data/TEACH_SPLIT3.json local_authoring_evidence/preview-replayed.json
+      - name: Replay original six archived native diagnostics without a native executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sim_heat_orig_archives
+          for id in 14152886226 14155084346 14204656273 14215520616 14153251022; do
+            gh api "repos/physicsvigilante/sim_heat/actions/artifacts/$id/zip" > "/tmp/sim_heat_orig_archives/artifact-$id.zip"
+          done
+          python -B viewer/network/tools/replay_published_archives.py --archives /tmp/sim_heat_orig_archives > local_authoring_evidence/archive-replay.json
+      - name: Real HTTP Chromium original explorer, source preview, docs and isolated workbench
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B viewer/network/tests/browser_smoke.py --out local_authoring_evidence/explorer 2>&1 | tee local_authoring_evidence/explorer-browser.log
+          python -B tests/browser_source_preview.py --out local_authoring_evidence/source-preview 2>&1 | tee local_authoring_evidence/source-browser.log
+          python -B tests/browser_product_docs.py --out local_authoring_evidence/product-docs 2>&1 | tee local_authoring_evidence/docs-browser.log
+          python -B tests/browser_authoring_workbench.py --out local_authoring_evidence/loopback 2>&1 | tee local_authoring_evidence/workbench-browser.log
+      - name: Retain exact checkout, source, six original replay receipts and browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: local-authoring-${{ github.sha }}
+          path: local_authoring_evidence/
+          retention-days: 90
+          if-no-files-found: error
