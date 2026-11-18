@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {admitPreview,layoutNodes} from './core.mjs';
+import {admitPreview,layoutNodes,selectionValue} from './core.mjs';
 const original=JSON.parse(fs.readFileSync(new URL('./data/TEACH_SPLIT3.json',import.meta.url)));
 const copy=()=>structuredClone(original);
 test('one unseen supported composition parses with no computed fields',()=>{
@@ -51,4 +51,40 @@ test('effective provenance must target real fields, not arbitrary other componen
     p=>p.components[0].sourceProvenance[0].target='bad.fake',
     p=>p.components[0].sourceProvenance[0].appliesTo=[],
   ]){const p=copy();update(p);assert.throws(()=>admitPreview(p),/REFUSED/)}
+});
+
+// Chat B PR55 F-01: H1 allows a rod named node_0 even when the generic
+// graph's aluminum node is also node_0. Selection values must be typed.
+test('component and graph node identities occupy distinct selection namespaces',()=>{
+  assert.notEqual(selectionValue('component','node_0'),selectionValue('node','node_0'));
+  assert.equal(selectionValue('component','node_0'),'component:node_0');
+  assert.equal(selectionValue('node','node_0'),'node:node_0');
+  assert.throws(()=>selectionValue('rod','node_0'),/REFUSED/);
+});
+
+test('component-wide original assumptions remain independent from slot attribution',()=>{
+  const p=copy(),feed=p.components.find(c=>c.id==='feed');
+  const original={target:'feed',kind:'adopted_assumption',locator:'review/component',
+    note:'R2_COMPONENT_ASSUMPTION: lateral heat loss neglected'};
+  feed.componentProvenance.push(original,structuredClone(original));
+  assert.doesNotThrow(()=>admitPreview(p));
+  assert.equal(feed.componentProvenance.length,2);
+  assert(!feed.sourceProvenance.some(r=>r.target==='feed'));
+  for(const mutation of [x=>x.components.find(c=>c.id==='feed').componentProvenance[0].target='other',
+    x=>x.components.find(c=>c.id==='feed').componentProvenance[0].kind='native_qualified',
+    x=>x.components.find(c=>c.id==='feed').componentProvenance[0].appliesTo=['feed.k']]){
+    const v=structuredClone(p);mutation(v);assert.throws(()=>admitPreview(v),/REFUSED/);
+  }
+});
+
+test('reject cross-mode metadata and unrecognized provenance kinds',()=>{
+  for(const mutation of [p=>p.mode='steady',
+    p=>p.components.find(c=>c.id==='feed').sourceProvenance[0].kind='native_qualified',
+    p=>p.modelProvenance[0].kind='native_qualified']){
+    const v=copy();mutation(v);assert.throws(()=>admitPreview(v),/REFUSED/);
+  }
+  const p=copy();p.modelProvenance.push({target:'@model',kind:'source_diagram',locator:'x',note:'x'});
+  assert.doesNotThrow(()=>admitPreview(p)); // Original regime assumption remains
+  p.modelProvenance=p.modelProvenance.filter(p=>p.kind==='source_diagram');
+  assert.throws(()=>admitPreview(p),/REFUSED/); // H1 requires a regime assumption
 });

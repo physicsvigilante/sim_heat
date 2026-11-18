@@ -60,8 +60,14 @@ def build_source_preview(study: Study) -> dict:
                         or record['target'] in binding.dependencies]
             if affected:
                 citations.append({**record, 'appliesTo': affected})
+        # Component-wide assumptions are legal H1 provenance targets, but are
+        # not evidence for any individual scalar slot. Preserve their original
+        # records separately, including repeated records and original order.
+        component_citations = [dict(record) for record in study.data['provenance']
+                               if record['target'] == name]
         components.append({'id': name, 'kind': comp.kind, 'inputs': inputs,
-                           'sourceProvenance': citations})
+                           'sourceProvenance': citations,
+                           'componentProvenance': component_citations})
     rods = []
     for name, a, b, _ in topology.edges:
         rods.append({'id': name, 'from': node_of[a], 'to': node_of[b],

@@ -14,6 +14,14 @@ const slots={Body:{m:'Mass',c:'SpecificHeatCapacity',T_initial:'Temperature'},
   RodArea:{k:'ThermalConductivity',L:'Length',A:'Area'},
   RodCircular:{k:'ThermalConductivity',L:'Length',d:'Length'}};
 const ops={temperature:'K',temperatureDifference:'K',heatFlow:'W',energyChange:'J'};
+const provenanceKinds=new Set(['source_given','source_diagram','solution_assumption',
+  'adopted_assumption','unit_convention','illustrative']);
+// A legal authored component may be named 'node_0'. Selection must never
+// depend on component and generated node IDs sharing one string namespace.
+export function selectionValue(kind,id){
+  if(!['component','node'].includes(kind)||!name(id))refuse('invalid selection');
+  return kind+':'+id;
+}
 function refuse(reason){throw Error('SOURCE PREVIEW REFUSED: '+reason)}
 export function admitPreview(value){
   if(!keys(value,['schema','status','studyId','modelName','mode','source','components','nodes','rods','requests','modelProvenance','disclaimers']) ||
@@ -31,8 +39,10 @@ export function admitPreview(value){
   const components = new Map();
   const portSet = new Set();
   for(const c of value.components){
-    if(!keys(c,['id','kind','inputs','sourceProvenance'])||!name(c.id)||!has(slots,c.kind)||components.has(c.id)||
-       !Array.isArray(c.inputs)||!Array.isArray(c.sourceProvenance)) refuse('invalid component');
+    if(!keys(c,['id','kind','inputs','sourceProvenance','componentProvenance'])||
+       !name(c.id)||!has(slots,c.kind)||components.has(c.id)||
+       !Array.isArray(c.inputs)||!Array.isArray(c.sourceProvenance)||
+       !Array.isArray(c.componentProvenance)) refuse('invalid component');
     components.set(c.id,c);
     if(c.kind==='Body'||c.kind==='FixedTemperature')portSet.add(c.id+'.port');
     else {portSet.add(c.id+'.port_a');portSet.add(c.id+'.port_b')}
@@ -48,7 +58,7 @@ export function admitPreview(value){
     const pnames=new Set();
     for(const p of c.sourceProvenance){
       if(!keys(p,['target','kind','locator','note','appliesTo'])||!name(p.target.split('.')[0])||
-         !nonempty(p.kind)||!nonempty(p.locator)||!nonempty(p.note)||
+         !provenanceKinds.has(p.kind)||!nonempty(p.locator)||!nonempty(p.note)||
          !Array.isArray(p.appliesTo)||p.appliesTo.length<1||p.appliesTo.length>c.inputs.length||
          new Set(p.appliesTo).size!==p.appliesTo.length)refuse('invalid source attribution');
       for(const effective of p.appliesTo){
@@ -60,9 +70,18 @@ export function admitPreview(value){
       }
     }
     if(pnames.size!==c.inputs.length)refuse('missing source provenance');
+    for(const p of c.componentProvenance){
+      // Never reinterpret a whole-component modeling assumption as a
+      // source-given scalar input or silently discard its original target.
+      if(!keys(p,['target','kind','locator','note'])||p.target!==c.id||
+         !provenanceKinds.has(p.kind)||!nonempty(p.locator)||!nonempty(p.note))
+        refuse('invalid component assumption');
+    }
   }
   if(value.modelProvenance.length<1||value.modelProvenance.some(p=>
-      !keys(p,['target','kind','locator','note'])||p.target!=='@model'||!nonempty(p.kind)||!nonempty(p.locator)||!nonempty(p.note))) refuse('missing model provenance');
+      !keys(p,['target','kind','locator','note'])||p.target!=='@model'||
+      !provenanceKinds.has(p.kind)||!nonempty(p.locator)||!nonempty(p.note))||
+      !value.modelProvenance.some(p=>['adopted_assumption','solution_assumption'].includes(p.kind))) refuse('missing model provenance');
   const nodes=new Map(),owners=new Set(),allPorts=new Set();
   for(const node of value.nodes){
     if(!keys(node,['id','ports','owner','role','label'])||!/^node_\d+$/.test(node.id)||nodes.has(node.id)||
@@ -87,8 +106,14 @@ export function admitPreview(value){
     rods.add(r.id);
   }
   if(rods.size!==[...components.values()].filter(c=>c.kind.startsWith('Rod')).length)refuse('missing rods');
-  if(value.nodes.filter(n=>n.role==='body').length!==[...components.values()].filter(c=>c.kind==='Body').length||
-     value.nodes.filter(n=>n.role==='boundary').length!==[...components.values()].filter(c=>c.kind==='FixedTemperature').length)refuse('missing body/boundary node');
+  const bodies=[...components.values()].filter(c=>c.kind==='Body').length;
+  const boundaries=[...components.values()].filter(c=>c.kind==='FixedTemperature').length;
+  if(value.nodes.filter(n=>n.role==='body').length!==bodies||
+     value.nodes.filter(n=>n.role==='boundary').length!==boundaries)refuse('missing body/boundary node');
+  // Mirror the H1 steady/transient component-mode envelope. This checks only
+  // caller-supplied metadata consistency, not physical correctness or source custody.
+  if(value.mode==='steady' ? bodies!==0||rods.size===0||boundaries===0 : bodies===0)
+    refuse('incompatible H1 source mode');
   const ids=new Set();
   for(const r of value.requests){
     if(!keys(r,['id','operation','targets','unit','status']) || !name(r.id)||ids.has(r.id)||!has(ops,r.operation)||

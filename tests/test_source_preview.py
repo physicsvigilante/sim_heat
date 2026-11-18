@@ -60,6 +60,63 @@ class SourcePreviewTests(unittest.TestCase):
                 self.assertEqual(len(preview['rods']),sum(c['kind'].startswith('Rod') for c in preview['components']))
                 self.assertFalse(preview['source']['nativeQualified'])
 
+    def test_admitted_legal_component_node_id_collision_is_not_renamed(self):
+        # Recreate Chat B F-01 from genuinely admitted H1 source bytes, not a
+        # forged display fixture. H1 identifiers must remain legal unchanged.
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)/'cases'; draft=root/'COLLISION'; draft.mkdir(parents=True)
+            original_model=(CASE/'model.mo').read_bytes()
+            model=original_model.replace(b'shortcut',b'node_0')
+            data=json.loads((CASE/'study.json').read_text().replace('shortcut','node_0'))
+            data['model']['sha256']=digest(model)
+            (draft/'model.mo').write_bytes(model)
+            (draft/'study.json').write_text(json.dumps(data))
+            loaded=load_study(draft/'study.json',root)
+            self.assertTrue(loaded.request_report['admitted'])
+            preview=build_source_preview(loaded)
+            self.assertIn('node_0',[c['id'] for c in preview['components']])
+            self.assertIn('node_0',[n['id'] for n in preview['nodes']])
+            self.assertEqual(next(n['owner'] for n in preview['nodes']
+                                  if n['id']=='node_0'),'aluminum')
+            self.assertEqual(next(c['kind'] for c in preview['components']
+                                  if c['id']=='node_0'),'RodArea')
+            command=("import {admitPreview,selectionValue} from './viewer/source_preview/core.mjs';"
+                     "import {readFileSync} from 'node:fs';"
+                     "const p=admitPreview(JSON.parse(readFileSync(0,'utf8')));"
+                     "if(selectionValue('node','node_0')===selectionValue('component','node_0'))throw Error('ambiguous selection');")
+            r=subprocess.run(['node','--input-type=module','-e',command],input=serialized(preview),
+                             cwd=ROOT,capture_output=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+
+    def test_admitted_component_and_model_assumptions_preserved_in_original_scope(self):
+        # Chat B F-02: a legal whole-component note cannot silently vanish or
+        # become source_given for individual inputs; model assumptions stay raw.
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)/'cases'; draft=root/'ASSUMPTIONS'; draft.mkdir(parents=True)
+            (draft/'model.mo').write_bytes((CASE/'model.mo').read_bytes())
+            data=json.loads((CASE/'study.json').read_bytes())
+            comp={'target':'feed','kind':'adopted_assumption',
+                  'locator':'review/component','note':'R2_COMPONENT_ASSUMPTION: lateral losses neglected'}
+            model={'target':'@model','kind':'solution_assumption',
+                   'locator':'review/model','note':'R2_MODEL_REGIME_MARKER: uniform bodies'}
+            data['provenance'].extend([comp,dict(comp),model])
+            (draft/'study.json').write_text(json.dumps(data))
+            preview=build_source_preview(load_study(draft/'study.json',root))
+            feed=next(c for c in preview['components'] if c['id']=='feed')
+            self.assertEqual(feed['componentProvenance'],[comp,comp])
+            self.assertIn(model,preview['modelProvenance'])
+            self.assertNotIn(comp,feed['sourceProvenance'])
+            self.assertFalse(any('feed.k' in p.get('appliesTo',[])
+                                 and p['target']=='feed' for p in feed['sourceProvenance']))
+            self.assertIn(b'R2_COMPONENT_ASSUMPTION',serialized(preview))
+            self.assertIn(b'R2_MODEL_REGIME_MARKER',serialized(preview))
+            command=("import {admitPreview} from './viewer/source_preview/core.mjs';"
+                     "import {readFileSync} from 'node:fs';"
+                     "admitPreview(JSON.parse(readFileSync(0,'utf8')));")
+            r=subprocess.run(['node','--input-type=module','-e',command],input=serialized(preview),
+                             cwd=ROOT,capture_output=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+
     def test_refused_source_request_never_becomes_preview(self):
         with tempfile.TemporaryDirectory() as temp:
             cases=Path(temp)/'cases';target=cases/'draft';target.mkdir(parents=True)
