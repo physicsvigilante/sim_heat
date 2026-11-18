@@ -1,5 +1,4 @@
-"""Prospective product-only CI trigger/guard checks. Never invokes a simulator."""
-
+"""Product CI triggers and protected-source admission; never invokes a solver."""
 from fnmatch import fnmatchcase
 from pathlib import Path
 import os
@@ -12,8 +11,6 @@ WORKFLOW = ROOT / '.github/workflows/product-entry-ci.yml'
 
 
 def product_pr_paths(text):
-    # Parse only this workflow's small literal PR path list, without a YAML
-    # parser dependency or interpreting GitHub's expression language.
     block = text.split('  pull_request:\n', 1)[1].split('\npermissions:', 1)[0]
     block = block.split('    paths:\n', 1)[1]
     return tuple(line.strip()[2:].strip("'\"") for line in block.splitlines()
@@ -45,16 +42,25 @@ class ProductCIScopeTests(unittest.TestCase):
             with self.subTest(unrelated=path):
                 self.assertFalse(any(fnmatchcase(path, pattern) for pattern in self.paths))
         self.assertNotIn('tests/**', self.paths)
+        self.assertNotIn('docs/**', self.paths)
 
-    def test_product_guard_uses_pr_base_and_checks_protected_paths(self):
-        self.assertIn('github.event.pull_request.base.sha', self.workflow)
-        self.assertIn('if [ "${{ matrix.kind }}" = candidate ]; then', self.workflow)
-        self.assertIn('git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer',
-                      self.workflow)
-        self.assertIn('git diff --name-status "$scope_base" HEAD > product_evidence/source-diff.txt',
-                      self.workflow)
-        self.assertIn('scope-base-sha.txt', self.workflow)
-        self.assertIn('4162c3d47016150076b226ebe2585073a785547a', self.workflow)
+    def test_current_checkout_base_guard_and_protected_paths(self):
+        text = self.workflow
+        self.assertIn('if [ "${{ matrix.kind }}" = candidate ]; then', text)
+        # A PR event can carry a stale base SHA despite the actual synthetic
+        # merge already using new main. Always trust and validate the checkout.
+        self.assertIn('scope_base="$(git rev-parse HEAD^1)"', text)
+        self.assertIn('candidate_parent="$(git rev-parse HEAD^2)"', text)
+        self.assertIn('test "$candidate_parent" = "${{ github.event.pull_request.head.sha }}"', text)
+        self.assertIn('scope_base="$(git merge-base HEAD origin/main)"', text)
+        self.assertIn('git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer', text)
+        self.assertIn('git diff --name-status "$scope_base" HEAD > product_evidence/source-diff.txt', text)
+        self.assertIn('scope-base-sha.txt', text)
+        self.assertIn('13260a62eb36d58802878c4d3dfb534ad1621f91', text)
+        self.assertNotIn('scope_base="${{ github.event.pull_request.base.sha }}"', text)
+        self.assertIn('tools/render_product_docs.py --check', text)
+        self.assertIn('browser_product_docs.py', text)
+        self.assertIn('browser_source_preview.py', text)
 
     def test_protected_source_diff_guard_accepts_product_edit_refuses_h1_edit(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,15 +81,19 @@ class ProductCIScopeTests(unittest.TestCase):
             (repo / 'README.md').write_text('original README\n')
             self.assertEqual(git('add', '.').returncode, 0)
             self.assertEqual(git('commit', '-qm', 'baseline').returncode, 0)
-            base = git('rev-parse', 'HEAD').stdout.strip()
-            self.assertEqual(len(base), 40)
+            old = git('rev-parse', 'HEAD').stdout.strip()
+            (repo / 'h1' / 'physics.py').write_text('already integrated source\n')
+            self.assertEqual(git('add', '.').returncode, 0)
+            self.assertEqual(git('commit', '-qm', 'integrated prior H1 source').returncode, 0)
+            current = git('rev-parse', 'HEAD').stdout.strip()
             (repo / 'README.md').write_text('product-only edit\n')
             self.assertEqual(git('add', '.').returncode, 0)
             self.assertEqual(git('commit', '-qm', 'product').returncode, 0)
-            args = ('diff', '--exit-code', base, 'HEAD', '--',
+            args = ('diff', '--exit-code', current, 'HEAD', '--',
                     'h1', 'experiments', 'qualification', 'viewer')
             self.assertEqual(git(*args).returncode, 0)
-            (repo / 'h1' / 'physics.py').write_text('physically changed source\n')
+            self.assertEqual(git('diff', '--exit-code', old, 'HEAD', '--','h1').returncode, 1)
+            (repo / 'h1' / 'physics.py').write_text('physically changed source again\n')
             self.assertEqual(git('add', '.').returncode, 0)
             self.assertEqual(git('commit', '-qm', 'not product only').returncode, 0)
             self.assertEqual(git(*args).returncode, 1)

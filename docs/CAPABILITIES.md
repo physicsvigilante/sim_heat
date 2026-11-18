@@ -7,23 +7,25 @@ Current product inventory, 2026-11-18. Start at the [local start page](../index.
 | Category | Available use | Meaning and limit |
 |---|---|---|
 | Archived native diagnostics | Six published cases and one saved comparison | Actual archived OpenModelica output; `diagnostic_only`, `nativeQualified=false`. Not independent measurement or general numerical qualification. |
+| Admitted authored-source previews | [Generic source-only inspector](../viewer/source_preview/index.html), including TEACH_SPLIT3 | Authored SI values, provenance and logical connectivity only; all public requests `not_computed`. No computed output, imported-file authentication or new native run. |
 | Analytical checking data | Separate H1 checking pipeline | Calculated references used to check supported models; not native output and never a replacement for missing native readings. |
 | Expected-only source views | Separate historical C1 branches, not the main explorer | Source fields, dependencies and topology; nine C1 native public readings remain uncomputed. No physical pose or apparatus geometry is established. |
 
-The browser shows archived data only. Hash agreement is integrity relative to supplied/versioned evidence, not authentication of an arbitrary newly repacked archive. A new run needs separately trusted source/artifact custody and explicit bounded native authorization. No such authorization is granted here.
+The archived-results browser shows saved native diagnostics only; the separate authored-source inspector displays **uncomputed H1 source** and never promotes it to a native result. Hash agreement is integrity relative to supplied/versioned evidence, not authentication of an arbitrary newly repacked archive. A new run needs separately trusted source/artifact custody and explicit bounded native authorization. No such authorization is granted here.
 
 ## Current capabilities
 
 | Capability | Available now | Boundary / source |
 |---|---|---|
-| Thermal composition | Lumped bodies, storage-free conducting rods, fixed-temperature boundaries and thermal-port connections | Restricted linear lumped domain. [H1 contract](H1_IMPLEMENTATION_CONTRACT.md). |
-| Structured authoring | Restricted Modelica plus study metadata, provenance and requested observations | Admission checks source and supported quantities; it does not simulate or authorize a run. [Offline amendment](H1_OFFLINE_AMENDMENT.md). |
+| Thermal composition | Lumped bodies, storage-free conducting rods, fixed-temperature boundaries and thermal-port connections | Restricted linear lumped domain. [Historical H1 foundation contract](H1_IMPLEMENTATION_CONTRACT.md). |
+| Structured authoring | Restricted Modelica plus study metadata, provenance and requested observations | Admission checks source and supported quantities; it does not simulate or authorize a run. [Current authoring guide](AUTHORING.md); [dated offline amendment](H1_OFFLINE_AMENDMENT.md). |
+| Source-only composition inspection | Generic [authored-source inspector](../viewer/source_preview/index.html) and [offline generator](../h1/source_preview.py) for admitted H1 studies | Displays SI inputs, graph connections, component and model-level assumptions, source identities and `not_computed` requests. No new computed readings, apparatus geometry, imported-file authentication or native qualification. |
 | Archived result inspection | Select cases and quantities; inspect saved temperatures, signed flows and energy changes | Logical graph, not apparatus geometry; no invented intermediate samples. [Viewer guide](../viewer/network/README.md). |
 | Steady presentation | S1's saved algebraic state | Backend evaluation indices are not seconds or a transient history. |
 | Conductivity comparison | Saved D2 versus D2_K2 | [Comparison](../viewer/network/compare.html) selects recorded histories, not live parameter simulation. |
 | Original CSV verification | Exact original normalized CSV hash and consistency checks | Arbitrary CSV is not admitted as native evidence. Files stay in the browser. |
 | Archive reproduction | Read-only replay through the existing adapters | [Replay tool](../viewer/network/tools/replay_published_archives.py); requires original trusted ZIPs and never executes their binaries. |
-| Teacher workflow | Existing case inspection and comparison | Unfamiliar author-to-result transfer and real classroom usability are not established. |
+| Teacher workflow | Existing archived-case comparison and separate source-only composition inspection | Unfamiliar author-to-native-result transfer and real classroom usability are not established. |
 
 ## Published case inventory
 
@@ -52,6 +54,6 @@ There is no general symbolic/inverse solver, fluid-flow engine, phase change, mo
 
 ## Next bounded product milestone
 
-Complete one unfamiliar composition of already supported components through **authored model → admission → faithful source view → separately authorized native execution → saved-reference checks → inspectable results**. Evaluate whether a teacher can follow that path and understand a refusal without developer intervention. This remains planned work, not a claim of completion.
+Complete one unfamiliar composition of already supported components through **authored model → admission → faithful source view → separately authorized native execution → saved-reference checks → inspectable results**. The restricted source-view step now exists for admitted H1 models, but the full native author-to-result chain does not. Evaluate whether a teacher can follow that path and understand a refusal without developer intervention. This remains planned work, not a claim of completion.
 
 Before any fresh native operation, define and review the concrete execution path, source/reference custody, host/toolchain identity and bounded attempt policy, then obtain explicit owner authorization. Do not add another mock authorization layer unless it closes a real operational requirement. Existing archived playback remains useful while that separate work is unfinished.
