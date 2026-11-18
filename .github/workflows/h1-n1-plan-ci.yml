@@ -1,0 +1,84 @@
+name: H1-N1 pre-native PLAN checks only - ZERO OMC
+on:
+  push:
+    branches: [planning/h1-n1-t1t]
+  pull_request:
+    branches: [main]
+    paths:
+      - qualification/h1_n1/**
+      - .github/workflows/h1-n1-plan-ci.yml
+permissions:
+  contents: read
+concurrency:
+  group: simheat-h1-n1-plan-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  plan-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install checking libraries only, never a native toolchain
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Exact input and source preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p n1_plan_evidence
+          git rev-parse HEAD > n1_plan_evidence/head-sha.txt
+          git rev-parse HEAD^{tree} > n1_plan_evidence/head-tree.txt
+          base=f52613c39c539b2d4543a9838e5658d526fca10e
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            base="$(git rev-parse HEAD^1)"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          test "$base" = f52613c39c539b2d4543a9838e5658d526fca10e
+          printf '%s\n' "$base" > n1_plan_evidence/scope-base-sha.txt
+          git diff --name-status "$base" HEAD > n1_plan_evidence/source-diff.txt
+          python - <<'PY'
+          from pathlib import Path
+          prefix='qualification/h1_n1/'
+          names=['PLAN.md','REFERENCE-CONTRACT.md','SOURCE-PINS.json','plan.json',
+                 'reference-facts.json','PLANNING-SCREENING.json','check_plan.py',
+                 'inputs/T/model.mo','inputs/T/study.json','inputs/T/AUTHOR_NOTES.md',
+                 'tests/test_plan.py']
+          expected={'A\t'+prefix+x for x in names}|{'A\t.github/workflows/h1-n1-plan-ci.yml'}
+          actual=Path('n1_plan_evidence/source-diff.txt').read_text().splitlines()
+          assert len(actual)==len(expected) and set(actual)==expected, actual
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools viewer experiments docs qualification/h1_c1
+          git archive --format=tar HEAD > n1_plan_evidence/source.tar
+          python -m pip freeze > n1_plan_evidence/packages.txt
+      - name: Plan syntax, source binding and negative controls only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B qualification/h1_n1/check_plan.py --out n1_plan_evidence/plan-check.json
+          python -B -m unittest discover -s qualification/h1_n1/tests -v 2>&1 | tee n1_plan_evidence/plan-tests.log
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee n1_plan_evidence/h1-baseline-tests.log
+          python -B tools/render_product_docs.py --check 2>&1 | tee n1_plan_evidence/docs-parity.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('n1_plan_evidence/plan-check.json').read_text())
+          assert r['nativeExecuted'] is False and r['nativeQualified'] is False
+          assert r['nativeExecutionReady'] is False and r['referenceAccuracyCertified'] is False
+          assert r['nativeCallsThisCheck']==0 and len(r['executionBlockers'])==8
+          a=r['constantArithmetic']
+          assert a['arithmeticGate']=='REFUSED_UNCHANGED_CHECKING_CENTRES'
+          assert a['staticExports']==14 and a['physical100xFailures']==['T02.G','T06.A','T06.G','T07.G','T08.G','T10.G','T_Plug.C']
+          assert all(x['witnessAdopted'] is False and x['nativeObserved'] is False for x in a['rows'])
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: h1-n1-plan-only-${{ github.sha }}
+          path: n1_plan_evidence/
+          retention-days: 90
+          if-no-files-found: error

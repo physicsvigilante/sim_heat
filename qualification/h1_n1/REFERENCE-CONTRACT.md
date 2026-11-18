@@ -1,0 +1,110 @@
+# H1-N1-P0 — independently bounded reference design (not yet a certificate)
+
+**STATUS: DESIGN ONLY.** `reference-facts.json` contains new source facts; `PLANNING-SCREENING.json` contains a labelled float64 feasibility diagnostic. Neither is an independent numerical error certificate. No certified reference trajectory has been produced, no prior C1 reference is repaired, and no new native output exists. Implementation of this proposed checking method, its independent tests and actual all-grid bounds remains a hard gate before execution. R2 plan review must judge this method rather than assume a certificate from prose.
+
+## Independent source statement and physics
+
+Hand-transcribed from the locked PUBLIC T1-T task, with source and original file hashes in `SOURCE-PINS.json`. This is same-author separately expressed checking data pending independent-context review, not independent human fact selection and not the missing private scorer. Do not use the H1 parser's computed graph/derived constants or native output to build the oracle. The parser may only cross-check correspondence **after** independent construction.
+
+Use dynamic nodes `D=(R,B,P)`, algebraic junctions `J=(J_Upper,J_Lower)`, maintained nodes `F=(W,K)`. Their body heat capacities are `C=diag(0.32*460, 0.24*830, 0.41*390)` in J/K; initial temperatures `(337,303,318) K`; fixed `(367,289) K`. Rod endpoints, signs, conductivity, geometry and length are the separately stated ten rows, including **diameter** `0.016 m` for T06, not a new radius/area input. Form each positive conductance as `k*A/L` or `k*pi*d*d/(4*L)` and assemble a signed weighted graph Laplacian L from the task incidence.
+
+The check derives, independently:
+
+```
+T_J = -L_JJ^{-1}(L_JD*T_D + L_JF*T_F)
+K = L_DD - L_DJ*L_JJ^{-1}*L_JD
+f = -(L_DF - L_DJ*L_JJ^{-1}*L_JF)*T_F
+C*dT_D/dt = -K*T_D + f
+```
+
+Require both junction pivots/determinant bounded strictly positive. For this boundary-grounded connected graph, require the three dynamic decay modes strictly positive; do not silently discard an unresolved near-zero eigenvalue or conflate a conditioned Schur solve with a certified trajectory. The original H1 scaled junction condition cutoff `1e8` still applies. The plan retains **0–2400 s**; no five-time-constant/equilibrium claim.
+
+For numerical stability introduce `theta=T-289K`, normalize `u=theta/78K`, scaled physical time `tau=t/2400s`, and integrate `v(tau)=integral_0^tau u(s) ds`. An augmented seven-dimensional state `[u_R,u_B,u_P,v_R,v_B,v_P,1]` has a **dimensionless affine constant matrix** B. Its blocks are `(2400s)*(-C^{-1}K)`, scaled forcing, and `dv/dtau=u`. This avoids taking the inverse of a possibly singular evolution matrix and retains a direct integral oracle; the reference must not integrate sampled native flows to generate its expected energy.
+
+Recover junction states/integrals, then all 77 mandatory quantities: every body T/Q_in/dU/C; all ten rods T_a/T_b/Q_flow/a-flow/b-flow/G and T06 area; two boundary T/Q_to_network. Port signs are incoming-to-component, rod flow positive a-to-b, boundary supply positive into the network. Recover the eight public observations explicitly, especially `T03.port_a - T_Cool.port`. For every body, exact reference stored change equals `C*(T-T_initial)`; reference integrated supply plus local conserved flows provides a separate balance. Independent boundary and body heat integrals are in J, never public native outputs by substitution.
+
+## F-01 correction — two-level static arithmetic ledger; current centres REFUSE
+
+The independent PR60 review found a real ambiguity: 100x accuracy against an exact physical constant is different from reproducing a sequence of rounded operations. This revision **chooses the stricter physical interpretation explicitly**. It does not switch the acceptance target to make the existing checking value pass. `plan.json.constantArithmeticLedger` prospectively fixes **each of the fourteen C/G/A exports** (three capacities, ten conductances and T06.A), exact public decimal inputs, dimensional units, mathematical formula, checking-expression order, a separate Modelica apparent-order hypothesis, and current checking binary64 hex bits. This ledger is published **before native outputs exist**. It is not an OMC arithmetic attestation.
+
+### Level P — exact physical mathematics: the mandatory 100x target
+
+Interpret the original public/source decimals as exact rationals, and circular geometry with mathematical Pi bounded independently by the Machin identity and its exact alternating-series remainder. Form **C=m*c, G=k*A/L, A=pi*d*d/4** in that mathematical interpretation. Every physical history/initial value/derived difference/integral retains its separately specified physical enclosure, not an operational surrogate.
+
+For a fixed checking centre `v_ref`, physical enclosure `P=[Plo,Phi]` and the unchanged native comparison allowance `epsilon`, the mandatory condition is:
+
+```
+delta_P = max(|v_ref-Plo|, |v_ref-Phi|)
+delta_P <= epsilon/100
+```
+
+The static `epsilon` is still **64*ulp(|v_ref|)**. Thus its certificate budget is **0.64 ULP**, not 64 ULP or an extra absolute floor. Endpoint uncertainty, input representation and Pi/operation rounding cannot be omitted, zeroed or assigned another quantity's budget. Exact rational operations in the plan checker avoid a downward-rounded budget or discrepancy. The proof remains per-export, and every constant must pass: **no exemption, no 80x substitution, no max/sum allowance, no output-fitted centre.** The existing native-versus-reference 64-ULP policy and dynamic K/W/J allowances are not changed.
+
+### Level R — declared binary64 representation, separately reported
+
+`RN` denotes correctly rounded binary64 round-to-nearest, ties-to-even, including intermediate rounding. The independently bracketed mathematical Pi rounds to **`0x1.921fb54442d18p+1`**; that proves a mathematical rounding fact, **not** the value, folding or precision actually used by an unobserved compiler/MSL. The new bounded rational helper implements RN by integer quotient/remainder with tie parity, not by importing H1-derived graph/constants as the oracle. Tests separately compare the resulting target bits with the unchanged checking functions.
+
+The per-family fixed interpretation is:
+
+| Family | Level P | Level R checking target | Modelica source-order hypothesis (not observed) |
+|---|---|---|---|
+| Body C | exact m*c | RN(RN(m)*RN(c)) | same written multiplication |
+| Area-rod G | exact k*A/L | RN(RN(RN(k)*RN(A))/RN(L)) | same left-associated expression |
+| Circular A | exact pi*d*d/4 | RN(PI64*RN(RN(RN(d)/2)*RN(RN(d)/2))) | RN(RN(RN(PI64*RN(d))*RN(d))/4) |
+| Circular G | exact k*(pi*d*d/4)/L | RN(RN(RN(k)*CHECKING_AREA)/RN(L)) | RN(RN(RN(k)*SOURCE_ORDER_AREA)/RN(L)) |
+
+Record exact source-literal conversions, RN intermediate operations, Pi enclosure, and the relationships between P, R and the unchanged `v_ref`. A certified exact match `v_ref=R` is merely **rounding consistency**; it **does not discharge the condition delta_P <= epsilon/100**. If an independent implementation uses an R enclosure, its total physical bound must include both `distance(v_ref,R)` **and** `distance(R,P)` (with rigorous endpoint bounds). Computing `distance(v_ref,R)=0` and forgetting `distance(R,P)` is prohibited. The source-order column is a fixed test hypothesis, not an alternative acceptable target picked after seeing the native result. FMA, reassociation, different Pi, extended precision or constant folding requires explicit prospective semantics and trusted compiler evidence before any future authorization; a version string alone cannot establish them.
+
+### Worked failures and non-adopted feasibility witnesses
+
+All values in this subsection are **static source-arithmetic diagnostics**, not native results or reference trajectories. New Fraction/Machin controls check all fourteen static fields. The original checking expressions currently **REFUSE the physical 100x gate on seven exports**: `T02.G`, `T06.A`, `T06.G`, `T07.G`, `T08.G`, `T10.G`, `T_Plug.C`. This is separate from the earlier **four primary/dense flow-allowance mismatches**; these are different issues.
+
+| Export/control | Original checking value | Physical reference-budget outcome |
+|---|---|---|
+| T10.G | `0x1.f9db22d0e5602p-6` = 0.030874999999999993 W/K | Exact P=247/8000. delta_P=7.271960811294776e-18 W/K, epsilon/100=2.220446049250313e-18 W/K; ratio **3.275**, so REFUSE. Even the exact rational expression on parsed binary64 literals without intermediate rounding has ratio **1.285009765625...**, so does not solve it. |
+| T06.A | `0x1.a5a84d380747dp-13` m2 | Exact-Pi rational enclosure gives ratio upper bound approximately **1.235315**, so REFUSE. The specified alternative source-order hypothesis is **one ULP** higher (`...47e`), itself 1.5625 times the certificate budget away from the checker. |
+| T06.G | `0x1.18c16cdeab64ap-4` W/K | Physical ratio upper bound approximately **1.039472**, so REFUSE. The source-order hypothesis produces `...64b`, one ULP higher. Neither value is an observed OMC constant. |
+
+The diagnostic additionally computes **a unique correctly rounded physical centre** only when both endpoints of the independently constructed P enclosure round to identical binary64 bits. For T10 that witness is `0x1.f9db22d0e5604p-6`, not the unchanged checking value. For all fourteen present constants, the *non-adopted witness* meets the physical 0.64-ULP bound. This demonstrates a possible mathematically defined route, **not a repair or certificate for the current checking bundle**. It is determined from the task alone, not fitted to a native output.
+
+**The witness may not replace `v_ref`, rewrite a bundle/seal, or open the gate in this PR.** To use such centres later requires a separately versioned, generic N1 checking-reference implementation, a new source/algorithm manifest, prospective independent review, full physical/input-to-dynamics/integral bounds, new N1-only references/replays, and binding the actual runner's re-preparation to precisely that implementation. The current runner re-prepares the old checking algorithm: a hand-edited JSON bundle with witness constants would violate the saved seal and MUST refuse. No existing H1 source or historical reference is changed here, and no static proof is a certificate for all 77 exports or all time samples.
+
+Accordingly the plan now carries the explicit extra blocker **`STATIC_CHECKING_CENTRES_FAIL_PHYSICAL_100X_BOUND`**. A green plan-test result means the known refusals were correctly reproduced, not that they disappeared. Retain `nativeExecutionReady=false` and `referenceAccuracyCertified=false`. Until the unchanged centres' failure is resolved by an explicitly reviewed future checking version (or the gate remains closed indefinitely), **no native operation** is allowed. This is the required fail-closed outcome, not a tolerance waiver or a physical-source edit.
+
+### Prospective regression controls
+
+The plan tests exercise exact RN-even ties/carry/subnormal behavior and overflow refusal; an exact Pi enclosure and unique nearest representation; T10.G exact and parsed-literal counterexamples; T06.A/G operation-order differences; all fourteen static fields and all seven known failures; current-code bit consistency; full coverage, unit/input/diameter/order checks; and negative changes to Pi/target/budget, omitted constants, hidden reassociation, invented native attestation, witness adoption or rewriting. A discrepancy **equal** to epsilon/100 passes the isolated boundary control, any larger discrepancy including epsilon/80 refuses. These are bounded offline **design/refusal tests**, not a full interval-matrix or trajectory certificate. The old numerical failures must remain visible in every final execution-readiness assessment.
+
+
+## Proposed rigorous enclosure algorithm
+
+The intended oracle is a small **checking-only** directed-interval Taylor/scaling-and-squaring exponential, not production physics, shared SciPy expm/eigh or a viewer fallback. An independent implementation must not import H1 graph/reference/verification to *calculate* expected physics. Shared standard arithmetic libraries are disclosed; copy-pasting the production solver and calling it independent is prohibited.
+
+1. Parse source decimals directly as exact rational values, and separately identify their binary64 representations as an **input/arithmetic interpretation ledger**. Bound the propagation of decimal-to-binary conversion, Pi representation and derived-constant rounding rather than hide them in a numerical solver margin. Pi can be bracketed independently with the Machin identity `pi=16*atan(1/5)-4*atan(1/239)` and exact alternating rational-series remainder. A numerical Pi string with an asserted precision is not a bound. For exported arithmetic constants, independently establish the correct declared operations/rounding interpretation and satisfy the existing C/G/A allowance policy; if the required 100x reference budget cannot be demonstrated, refuse rather than exempt a failing quantity.
+2. Each interval addition, subtraction, multiplication, division and matrix product uses explicitly outward lower/upper rounding at a fixed, recorded precision (e.g. 100 decimal digits **initial proposal**, not evidence of accuracy). Trap NaN/infinity, division by zero-containing intervals, invalid precision, interval inversion and unbounded widening. Include algebraic elimination and all source arithmetic. Repeated precision runs may be useful sensitivity tests but are **not** the certificate.
+3. For a dimensionless matrix A at each required time, choose scaling s with a verified upper bound `rho >= ||A/2^s||_infinity` and `rho<=1/2`. Form the matrix Taylor sum through degree m using outward interval operations. In this norm a conservative scalar tail is `r <= 2*rho^(m+1)/(m+1)!`: `exp(rho)<=2` and the exponential-series tail supplies the bound. Add `[-r,+r]` to every matrix entry (norm bound dominates each entry), then interval-square s times. Use exact nonnegative norm upper bounds, not an unchecked eigenvalue estimate. Square/product roundoff and dependency widening remain in the enclosure.
+4. Either evaluate each distinct required time directly, or use a predeclared interval propagator for the dense grid and retain the **full accumulated enclosure**. The recurrence must account for inherited interval width, integrals, affine term and every rounding. A rigorous but wide bound is a legitimate REFUSAL, not permission to report only its midpoint. Use exact rational sample times; reconcile them with the inherited float grid's actual timestamp representation and sealed temporal error budget.
+5. Transform intervals back to dimensional body/junction temperatures, each independently oriented rod/boundary/body power, stored-energy changes, each requested difference and reference integrals. Include original representations of all constants; no channel can silently inherit another channel's error bound or larger neighboring signal's scale.
+
+For each presealed float64 checking value `v_ref` and independent **Level-P physical** enclosure `[lo,hi]` (never only the Level-R operation target), use an upward-rounded **total** discrepancy bound `delta=max(abs(v_ref-lo),abs(v_ref-hi))`, including reference rounding/input interpretation uncertainty. Require `delta <= epsilon_q/100` at **every** assessed point. A near-zero quantity uses its absolute allowance. Initial-temperature reference error also satisfies `1e-6 K /100`. All endpoint/static parameter and derived-difference checks need their appropriate budgets. Integrated references have separate energy-unit error bounds. A 1/80 discrepancy-to-allowance ratio is a failure of the 100x requirement; do not repeat historical C1's precision waiver.
+
+## Original checking bundles, common-time policy and replay
+
+The existing float64 `h1.reference.prepare` still produces **diagnostic** expected series, local scales, quadrature arrays and a semantic seal. Its primary augmented exponential and capacity-scaled eigensystem agreement alone **cannot satisfy** the independent bound above. Compare its exact candidate series against Level-P physical enclosures after source facts are verified; no original or historical bundle is rewritten. **Current static centres fail this requirement on seven exports, as recorded above; the method cannot be used unchanged for an execution-ready N1 bundle.** The non-adopted correctly rounded witnesses require a future explicitly reviewed checking version and runner binding, not an in-place reference patch.
+
+All primary/tight/dense candidate references and certificates must be prepared and pinned BEFORE any OMC version query/build/launch, with the same actual host dependency identity, deterministic serialization, source/reference hashes and complete required 77-channel coverage. Replay NEW N1 preparation twice in separate clean directories; require byte/hash and semantic-seal identity, or stop. The runner re-prepares reference data; its resulting bundle must match the previously certified expected seal and file hash **before execute**, not merely be self-consistent with its newly written attempt record. Never overwrite first expected seals to match a host discrepancy.
+
+**The planning screen found a current-helper incompatibility:** independently prepared primary and dense grids produce slightly different own maxima/tolerances on four flow channels. Therefore `tools/h1_compare_companions.compare` is not usable as-is. Native per-run checks retain each run's own unmodified pre-native reference bundle. A separately implemented/checking-only comparator must use the primary run's frozen per-output epsilon for common-time **native-vs-native** differences, **without requiring the two bundles' epsilons to be equal** and without averaging/summing/maximizing them. This is not relaxation: it retains the stricter original primary limit. Check physical facts/identity/settings, both runs' independent per-run checks and exact common-time membership first. Include public `temperatureDifference` with its own primary difference scale; original compare helper checks only internal columns. Any unmatched time, changed model, unpassed input verification, mismatch in declared companion setting or fitted threshold refuses.
+
+For each body and boundary, seal reference trapezoid discrepancy against independently enclosed integrated power; preserve the existing threshold `1e-4*max(1J, that integral's own max magnitude)` and reference error allocation, rather than an all-model scale. Use current local body/network residual allowances, and the stricter `h1.temporal` sensitivity window for each signal and public difference. No interpolation. Native quadrature convergence is separate from native state accuracy; extra output points are not extra differential-equation internal steps. Improvement need not be monotonic at rounding noise.
+
+## Required evidence/tests before the gate can open
+
+- Analytical scalar exponential and affine constant-forcing closed forms; disconnected/zero-mode test and sign conventions in the independent method, if supported. Unsupported cases are refused rather than guessed.
+- Exact interval primitive operations with negative ranges, division near zero, precision variation, tail enclosure and scaling-bound tests; independent check of the Machin interval.
+- Permuted node order leaves physical output enclosures unchanged; reversing a rod swaps temperatures and negates flow but preserves balance; changing diameter to radius must be detected. Exact public-task-to-reference topology is reviewed independently.
+- All 77 exports plus eight public observations and energy integrals are covered at all primary/dense sample times. No sample/max-only/error-measure-after-native surrogate.
+- Introduced errors just outside 1/100 reference budget, stale reference/host/source, missing export/alias, artificially widened or summed companion allowance, altered horizon and time grid must refuse. First failures are retained.
+- Certificate files identify implementation version/hash, dependencies, exact source/reference/host/input semantics, each bound, each applicable allowance, maxima/worst time and pass/refusal. Persist before native, do not keep the only proof in an ephemeral chat workspace.
+
+Apart from the explicitly listed static-arithmetic design/refusal probes, these full-trajectory/certificate checks are **not yet implemented/performed** by this plan candidate. Passing structural plan CI or an R2 design review alone does not fabricate the certificate. The host and all data/certification implementations must be complete before the owner is asked to authorize any native attempt.
