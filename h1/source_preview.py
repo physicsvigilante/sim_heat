@@ -1,0 +1,134 @@
+"""Source-only view of an admitted H1 composition; never execute native physics.
+
+The output is a deterministic description of authored components, port topology,
+input values and *not_computed* observation requests. It contains no solver
+readings, predicted temperatures, heat flows, geometry or interpolation.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import tempfile
+
+from .model import Refusal, SLOTS, require
+from .study import Study, load_study
+
+UNITS = {
+    'Mass': 'kg', 'SpecificHeatCapacity': 'J/(kg K)', 'Temperature': 'K',
+    'ThermalConductivity': 'W/(m K)', 'Length': 'm', 'Area': 'm2',
+}
+DISCLAIMERS = (
+    'Admitted source facts and logical connections only; no native solver has run.',
+    'Graph positions are layout, not a physical apparatus or geometric measurement.',
+    'Port_a/port_b orientation is authored connectivity, not measured heat-flow direction.',
+    'Every requested physical observation is not_computed; no predicted values are supplied.',
+    'Provenance notes and parser admission do not independently certify textbook/source fidelity.',
+)
+
+
+def build_source_preview(study: Study) -> dict:
+    """Build a shape-independent source payload solely from admitted H1 objects."""
+    require(study.request_report['admitted'], 'request', 'refused requests cannot be previewed')
+    require(all(r['status'] == 'not_computed' for r in study.request_report['requests']),
+            'request', 'source preview requires uncomputed requests')
+    model, topology = study.model, study.topology
+    node_of = {i: f'node_{i}' for i in range(len(topology.nodes))}
+    nodes = []
+    for i, ports in enumerate(topology.nodes):
+        owners = [p.split('.')[0] for p in ports
+                  if model.components[p.split('.')[0]].kind in ('Body', 'FixedTemperature')]
+        require(len(set(owners)) <= 1, 'unsupported_topology', 'multiple node owners')
+        owner = owners[0] if owners else None
+        role = ('junction' if owner is None else
+                'body' if model.components[owner].kind == 'Body' else 'boundary')
+        nodes.append({'id': node_of[i], 'ports': list(ports), 'owner': owner,
+                      'role': role, 'label': owner or f'Ideal junction {i + 1}'})
+    components = []
+    for name, comp in sorted(model.components.items()):
+        inputs = [{'name': key, 'quantityType': SLOTS[comp.kind][key],
+                   'siUnit': UNITS[SLOTS[comp.kind][key]], 'sourceValue': comp.fields[key].value}
+                  for key in sorted(comp.fields)]
+        citations = []
+        for record in study.data['provenance']:
+            # H1 also admits attribution through a bound scalar parameter.
+            # Retain its ORIGINAL target and the effective fields it supports;
+            # never substitute the parameter record with a fabricated slot fact.
+            affected = [f'{name}.{key}' for key, binding in sorted(comp.fields.items())
+                        if record['target'] == f'{name}.{key}'
+                        or record['target'] in binding.dependencies]
+            if affected:
+                citations.append({**record, 'appliesTo': affected})
+        components.append({'id': name, 'kind': comp.kind, 'inputs': inputs,
+                           'sourceProvenance': citations})
+    rods = []
+    for name, a, b, _ in topology.edges:
+        rods.append({'id': name, 'from': node_of[a], 'to': node_of[b],
+                     'portA': name + '.port_a', 'portB': name + '.port_b'})
+    requests = []
+    authored = {r['id']: r for r in study.data['requests']}
+    for result in study.request_report['requests']:
+        request = authored[result['id']]
+        endpoints = ([request['a'], request['b']] if request['op'] == 'temperatureDifference'
+                     else [request['target']])
+        requests.append({'id': result['id'], 'operation': request['op'],
+                         'targets': endpoints, 'unit': result['unit'], 'status': 'not_computed'})
+    return {
+        'schema': 'sim_heat.viewer.admitted_source/1',
+        'status': 'admitted_source_only', 'studyId': study.data['id'],
+        'modelName': model.name, 'mode': study.data['mode'],
+        'source': {
+            'studySha256': study.sha256, 'modelSha256': study.model_sha256,
+            'evidenceKind': 'authored_source_only', 'nativeExecuted': False,
+            'nativeQualified': False, 'sourceFidelityQualified': False,
+            'publicRequestStatus': 'not_computed',
+        },
+        'components': components, 'nodes': nodes, 'rods': rods, 'requests': requests,
+        'modelProvenance': [dict(r) for r in study.data['provenance'] if r['target'] == '@model'],
+        'disclaimers': list(DISCLAIMERS),
+    }
+
+
+def serialized(payload: dict) -> bytes:
+    return (json.dumps(payload, sort_keys=True, separators=(',', ':'),
+                       ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8')
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('study', type=Path)
+    parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--out', type=Path, help='Outside the authored case root; stdout if omitted')
+    args = parser.parse_args()
+    try:
+        loaded = load_study(args.study, args.root)
+        result = serialized(build_source_preview(loaded))
+        if args.out:
+            out = args.out.resolve()
+            root = args.root.resolve(strict=True)
+            require(not out.is_relative_to(root), 'path', 'refuse overwriting authored case files')
+            # Write only after admission completes, and replace atomically.
+            out.parent.mkdir(parents=True, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(prefix='.source-preview-', dir=out.parent)
+            try:
+                with os.fdopen(fd, 'wb') as file:
+                    file.write(result)
+                os.replace(temporary, out)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        else:
+            import sys
+            sys.stdout.buffer.write(result)
+        return 0
+    except (Refusal, OSError, ValueError) as exc:
+        import sys
+        print(json.dumps({'stage': 'source_preview', 'admitted': False,
+                          'nativeExecuted': False, 'code': getattr(exc, 'code', 'input_error'),
+                          'reason': str(exc)}, allow_nan=False), file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
