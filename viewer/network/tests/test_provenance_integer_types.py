@@ -27,6 +27,14 @@ from viewer.network.tests import test_project_audit as audit_fixtures
 class StrictNativeMetadataIntegerTypes(unittest.TestCase):
     """Positive ordinary integer cases and independently rehashed negative variants."""
 
+    @classmethod
+    def setUpClass(cls):
+        # The imported sibling test class is NOT collected by unittest here.
+        # Initialize its original synthetic D1 campaign fixture explicitly.
+        # This creates only test-only analytical checking data, never C1
+        # saved-reference regeneration or native OpenModelica execution.
+        audit_fixtures.CampaignTypeAuditTests.setUpClass()
+
     @staticmethod
     def repack_steady(*, record: str | None = None,
                       field: str | None = None, value=None):
