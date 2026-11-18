@@ -121,6 +121,7 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
         item = attempt['cases'][case_slot - 1]
         require(item['directory'] == folder and item['study'] == study_rel and
                 item['model'] == study.model.name and item['status'] == 'checks_passed' and
+                type(item.get('canonicalSamples')) is int and
                 item['canonicalSamples'] == 2,
                 'steady_evidence', 'model/study/case mismatch')
         require(read(folder+'/model.mo') ==
@@ -140,7 +141,9 @@ def compile_steady(root: Path, study_rel: str, archive: Path,
         provenance = strict_json(read(folder+'/mat_provenance.json').decode('utf-8'))
         require(provenance['rawMatSha256'] == raw_mat_sha and
                 provenance['canonicalCsvSha256'] == csv_sha and
+                type(provenance.get('samples')) is int and
                 provenance['samples'] == 2 and
+                type(provenance.get('duplicateRowsCollapsed')) is int and
                 provenance['duplicateRowsCollapsed'] == 1 and
                 provenance['nativeQualified'] is False,
                 'steady_evidence', 'MAT/CSV provenance mismatch')

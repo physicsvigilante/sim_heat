@@ -117,7 +117,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
 
         item = attempt['cases'][slot-1]
         require(item['directory'] == folder and item['status'] == 'checks_passed' and
-                item['model'] == study.model.name and item['canonicalSamples'] == len(study.grid),
+                item['model'] == study.model.name and
+                type(item.get('canonicalSamples')) is int and
+                item['canonicalSamples'] == len(study.grid),
                 'campaign_evidence', 'selected native case/study mismatch')
         require(plan['cases'][slot-1]['study'] == item['study'] and
                 plan['branch'] == expected_branch and
@@ -142,7 +144,9 @@ def compile_campaign_case(root: Path, study_rel: str, archive: Path,
         provenance = strict_json(read(folder+'/mat_provenance.json').decode('utf-8'))
         require(provenance['rawMatSha256'] == mat_digest and
                 provenance['canonicalCsvSha256'] == csv_digest and
+                type(provenance.get('samples')) is int and
                 provenance['samples'] == len(study.grid) and
+                type(provenance.get('duplicateRowsCollapsed')) is int and
                 provenance['duplicateRowsCollapsed'] == 1 and
                 provenance['nativeQualified'] is False,
                 'campaign_evidence', 'native MAT/CSV provenance invalid')
