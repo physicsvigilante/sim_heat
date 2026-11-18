@@ -129,6 +129,10 @@ class ProductDocsTests(unittest.TestCase):
         self.assertIn('Current authoring guide', registry)
         self.assertIn('not_computed', guide)
         self.assertIn('Stop before new native execution', guide)
+        self.assertIn('href="viewer/source_preview/index.html"', entry)
+        self.assertIn('not_computed', entry)
+        self.assertIn('[generic H1 source-only inspector](../viewer/source_preview/index.html)', guide)
+        self.assertIn('[Generic source-only inspector](../viewer/source_preview/index.html)', registry)
 
     def test_documented_walkthrough_executes_only_real_admission_cli(self):
         blocks = re.findall(r'```python\n(.*?)\n```', (ROOT / 'docs/AUTHORING.md').read_text(), re.S)

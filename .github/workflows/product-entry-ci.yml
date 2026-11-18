@@ -1,22 +1,30 @@
-name: Product documentation and exact merged baseline - offline only
+name: Product documents, source navigation and current-base regression - OFFLINE only
 on:
   push:
     branches: [product/explorer-entry, product/authoring-guide, main]
     paths:
       - index.html
       - README.md
-      - docs/**
-      - tests/**
+      - docs/CAPABILITIES.md
+      - docs/CAPABILITIES.html
+      - docs/AUTHORING.md
+      - docs/AUTHORING.html
       - tools/render_product_docs.py
+      - 'tests/test_product_*.py'
+      - 'tests/browser_product_*.py'
       - .github/workflows/product-entry-ci.yml
   pull_request:
     branches: [main]
     paths:
       - index.html
       - README.md
-      - docs/**
-      - tests/**
+      - docs/CAPABILITIES.md
+      - docs/CAPABILITIES.html
+      - docs/AUTHORING.md
+      - docs/AUTHORING.html
       - tools/render_product_docs.py
+      - 'tests/test_product_*.py'
+      - 'tests/browser_product_*.py'
       - .github/workflows/product-entry-ci.yml
 permissions:
   contents: read
@@ -31,11 +39,11 @@ jobs:
       matrix:
         include:
           - kind: postmerge-baseline
-            ref: 0278b79b4da1c3196edca7903189713e0482f3f6
+            ref: 13260a62eb36d58802878c4d3dfb534ad1621f91
           - kind: candidate
             ref: ${{ github.sha }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -52,25 +60,72 @@ jobs:
           if command -v google-chrome >/dev/null; then google-chrome --version
           elif command -v chromium >/dev/null; then chromium --version
           else python -m playwright install --with-deps chromium; fi
-      - name: Record actual checkout and run complete offline suites
+      - name: Identify actual checkout, require document-owned source scope, and run offline suites
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p product_evidence
           git rev-parse HEAD > product_evidence/head-sha.txt
-          git rev-parse HEAD^{tree} > product_evidence/head-tree.txt
-          git diff --name-status 0278b79b4da1c3196edca7903189713e0482f3f6 HEAD > product_evidence/source-diff.txt
-          git diff --exit-code 0278b79b4da1c3196edca7903189713e0482f3f6 HEAD -- h1 experiments qualification viewer docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+          git rev-parse 'HEAD^{tree}' > product_evidence/head-tree.txt
+          # Historical baseline is a no-diff self-check. PR candidates use the
+          # actual checked-out synthetic merge first parent, not the possibly
+          # stale github.event.pull_request.base.sha supplied at trigger time.
+          # On branch push compare to the real merge-base with current main;
+          # on main push compare to the prior main parent.
+          scope_base=13260a62eb36d58802878c4d3dfb534ad1621f91
+          if [ "${{ matrix.kind }}" = candidate ]; then
+            if [ "${{ github.event_name }}" = pull_request ]; then
+              scope_base="$(git rev-parse HEAD^1)"
+              candidate_parent="$(git rev-parse HEAD^2)"
+              test "$candidate_parent" = "${{ github.event.pull_request.head.sha }}"
+            elif [ "${{ github.ref_name }}" = main ]; then
+              scope_base="$(git rev-parse HEAD^1)"
+            else
+              scope_base="$(git merge-base HEAD origin/main)"
+            fi
+          fi
+          git cat-file -e "${scope_base}^{commit}"
+          printf '%s\n' "$scope_base" > product_evidence/scope-base-sha.txt
+          git diff --name-status "$scope_base" HEAD > product_evidence/source-diff.txt
+          if [ "${{ matrix.kind }}" = candidate ]; then
+            # The source-preview code and six published diagnostic bundles are
+            # already on main. A product-only change must not modify them.
+            git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+            python - <<'PY'
+          from pathlib import Path
+          rows=Path('product_evidence/source-diff.txt').read_text().splitlines()
+          allowed={
+              'M\t.github/workflows/product-entry-ci.yml',
+              'M\tdocs/CAPABILITIES.md',
+              'M\tindex.html',
+              'M\ttests/test_product_entry.py',
+              'M\ttests/test_product_ci_scope.py',
+              'A\ttests/browser_product_docs.py',
+              'A\ttests/test_product_docs.py',
+              'A\tdocs/AUTHORING.md',
+              'A\tdocs/AUTHORING.html',
+              'A\tdocs/CAPABILITIES.html',
+              'A\ttools/render_product_docs.py',
+          }
+          # The original PR54 paths were added relative to main, while
+          # doc updates after authoring have their latest expected status.
+          assert set(rows)==allowed and len(rows)==len(allowed),rows
+          PY
+          else
+            test ! -s product_evidence/source-diff.txt
+          fi
           git archive --format=tar HEAD > product_evidence/source.tar
           python -m pip freeze > product_evidence/packages.txt
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee product_evidence/h1.log
           python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee product_evidence/arithmetic.log
           python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v 2>&1 | tee product_evidence/adapters.log
-          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs 2>&1 | tee product_evidence/node.log
-          python -B -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee product_evidence/entry-tests.log
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/core.test.mjs 2>&1 | tee product_evidence/node.log
+          python -B -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee product_evidence/product-tests.log
           python -B viewer/network/tools/build_compare_index.py --out product_evidence/compare-replayed.json
           cmp viewer/network/data/compare_index.json product_evidence/compare-replayed.json
-      - name: Replay all original archives without executing native binaries
+          python -B -m h1.source_preview h1/cases/TEACH_SPLIT3/study.json --root h1/cases --out product_evidence/source-preview-replayed.json
+          cmp viewer/source_preview/data/TEACH_SPLIT3.json product_evidence/source-preview-replayed.json
+      - name: Replay all original native diagnostic archives WITHOUT executing binaries
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -81,21 +136,22 @@ jobs:
             gh api "repos/physicsvigilante/sim_heat/actions/artifacts/$id/zip" > "/tmp/original-archives/artifact-$id.zip"
           done
           python -B viewer/network/tools/replay_published_archives.py --archives /tmp/original-archives > product_evidence/archive-replay.json
-      - name: Existing full explorer and entry HTTP browser checks
+      - name: Full existing explorer, product entry and authored-source Chromium smoke
         shell: bash
         run: |
           set -euo pipefail
           python -B viewer/network/tests/browser_smoke.py --out product_evidence/explorer 2>&1 | tee product_evidence/browser.log
           python -B tests/browser_product_entry.py --out product_evidence/entry 2>&1 | tee product_evidence/entry-browser.log
-      - name: Generated documentation parity and rendered HTTP navigation
+          python -B tests/browser_source_preview.py --out product_evidence/source 2>&1 | tee product_evidence/source-browser.log
+      - name: Generated docs, current link routes, readable desktop/mobile HTTP navigation
         if: matrix.kind == 'candidate'
         shell: bash
         run: |
           set -euo pipefail
           python -B tools/render_product_docs.py --check 2>&1 | tee product_evidence/docs-parity.log
           python -B tests/browser_product_docs.py --out product_evidence/docs 2>&1 | tee product_evidence/docs-browser.log
-          sha256sum index.html docs/CAPABILITIES.* docs/AUTHORING.* tools/render_product_docs.py tests/*.py > product_evidence/docs-sources.sha256
-      - name: Retain actual checkout identity, logs, source, replay and screenshots
+          sha256sum index.html docs/CAPABILITIES.* docs/AUTHORING.* tools/render_product_docs.py tests/test_product_*.py tests/browser_product_*.py > product_evidence/docs-sources.sha256
+      - name: Retain actual checkout, exact source, replay, screenshots and failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

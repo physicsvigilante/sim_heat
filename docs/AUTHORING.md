@@ -88,6 +88,18 @@ with TemporaryDirectory(prefix="simheat-authoring-") as temporary:
 
 Only a newly authored disposable draft is repinned here. Updating a draft digest neither authenticates its source nor repairs a frozen submission, archived native record, parent revision, or native execution plan. Reusing D1's archived results after changing its model would be invalid.
 
+## Inspect the admitted composition before any native run
+
+The independently reviewed [generic H1 source-only inspector](../viewer/source_preview/index.html) is distinct from the six-case archived-results explorer. It can display source facts and topology for unfamiliar **supported combinations** without editing its core viewer code. In the current source repository, the [TEACH_SPLIT3 task](../experiments/teacher_split3/TASK.md) demonstrates three bodies, two maintained boundaries, seven conducting rods and an ideal junction. This developer-authored illustrative task is **not** a held-out teacher trial or a native result.
+
+After a successful offline admission, produce a read-only source payload using the current [source-preview CLI](../h1/source_preview.py):
+
+```sh
+python -B -m h1.source_preview h1/cases/TEACH_SPLIT3/study.json --root h1/cases --out /tmp/teach-split3-source.json
+```
+
+Then serve the repository root using `python -m http.server 8000 --bind 127.0.0.1`, open `http://127.0.0.1:8000/viewer/source_preview/`, and select the generated JSON with the local file picker. The default example already displays the published source-only TEACH_SPLIT3 payload. The generator refuses nonadmitted studies and refuses writing over authored case files. Imported JSON is checked for display consistency, **not** authenticated against Modelica/source custody. Source-input initial temperatures are not predicted trajectories. Every physical request remains `not_computed`; no solver is invoked, no heat powers or final temperatures are supplied, and graph layout is not apparatus geometry. Read the [source-preview scope](../docs/ADMITTED_SOURCE_PREVIEW.md) for limits.
+
 ## Describe supported components and connections
 
 The supported constructors and mandatory physical fields are:

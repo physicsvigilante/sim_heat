@@ -1,0 +1,29 @@
+within;
+model TEACH_SPLIT3
+  SimHeat.FixedTemperature sourceHot(T=354.15);
+  SimHeat.FixedTemperature sourceCold(T=287.15);
+  SimHeat.Body copper(m=0.4,c=385.0,T_initial=299.15);
+  SimHeat.Body steel(m=0.9,c=490.0,T_initial=311.15);
+  SimHeat.Body aluminum(m=0.7,c=900.0,T_initial=291.15);
+  SimHeat.RodCircular feed(k=390.0,L=0.21,d=0.012);
+  SimHeat.RodArea rodCS(k=44.0,L=0.36,A=0.00016);
+  SimHeat.RodCircular rodSA(k=56.0,L=0.29,d=0.008);
+  SimHeat.RodArea drain(k=200.0,L=0.18,A=0.00015);
+  SimHeat.RodArea shortcut(k=160.0,L=0.42,A=0.00011);
+  SimHeat.RodArea jLeft(k=80.0,L=0.12,A=0.00014);
+  SimHeat.RodCircular jRight(k=25.0,L=0.2,d=0.009);
+equation
+  connect(sourceHot.port, feed.port_a);
+  connect(feed.port_b, copper.port);
+  connect(copper.port, rodCS.port_a);
+  connect(rodCS.port_b, steel.port);
+  connect(steel.port, rodSA.port_a);
+  connect(rodSA.port_b, aluminum.port);
+  connect(aluminum.port, drain.port_a);
+  connect(drain.port_b, sourceCold.port);
+  connect(copper.port, shortcut.port_a);
+  connect(shortcut.port_b, aluminum.port);
+  connect(steel.port, jLeft.port_a);
+  connect(jLeft.port_b, jRight.port_a);
+  connect(jRight.port_b, sourceCold.port);
+end TEACH_SPLIT3;

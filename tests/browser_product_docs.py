@@ -26,6 +26,13 @@ def run(out: Path):
                     page = browser.new_page(viewport={'width': width, 'height': height})
                     page.on('pageerror', lambda error: errors.append(str(error)))
                     assert page.goto(origin + '/', wait_until='networkidle').ok
+                    page.locator('#inspect-source').click()
+                    page.wait_for_url('**/viewer/source_preview/index.html')
+                    page.wait_for_function("document.querySelector('#requests .request') && document.querySelector('#element-select').options.length === 18")
+                    assert page.locator('#requests').inner_text().count('not_computed') == 4
+                    assert page.locator('#error').is_hidden()
+                    assert 'No temperatures, heat powers' in page.locator('.alert').inner_text()
+                    assert page.goto(origin + '/', wait_until='networkidle').ok
                     page.locator('#read-registry').click()
                     page.wait_for_url('**/docs/CAPABILITIES.html')
                     assert page.locator('h1').inner_text() == 'SIM_HEAT capability and evidence registry'

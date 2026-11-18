@@ -1,0 +1,239 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "TEACH_SPLIT3",
+  "model": {
+    "path": "model.mo",
+    "sha256": "549ee4fe6b082f12f51b45c0b3e9da9c963f439c670f5f0411162e329278da4e"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "steel_temperature",
+      "op": "temperature",
+      "target": "steel.port"
+    },
+    {
+      "id": "branch_flow",
+      "op": "heatFlow",
+      "target": "shortcut"
+    },
+    {
+      "id": "aluminum_energy",
+      "op": "energyChange",
+      "target": "aluminum"
+    },
+    {
+      "id": "body_to_cold",
+      "op": "temperatureDifference",
+      "a": "copper.port",
+      "b": "sourceCold.port"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 1000,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "sourceHot.T",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "sourceCold.T",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "copper.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "copper.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "copper.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "steel.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "steel.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "steel.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "aluminum.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "aluminum.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "aluminum.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "feed.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "feed.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "feed.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodCS.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodCS.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodCS.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodSA.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodSA.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "rodSA.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "drain.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "drain.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "drain.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "shortcut.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "shortcut.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "shortcut.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jLeft.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jLeft.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jLeft.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jRight.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jRight.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "jRight.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_split3/TASK.md / component table",
+      "note": "Developer-chosen illustrative input for an authorability exercise; not textbook or measurement evidence."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "experiments/teacher_split3/TASK.md / introduction",
+      "note": "Constant-property ideal uniform finite bodies, storage-free rods and maintained boundaries; source interpretation not independently qualified."
+    }
+  ]
+}
