@@ -45,7 +45,18 @@ jobs:
           mkdir -p source_preview_evidence
           git rev-parse HEAD > source_preview_evidence/head-sha.txt
           git rev-parse HEAD^{tree} > source_preview_evidence/head-tree.txt
-          git diff --name-status 0278b79b4da1c3196edca7903189713e0482f3f6 HEAD > source_preview_evidence/source-diff.txt
+          # PR checks must compare only this branch's changes against the
+          # current PR base; previously merged unrelated CI fixes belong to
+          # main, not to this candidate's 14 owned source-preview paths.
+          # The branch-push check preserves the original reviewed ancestry.
+          scope_base=0278b79b4da1c3196edca7903189713e0482f3f6
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            scope_base="${{ github.event.pull_request.base.sha }}"
+            test -n "$scope_base"
+            git cat-file -e "${scope_base}^{commit}"
+          fi
+          printf '%s\n' "$scope_base" > source_preview_evidence/scope-base-sha.txt
+          git diff --name-status "$scope_base" HEAD > source_preview_evidence/source-diff.txt
           python - <<'PY'
           from pathlib import Path
           rows=Path('source_preview_evidence/source-diff.txt').read_text().splitlines()
@@ -67,7 +78,7 @@ jobs:
           }
           assert set(rows)==allowed and len(rows)==len(allowed),rows
           PY
-          git diff --exit-code 0278b79b4da1c3196edca7903189713e0482f3f6 HEAD -- viewer/network qualification tools/h1_native_batch.py h1/model.py h1/study.py h1/policy.py h1/reference.py h1/verification.py
+          git diff --exit-code "$scope_base" HEAD -- viewer/network qualification tools/h1_native_batch.py h1/model.py h1/study.py h1/policy.py h1/reference.py h1/verification.py
           python -m pip freeze > source_preview_evidence/packages.txt
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee source_preview_evidence/h1.log
           python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee source_preview_evidence/arithmetic.log
