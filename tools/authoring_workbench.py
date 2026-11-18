@@ -35,6 +35,7 @@ HELP = b'''<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SIM
 <meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
 <main><h1>Local H1 source-preview session</h1><p><a href="viewer/source_preview/">Return to the source-only inspector</a>.</p>
 <p>This session serves only a previously admitted H1 source description from memory. Its inputs are authored assumptions, not simulated values. No OpenModelica tool runs and no files are uploaded or modified.</p>
+<p>Do not include secrets in model inputs or provenance notes. Any process on this computer that learns the local session port can read the admitted source preview; avoid shared/untrusted machines and press Ctrl+C after inspection.</p>
 <p>To inspect the separate archived native diagnostic explorer, use the normal repository server as described in the README; this restricted session intentionally does not expose repository source files or archives.</p>
 </main></body></html>'''
 
@@ -91,7 +92,8 @@ class PreviewHandler(BaseHTTPRequestHandler):
 
     def _route(self, *, head: bool = False) -> None:
         expected = f'127.0.0.1:{self.server.server_port}'
-        if self.headers.get('Host') != expected:
+        hosts = self.headers.get_all('Host', [])
+        if len(hosts) != 1 or hosts[0] != expected:
             self._send(421, b'Invalid Host\n', 'text/plain; charset=utf-8', head=head)
             return
         uri = urlsplit(self.path)

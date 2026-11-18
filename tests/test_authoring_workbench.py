@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import hashlib
 from http.client import HTTPConnection
 import json
+import socket
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
@@ -95,6 +96,48 @@ class LocalAuthoringWorkbenchTests(unittest.TestCase):
             self.assertEqual(body, b'')
             self.assertGreater(int(headers['Content-Length']), 100)
 
+    def test_duplicate_host_headers_refused_in_both_orders(self):
+        # Real HTTP/1.1 bytes: a dict cannot express duplicate headers.
+        with listening('D1') as (server, _):
+            port = server.server_port
+            valid = f'Host: 127.0.0.1:{port}'
+            evil = 'Host: evil.invalid'
+
+            def exchange(method, hosts):
+                request_bytes = ('\r\n'.join([
+                    f'{method} {DEFAULT_ROUTE} HTTP/1.1', *hosts,
+                    'Connection: close', '', '',
+                ])).encode('ascii')
+                with socket.create_connection(('127.0.0.1', port), timeout=5) as sock:
+                    sock.settimeout(5)
+                    sock.sendall(request_bytes)
+                    chunks = []
+                    while True:
+                        data = sock.recv(65536)
+                        if not data:
+                            break
+                        chunks.append(data)
+                result = b''.join(chunks)
+                self.assertIn(b'\r\n\r\n', result)
+                return result.split(b'\r\n', 1)[0], result.split(b'\r\n\r\n', 1)[1]
+
+            # Control proves the server actually serves the admitted payload.
+            status, body = exchange('GET', [valid])
+            self.assertIn(b' 200 ', status)
+            self.assertIn(b'"studyId"', body)
+            for method, hosts in (
+                ('GET', [valid, evil]),
+                ('GET', [evil, valid]),
+                ('GET', [valid, valid]),
+                ('HEAD', [valid, evil]),
+                ('GET', []),
+            ):
+                with self.subTest(method=method, headers=hosts):
+                    status, body = exchange(method, hosts)
+                    self.assertIn(b' 421 ', status)
+                    self.assertNotIn(b'"studyId"', body)
+                    self.assertNotIn(b'authored_source_only', body)
+
     def test_served_ui_describes_custom_source_not_embedded_illustration(self):
         with listening('S1') as (server, preview):
             status, _, page = request(server.server_port, path='/viewer/source_preview/')
@@ -106,6 +149,8 @@ class LocalAuthoringWorkbenchTests(unittest.TestCase):
             status, _, help_page = request(server.server_port, path='/index.html')
             self.assertEqual(status, 200)
             self.assertIn(b'no files are uploaded or modified', help_page)
+            self.assertIn(b'Do not include secrets', help_page)
+            self.assertIn(b'press Ctrl+C after inspection', help_page)
             self.assertNotIn(b'within;', help_page)
 
     def test_rejected_stale_hash_never_opens_server_or_mutates_draft(self):
