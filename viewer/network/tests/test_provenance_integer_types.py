@@ -21,7 +21,7 @@ from viewer.network.tests.test_steady_adapter import (
     ROOT, make_test_only_members, zip_test_only, RUN_ID,
     COMMIT, ARCHIVE_ARTIFACT_ID, CASE_TITLE,
 )
-from viewer.network.tests.test_project_audit import CampaignTypeAuditTests
+from viewer.network.tests import test_project_audit as audit_fixtures
 
 
 class StrictNativeMetadataIntegerTypes(unittest.TestCase):
@@ -59,7 +59,7 @@ class StrictNativeMetadataIntegerTypes(unittest.TestCase):
                 files[key]=stable_json(data)
         # This is a coherent synthetic D1 campaign, NOT the original D2_K2
         # archive. It uses the actual source campaign adapter, as before.
-        return CampaignTypeAuditTests().compile_mutant(mutate)
+        return audit_fixtures.CampaignTypeAuditTests().compile_mutant(mutate)
 
     def test_steady_original_literal_integer_controls_still_pass(self):
         output=self.repack_steady()
