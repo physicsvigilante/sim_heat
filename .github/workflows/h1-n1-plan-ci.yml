@@ -69,7 +69,11 @@ jobs:
           r=json.loads(Path('n1_plan_evidence/plan-check.json').read_text())
           assert r['nativeExecuted'] is False and r['nativeQualified'] is False
           assert r['nativeExecutionReady'] is False and r['referenceAccuracyCertified'] is False
-          assert r['nativeCallsThisCheck']==0 and len(r['executionBlockers'])==7
+          assert r['nativeCallsThisCheck']==0 and len(r['executionBlockers'])==8
+          a=r['constantArithmetic']
+          assert a['arithmeticGate']=='REFUSED_UNCHANGED_CHECKING_CENTRES'
+          assert a['staticExports']==14 and a['physical100xFailures']==['T02.G','T06.A','T06.G','T07.G','T08.G','T10.G','T_Plug.C']
+          assert all(x['witnessAdopted'] is False and x['nativeObserved'] is False for x in a['rows'])
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
