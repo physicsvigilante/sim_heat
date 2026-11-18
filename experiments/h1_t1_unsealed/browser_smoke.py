@@ -43,9 +43,12 @@ def run(out: Path, receipt_dir: Path) -> None:
                         assert response and response.ok
                         page.locator('#import').set_input_files({'name':label+'.json',
                             'mimeType':'application/json','buffer':data})
-                        page.wait_for_function('(expected) => document.querySelector("#graph-title").textContent.includes(expected)', arg=payload['studyId'])
+                        page.wait_for_function('(expected) => document.querySelector("#graph-title").textContent.includes(expected)', arg=payload['modelName'])
                         assert page.locator('#error').is_hidden(), page.locator('#error').inner_text()
-                        assert payload['studyId'] in page.locator('#graph-title').inner_text()
+                        # The reviewed UI displays the MODEL name in its title and
+                        # the distinct authored STUDY identity in the metadata panel.
+                        assert payload['modelName'] in page.locator('#graph-title').inner_text()
+                        assert payload['studyId'] in page.locator('#identity').inner_text()
                         assert page.locator('#requests .request').count() == len(payload['requests'])
                         assert page.locator('#requests').inner_text().count('not_computed') == len(payload['requests'])
                         assert page.locator('#identity').inner_text().count('false') >= 3
