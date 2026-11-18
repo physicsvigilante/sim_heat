@@ -8,7 +8,12 @@ on:
       - index.html
       - README.md
       - docs/CAPABILITIES.md
-      - tests/**
+      - 'tests/test_product_*.py'
+      - 'tests/browser_product_*.py'
+      - docs/CAPABILITIES.html
+      - docs/AUTHORING.md
+      - docs/AUTHORING.html
+      - tools/render_product_docs.py
       - .github/workflows/product-entry-ci.yml
 permissions:
   contents: read
@@ -51,8 +56,20 @@ jobs:
           mkdir -p product_evidence
           git rev-parse HEAD > product_evidence/head-sha.txt
           git rev-parse HEAD^{tree} > product_evidence/head-tree.txt
-          git diff --name-status 4162c3d47016150076b226ebe2585073a785547a HEAD > product_evidence/source-diff.txt
-          git diff --exit-code 4162c3d47016150076b226ebe2585073a785547a HEAD -- h1 experiments qualification viewer
+          # Keep the archived baseline self-comparison byte-identical; for an
+          # actual product-only PR, check against that PR's current base SHA.
+          # The earlier fixed 4162c3d baseline must not reject unrelated
+          # physical-library changes that were already integrated into main.
+          scope_base=4162c3d47016150076b226ebe2585073a785547a
+          if [ "${{ matrix.kind }}" = candidate ]; then
+            pr_base="${{ github.event.pull_request.base.sha }}"
+            if [ -n "$pr_base" ]; then scope_base="$pr_base"; fi
+          fi
+          printf '%s\n' "$scope_base" > product_evidence/scope-base-sha.txt
+          git diff --name-status "$scope_base" HEAD > product_evidence/source-diff.txt
+          if [ "${{ matrix.kind }}" = candidate ]; then
+            git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer
+          fi
           python -m pip freeze > product_evidence/packages.txt
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee product_evidence/h1.log
           python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee product_evidence/arithmetic.log
