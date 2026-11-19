@@ -178,6 +178,12 @@ class IndependentCornerReplay(unittest.TestCase):
         # Deliberately remove part of the rigorously proved left envelope.
         fake["junctionTemperatureEnclosuresK"]["J1"]=[
             str((published[0]+centre)/2), str(published[1])]
+        # Keep the duplicated published aliases mutually consistent: this
+        # must challenge the UNIVERSAL proof, not an earlier alias check.
+        fake["allNodeTemperatureKExactPhysicalEnclosures"]["J1"]=list(
+            fake["junctionTemperatureEnclosuresK"]["J1"])
+        next(r for r in fake["proof"]["rows"] if r["junctionNode"]=="J1")[
+            "enclosureK"]=list(fake["junctionTemperatureEnclosuresK"]["J1"])
         with self.assertRaisesRegex(n8.CornerRefusal,"universal certified envelope"):
             self.cross(reported=fake)
 
@@ -333,7 +339,9 @@ class IndependentCornerReplay(unittest.TestCase):
         for reported in (None,[],{},{"schema":n8.N7_SCHEMA}):
             with self.subTest(report=type(reported).__name__):
                 with self.assertRaises(n8.CornerRefusal):
-                    self.cross(reported=reported)
+                    n8.replay(self.raw,expected_sha256=self.pin,
+                              body_node_temperatures=self.assumptions,
+                              reported=reported)
 
     def test_native_and_source_trust_forgery_refuses(self):
         for name in ("nativeQualified","nativeExecuted","referenceAccuracyCertified"):
