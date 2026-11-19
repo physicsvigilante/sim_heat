@@ -184,6 +184,17 @@ class FrozenOriginalComparator(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "companion changed non-analysis"):
             _companion_contract(self.studies["primary"], changed, a, self.bundles["tight"], "tight")
 
+    def test_floating_grid_matches_existing_h1_contract_exactly(self):
+        # H1 defines grid[i] = float(stop) * (i / intervals), not
+        # float(i) * (stop / intervals); do not reject its actual sealed grid.
+        for name, s in self.studies.items():
+            self.assertEqual(self.bundles[name]["grid"], list(s.grid))
+        a = self.bundles["primary"]
+        b = deepcopy(self.bundles["dense"])
+        b["grid"][101] += 1e-6
+        with self.assertRaisesRegex(Refusal, "exact declared planned grid"):
+            _companion_contract(self.studies["primary"], self.studies["dense"], a, b, "dense")
+
     def test_missing_or_unmatched_timestamp_refuses_without_interpolation(self):
         a, b = self.bundles["primary"], deepcopy(self.bundles["dense"])
         b["grid"][200] = 100.00001

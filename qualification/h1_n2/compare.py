@@ -112,11 +112,15 @@ def _companion_contract(first, second, a, b, variant):
           "mandatory export/units/allowance inventory changed")
     _need(set(a["flowIntegrals"]) == set(b["flowIntegrals"]) and
           len(a["flowIntegrals"]) == 5, "flow-integral inventory changed")
-    for bundle, intervals in ((a, 2400), (b, expected_analysis["intervals"])):
+    # H1's pinned grid contract is float(stop) * (i / n), NOT i * (stop/n).
+    # Even for an integer-second nominal grid those float expressions can
+    # differ by an ULP. Require exact identity with the independently
+    # reloaded H1 study grid, not an invented idealized sampling formula.
+    for bundle, study in ((a, first), (b, second)):
         times = bundle["grid"]
-        _need(type(times) is list and len(times) == intervals+1 and
-              all(type(t) in (float, int) and math.isfinite(t) and
-                  t == (2400*i/intervals) for i, t in enumerate(times)),
+        _need(type(times) is list and len(times) == len(study.grid) and
+              all(type(t) in (float, int) and math.isfinite(t) for t in times) and
+              times == list(study.grid),
               "exact declared planned grid is required")
         _need(all(_positive_finite(x) for x in bundle["allowances"].values()),
               "invalid per-output allowance")
