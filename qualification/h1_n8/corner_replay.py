@@ -29,6 +29,235 @@ MAX_CIRCULAR = 4
 MAX_BITS = 16384
 ASCII = re.compile(r"[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z",re.ASCII)
 
+
+# Exact N7/1 schema under review: a cross-verifier must not report PASS on
+# metadata whose authority, direction or physical sign it did not validate.
+# The original source-model/study SHA identities are integrity strings,
+# NEVER independently approved source evidence.
+N7_VERSION = "h1_n7.verified_interval_dirichlet/1"
+N7_STATUS = "VERIFIED_INTERVAL_ALGEBRAIC_JUNCTIONS_ONLY_NO_TRAJECTORY"
+N7_STAGE = "offline_source_exact_rational_interval_junction_enclosure"
+N7_ASSEMBLY = "sim_heat.h1_n5.thermal_graph_balance_candidate/1"
+N7_LIMITATION = (
+    "exact rational bounds for algebraic junction K only; "
+    "no native source authority or time integration"
+)
+N7_FALSE_FIELDS = (
+    "sourceInterpretationIndependentlyAuthenticated",
+    "ownerApprovedExpectedReferenceManifestVerified",
+    "independentlyCertifiedReference",
+    "referenceAccuracyCertified",
+    "referenceBundleWritten",
+    "allGrid77Plus8Plus5Certified",
+    "nativeExecuted",
+    "nativeQualified",
+    "runtimeReady",
+    "timeTrajectoryComputed",
+    "initialValueProblemSolved",
+    "generalH1DynamicsQualified",
+    "fullSystemAlgebraicAndDynamicStateSolved",
+)
+N7_TRUE_FIELDS = (
+    "structuralRodEnergyAntisymmetry",
+    "junctionEquilibriumExistsUniqueWithinEnclosures",
+    "bodyRatesConditionalOnUserAssumedTemperatures",
+    "physicalPiNotReplacedByNumericalMidpoint",
+)
+N7_REQUIRED_TOP = frozenset((
+    "schema","version","status","stage",
+    "sourceFactsSha256","sourceStudyId","assemblySchema",
+    "graphSourceModelSha256","graphSourceStudySha256",
+    "bodyTemperatureAssumptionsKExact","fixedBoundaryTemperaturesKExact",
+    "allNodeTemperatureKExactPhysicalEnclosures",
+    "junctionTemperatureEnclosuresK","junctionsEnclosed","rods",
+    "hasCircularConductor","rodHeatFlows","nodeBalanceEnclosures",
+    "proof","limitation",
+    *N7_TRUE_FIELDS,*N7_FALSE_FIELDS,
+))
+N7_ROD_FIELDS = frozenset((
+    "fromNode","toNode","positiveFromTo",
+    "conductanceWPerKExactPhysicalInterval",
+    "heatFlowWExactPhysicalEnclosure","orientation",
+))
+N7_PROOF_ROW_FIELDS = frozenset((
+    "junctionNode","nominalProofCentreK","residualAbsoluteBoundW",
+    "verifiedBarrierRadiusK","lowerBoundOnAllPhysicalLaplacianBarrierW",
+    "enclosureK","trueKInsideEnclosureByComparison",
+))
+
+
+def _pair(value, description):
+    need(type(value) is list and len(value)==2
+         and all(type(item) is str for item in value),
+         "malformed exact physical interval: "+description)
+    try:
+        lo,hi=(bounded(F(item)) for item in value)
+    except (ValueError,OverflowError,TypeError,ZeroDivisionError) as exc:
+        raise CornerRefusal("h1_n8: malformed rational interval: "+description) from exc
+    need(lo<=hi,"reversed exact physical interval: "+description)
+    return lo,hi
+
+
+def _attest_n7_evidence_flags(report):
+    need(type(report) is dict and set(report)==N7_REQUIRED_TOP,
+         "N7 report schema contains missing/unreviewed evidence fields")
+    need(report["schema"]==N7_SCHEMA
+         and report["version"]==N7_VERSION
+         and report["status"]==N7_STATUS
+         and report["stage"]==N7_STAGE
+         and report["assemblySchema"]==N7_ASSEMBLY
+         and report["limitation"]==N7_LIMITATION,
+         "N7 source-only contract/version/status drift")
+    for name in N7_FALSE_FIELDS:
+        need(report[name] is False,
+             "untrusted N7 authority/native/certificate promotion: "+name)
+    for name in N7_TRUE_FIELDS:
+        need(report[name] is True,
+             "N7 required source-only physical semantics drift: "+name)
+    proof=report["proof"]
+    need(type(proof) is dict and proof.get("barrierCertified") is True,
+         "missing/unreviewed N7 algebraic proof")
+    for name in ("proofIsIndependentNativeCertificate",
+                 "nominalCentresArePhysicalAnswers"):
+        need(name in proof and proof[name] is False,
+             "untrusted N7 proof claims independent/native authority: "+name)
+    need(type(report["rodHeatFlows"]) is dict
+         and type(report["junctionTemperatureEnclosuresK"]) is dict
+         and type(report["allNodeTemperatureKExactPhysicalEnclosures"]) is dict
+         and type(report["bodyTemperatureAssumptionsKExact"]) is dict
+         and type(report["fixedBoundaryTemperaturesKExact"]) is dict
+         and type(report["nodeBalanceEnclosures"]) is dict
+         and type(proof.get("rows")) is list,
+         "malformed N7 required physical evidence collections")
+
+
+def _check_source_and_node_report(report, facts, known, junctions, edges, circular):
+    """Tie every reported label to original admission-checked source bytes."""
+    need(report["sourceStudyId"]==facts["id"]
+         and report["graphSourceModelSha256"]==facts["modelSha256"]
+         and report["graphSourceStudySha256"]==facts["studySha256"],
+         "source-fact model/study/ID metadata disagrees with source")
+    need(type(report["junctionsEnclosed"]) is int
+         and report["junctionsEnclosed"]==len(junctions)
+         and type(report["rods"]) is int
+         and report["rods"]==len(edges)
+         and report["hasCircularConductor"] is bool(circular),
+         "wrong graph inventory/circular law declaration")
+    expected_body={v["node"]:str(known[v["node"]])
+                   for v in facts["bodies"].values()}
+    expected_boundary={v["node"]:str(known[v["node"]])
+                       for v in facts["boundaries"].values()}
+    need(report["bodyTemperatureAssumptionsKExact"]==expected_body,
+         "reported assumed-body Kelvin values not source-bound")
+    need(report["fixedBoundaryTemperaturesKExact"]==expected_boundary,
+         "reported prescribed-boundary Kelvin values not source-bound")
+    need(set(report["junctionTemperatureEnclosuresK"])==set(junctions)
+         and set(report["allNodeTemperatureKExactPhysicalEnclosures"])==
+             set(known)|set(junctions)
+         and set(report["rodHeatFlows"])=={x[0] for x in edges}
+         and set(report["nodeBalanceEnclosures"])==set(known)|set(junctions),
+         "N7 graph output fields do not cover exact source inventory")
+    for node,value in known.items():
+        need(_pair(report["allNodeTemperatureKExactPhysicalEnclosures"][node],
+                   "fixed/assumed "+node)==(value,value),
+             "known-node temperature interval differs from source/assumption")
+    for node in junctions:
+        need(_pair(report["allNodeTemperatureKExactPhysicalEnclosures"][node],
+                   "junction "+node)==
+             _pair(report["junctionTemperatureEnclosuresK"][node],
+                   "verified junction "+node),
+             "all-node temperature enclosure contradicts junction proof")
+    proof=report["proof"]
+    if junctions:
+        need(set(proof)=={
+            "algorithm","premise","allConductancesCheckedAgainstSourcePhysicalIntervals",
+            "nominalCentresArePhysicalAnswers",
+            "trueJunctionEnclosedForAllAdmissibleConductances",
+            "barrierCertified","proofIsIndependentNativeCertificate",
+            "maximumPermittedEnclosureWidthK","rows",
+        } and proof["algorithm"]==
+            "EXACT_RATIONAL_MIDPOINT_RESIDUAL_AND_POSITIVE_M_MATRIX_BARRIER"
+            and proof["premise"]==
+            "positive_anchored_Dirichlet_Laplacian_inverse_entrywise_nonnegative"
+            and proof["allConductancesCheckedAgainstSourcePhysicalIntervals"] is True
+            and proof["trueJunctionEnclosedForAllAdmissibleConductances"] is True
+            and F(proof["maximumPermittedEnclosureWidthK"])==F(1,10**6),
+            "unreviewed or incomplete N7 universal proof declaration")
+    else:
+        need(set(proof)=={
+            "algorithm","barrierCertified","nominalCentresArePhysicalAnswers",
+            "proofIsIndependentNativeCertificate","rows",
+        } and proof["algorithm"]=="NO_UNKNOWN_JUNCTIONS"
+            and proof["rows"]==[],
+            "invalid vacuous N7 proof declaration")
+
+
+def _verify_full_physical_report(report, facts, known, junctions, enclosure, edges):
+    """Exact node/rod labels, physical intervals and conditional heat balances."""
+    node_temperatures={node:(value,value) for node,value in known.items()}
+    node_temperatures.update(enclosure)
+    out={node:(F(0),F(0)) for node in node_temperatures}
+    for name,a,b,lo,hi in edges:
+        record=report["rodHeatFlows"][name]
+        need(type(record) is dict and set(record)==N7_ROD_FIELDS
+             and record["fromNode"]==a and record["toNode"]==b
+             and record["positiveFromTo"] is True
+             and record["orientation"]=="q_from_to=G*(T_from-T_to)",
+             "untrusted physical rod orientation/sign metadata: "+name)
+        need(_pair(record["conductanceWPerKExactPhysicalInterval"],
+                   "conductance "+name)==(lo,hi),
+             "untrusted physical rod G interval/source label: "+name)
+        a_lo,a_hi=node_temperatures[a]
+        b_lo,b_hi=node_temperatures[b]
+        dlo,dhi=a_lo-b_hi,a_hi-b_lo
+        q=min(lo*dlo,lo*dhi,hi*dlo,hi*dhi),max(lo*dlo,lo*dhi,hi*dlo,hi*dhi)
+        need(_pair(record["heatFlowWExactPhysicalEnclosure"],
+                   "oriented heat "+name)==q,
+             "source-rational rod heat-flow interval misrepresented: "+name)
+        out[a]=(bounded(out[a][0]+q[0]),bounded(out[a][1]+q[1]))
+        out[b]=(bounded(out[b][0]-q[1]),bounded(out[b][1]-q[0]))
+    bybody={v["node"]:v for v in facts["bodies"].values()}
+    byboundary={v["node"]:v for v in facts["boundaries"].values()}
+    for node,balance in report["nodeBalanceEnclosures"].items():
+        need(type(balance) is dict,"malformed source physical balance "+node)
+        outgoing=out[node]
+        need(_pair(balance.get("outwardHeatFlowWIndependentIntervalSum"),
+                   "outflow "+node)==outgoing,
+             "source physical signed node outflow misreported "+node)
+        if node in bybody:
+            capacity=bounded(F(bybody[node]["m"])*F(bybody[node]["c"]))
+            need(capacity>0 and set(balance)=={
+                     "kind","outwardHeatFlowWIndependentIntervalSum",
+                     "conditionalDTdtKPerSInterval","note"
+                 } and balance["kind"]=="body"
+                 and balance["note"]==
+                     "formal_rate_given_user_assumed_body_K_not_integrated"
+                 and _pair(balance["conditionalDTdtKPerSInterval"],
+                           "conditional body rate "+node)==
+                     (bounded(-outgoing[1]/capacity),
+                      bounded(-outgoing[0]/capacity)),
+                 "reported conditional body rate is not source-physical "+node)
+        elif node in byboundary:
+            need(set(balance)=={
+                     "kind","outwardHeatFlowWIndependentIntervalSum",
+                     "boundarySupplyWEnclosure","note"
+                 } and balance["kind"]=="fixed_boundary"
+                 and balance["note"]=="outward_positive_boundary_heat_supply"
+                 and _pair(balance["boundarySupplyWEnclosure"],
+                           "boundary supply "+node)==outgoing,
+                 "reported physical boundary supply inconsistent "+node)
+        else:
+            need(set(balance)=={
+                     "kind","outwardHeatFlowWIndependentIntervalSum",
+                     "junctionResidualExactlyZeroByVerifiedEquation","note"
+                 } and balance["kind"]=="ownerless_junction"
+                 and balance["junctionResidualExactlyZeroByVerifiedEquation"] is True
+                 and balance["note"]==
+                     "interval_sum_overbounds_correlated_true_zero_junction_flow"
+                 and outgoing[0]<=0<=outgoing[1],
+                 "reported source junction balance improperly labeled "+node)
+
+
 class CornerRefusal(ValueError):
     pass
 
@@ -173,34 +402,30 @@ def _source_graph(raw,expected_sha256,body_temperatures):
     need(len(circle)<=MAX_CIRCULAR,"too many uncertain circular rods for corner replay")
     return admitted,known,junctions,edges,circle
 
-def replay(raw,*,expected_sha256,body_node_temperatures,reported):
+def _replay_impl(raw,*,expected_sha256,body_node_temperatures,reported):
     """Cross-check N7 against independent source Pi, Cramer's corners and rows.
 
     This consumes an N7 report as *untrusted data*; caller-supplied report,
     source SHA and body assumptions do NOT grant owner/source/native authority.
     """
-    need(type(reported) is dict and reported.get("schema")==N7_SCHEMA
-         and reported.get("sourceFactsSha256")==expected_sha256
-         and reported.get("referenceAccuracyCertified") is False
-         and reported.get("nativeQualified") is False
-         and reported.get("nativeExecuted") is False
-         and reported.get("timeTrajectoryComputed") is False,
-         "unexpected source claim or N7 reference/native promotion")
+    _attest_n7_evidence_flags(reported)
+    need(reported["sourceFactsSha256"]==expected_sha256,
+         "N7 source hash differs from independently supplied source bytes")
     facts,known,junctions,edges,circular=_source_graph(
         raw,expected_sha256,body_node_temperatures)
-    need(reported.get("sourceStudyId")==facts["id"]
-         and reported.get("junctionsEnclosed")==len(junctions)
-         and reported.get("rods")==len(edges),
-         "declared graph identity and inventory mismatch")
-    need(set(reported["junctionTemperatureEnclosuresK"])==set(junctions)
-         and set(reported["rodHeatFlows"])=={e[0] for e in edges},
-         "incomplete N7 output inventory")
+    _check_source_and_node_report(reported,facts,known,junctions,edges,circular)
     rows=reported["proof"]["rows"]
     need(len(rows)==len(junctions) and
          {row["junctionNode"] for row in rows}==set(junctions)
          and reported["proof"]["barrierCertified"] is True
          and reported["proof"]["nominalCentresArePhysicalAnswers"] is False,
          "missing N7 exact rational proof rows")
+    need(all(type(row) is dict
+             and set(row)==N7_PROOF_ROW_FIELDS
+             and row["trueKInsideEnclosureByComparison"] is True
+             and row["enclosureK"]==reported["junctionTemperatureEnclosuresK"][row["junctionNode"]]
+             for row in rows),
+         "N7 proof rows not consistent with published physical enclosures")
     bynode={row["junctionNode"]:row for row in rows}
     centre={}
     barriers={}
@@ -257,6 +482,10 @@ def replay(raw,*,expected_sha256,body_node_temperatures,reported):
         safe_hi=min(known_hi,centre[name]+barriers[name])
         need(safe_lo<=safe_hi and lo<=safe_lo<=safe_hi<=hi,
              "reported enclosure not covering universal certified envelope")
+    # An N8 PASS includes *all* human-readable N7 physical metadata, not
+    # merely its correct 16 sampled numeric corners. Rebuild signed flow,
+    # conductance and per-node rate intervals independently from source.
+    _verify_full_physical_report(reported,facts,known,junctions,enclosure,edges)
     corner_outputs=[]
     for signs in product((0,1),repeat=len(circular)):
         selected={name:bit for name,bit in zip(circular,signs)}
@@ -306,3 +535,16 @@ def replay(raw,*,expected_sha256,body_node_temperatures,reported):
         "unfamiliarCompositionIndependentlyQualified":False,
         "cornerReadouts":corner_outputs,
     }
+
+
+def replay(raw,*,expected_sha256,body_node_temperatures,reported):
+    """Fail-closed public boundary for untrusted N7 results/source metadata."""
+    try:
+        return _replay_impl(raw,expected_sha256=expected_sha256,
+                            body_node_temperatures=body_node_temperatures,
+                            reported=reported)
+    except CornerRefusal:
+        raise
+    except (KeyError,TypeError,ValueError,OverflowError,ZeroDivisionError,
+            UnicodeError,RecursionError,ArithmeticError) as exc:
+        raise CornerRefusal("h1_n8: malformed untrusted N7 report/source") from exc

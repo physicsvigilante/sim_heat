@@ -281,6 +281,60 @@ class IndependentCornerReplay(unittest.TestCase):
                 with self.assertRaises(n8.CornerRefusal):
                     self.cross(reported=fake)
 
+    def test_n8_untrusted_balance_flow_and_proof_row_evidence_fail_closed(self):
+        """A successful crosscheck also covers N7's user-visible node ledgers."""
+        cases=(
+            ("body_rate",lambda x:x["nodeBalanceEnclosures"]["M"].__setitem__(
+                "conditionalDTdtKPerSInterval",["0","0"])),
+            ("body_outflow",lambda x:x["nodeBalanceEnclosures"]["X"].__setitem__(
+                "outwardHeatFlowWIndependentIntervalSum",["0","0"])),
+            ("boundary_supply",lambda x:x["nodeBalanceEnclosures"]["H"].__setitem__(
+                "boundarySupplyWEnclosure",["0","0"])),
+            ("junction_truth",lambda x:x["nodeBalanceEnclosures"]["J1"].__setitem__(
+                "junctionResidualExactlyZeroByVerifiedEquation",False)),
+            ("junction_note",lambda x:x["nodeBalanceEnclosures"]["J2"].__setitem__(
+                "note","physically solved time trajectory")),
+            ("forged_flow_interval",lambda x:x["rodHeatFlows"]["ArcH_J1"].__setitem__(
+                "heatFlowWExactPhysicalEnclosure",["-999","999"])),
+            ("falsely_qualified_row",lambda x:next(
+                row for row in x["proof"]["rows"] if row["junctionNode"]=="J1"
+                ).__setitem__("trueKInsideEnclosureByComparison",False)),
+            ("forged_proof_enclosure",lambda x:next(
+                row for row in x["proof"]["rows"] if row["junctionNode"]=="J1"
+                ).__setitem__("enclosureK",["0","0"])),
+        )
+        for name,mutate in cases:
+            with self.subTest(case=name):
+                fake=deepcopy(self.report)
+                mutate(fake)
+                with self.assertRaises(n8.CornerRefusal):
+                    self.cross(reported=fake)
+
+    def test_n8_untrusted_report_shape_and_contract_refuse_without_raw_errors(self):
+        """Unexpected fields and broken structures never receive PASS."""
+        changes=(
+            ("schema",lambda r:r.__setitem__("schema","sim_heat.reference_bundle/2")),
+            ("version",lambda r:r.__setitem__("version","native-runner-v1")),
+            ("status",lambda r:r.__setitem__("status","NATIVE_QUALIFIED")),
+            ("stage",lambda r:r.__setitem__("stage","time_integrated")),
+            ("extra_authority",lambda r:r.__setitem__("fullyCertified",True)),
+            ("removed_kind",lambda r:r.pop("nodeBalanceEnclosures")),
+            ("missing_rod_flow",lambda r:r["rodHeatFlows"]["ArcX_J4"].pop("positiveFromTo")),
+            ("malformed_proof",lambda r:r.__setitem__("proof",[])),
+            ("changed_assembly",lambda r:r.__setitem__("assemblySchema","NATIVE")),
+            ("noncanonical_limitation",lambda r:r.__setitem__("limitation","native ready")),
+        )
+        for name,mutate in changes:
+            with self.subTest(case=name):
+                fake=deepcopy(self.report)
+                mutate(fake)
+                with self.assertRaises(n8.CornerRefusal):
+                    self.cross(reported=fake)
+        for reported in (None,[],{},{"schema":n8.N7_SCHEMA}):
+            with self.subTest(report=type(reported).__name__):
+                with self.assertRaises(n8.CornerRefusal):
+                    self.cross(reported=reported)
+
     def test_native_and_source_trust_forgery_refuses(self):
         for name in ("nativeQualified","nativeExecuted","referenceAccuracyCertified"):
             fake=deepcopy(self.report)
