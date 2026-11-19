@@ -1,0 +1,114 @@
+name: H1-N7 rigorous circular junction enclosures - NEVER native
+on:
+  push:
+    branches: [checking/h1-n7-verified-circular-junctions]
+  pull_request:
+    branches: [checking/h1-n6-exact-area-junctions]
+    paths:
+      - qualification/h1_n7/**
+      - .github/workflows/h1-n7-interval-junction-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n7-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-rational-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install inherited offline numerical checker dependencies ONLY
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Verify source/graph lineage and exact FOUR new N7 paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n7_interval"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head-sha.txt"
+          git rev-parse HEAD^{tree} > "$evidence/head-tree.txt"
+          base=4517bf8e14f659e79255bc1d20f7fcb7b72ce695
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git diff --name-status "$base" HEAD > "$evidence/source-diff.txt"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          folder=Path(os.environ["RUNNER_TEMP"])/"h1n7_interval"
+          actual=set((folder/"source-diff.txt").read_text().splitlines())
+          expected={
+            "A\tqualification/h1_n7/verified_junctions.py",
+            "A\tqualification/h1_n7/README.md",
+            "A\tqualification/h1_n7/tests/test_verified_junctions.py",
+            "A\t.github/workflows/h1-n7-interval-junction-ci.yml",
+          }
+          assert actual==expected,(actual,expected)
+          p=Path("qualification/h1_n1")
+          pins={
+             "inputs/T/model.mo":"2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+             "inputs/T/study.json":"12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a",
+             "reference-facts.json":"39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf",
+          }
+          assert all(sha256((p/k).read_bytes()).hexdigest()==v for k,v in pins.items())
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments viewer docs qualification/h1_c1 qualification/h1_n1 qualification/h1_n2 qualification/h1_n3 qualification/h1_n4 qualification/h1_n5 qualification/h1_n6
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Rigorous interval barrier tests and inherited offline regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n7_interval"
+          python -B -m unittest qualification.h1_n7.tests.test_verified_junctions -v 2>&1 | tee "$evidence/n7-barrier-tests.log"
+          python -B -m unittest qualification.h1_n6.tests.test_exact_junctions -v 2>&1 | tee "$evidence/n6-exact-tests.log"
+          python -B -m unittest qualification.h1_n5.tests.test_thermal_graph -v 2>&1 | tee "$evidence/n5-graph-tests.log"
+          python -B -m unittest qualification.h1_n4.tests.test_static_physical -v 2>&1 | tee "$evidence/n4-static-tests.log"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$evidence/n3-design-tests.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$evidence/n2-comparator-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$evidence/n1-interval-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$evidence/n1-plan-tests.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1-tests.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+          python -B qualification/h1_n1/check_plan.py --out "$evidence/original-n1-refusals.json" > "$evidence/original-n1-refusals.stdout.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from hashlib import sha256
+          from qualification.h1_n7.verified_junctions import solve_snapshot
+          folder=Path(os.environ["RUNNER_TEMP"])/"h1n7_interval"
+          raw=Path("qualification/h1_n1/reference-facts.json").read_bytes()
+          pin=sha256(raw).hexdigest()
+          report=solve_snapshot(raw,expected_sha256=pin,body_node_temperatures={
+            "R":"337","B":"303","P":"318"})
+          assert report["hasCircularConductor"] is True
+          assert report["junctionsEnclosed"]==2 and report["proof"]["barrierCertified"]
+          assert report["referenceAccuracyCertified"] is False and report["runtimeReady"] is False
+          assert report["nativeQualified"] is False and report["nativeExecuted"] is False
+          assert report["timeTrajectoryComputed"] is False
+          assert report["proof"]["nominalCentresArePhysicalAnswers"] is False
+          (folder/"original-t1-algebraic-pi-interval-enclosure.json").write_text(
+              json.dumps(report,sort_keys=True,indent=2,allow_nan=False)+"\n")
+          old=json.loads((folder/"original-n1-refusals.json").read_text())
+          assert old["nativeCallsThisCheck"]==0 and old["nativeExecutionReady"] is False
+          assert old["referenceAccuracyCertified"] is False and len(old["executionBlockers"])==8
+          assert old["constantArithmetic"]["physical100xFailures"]==[
+            "T02.G","T06.A","T06.G","T07.G","T08.G","T10.G","T_Plug.C"]
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: h1-n7-interval-only-${{ github.sha }}
+          path: ${{ runner.temp }}/h1n7_interval/
+          retention-days: 90
+          if-no-files-found: error
