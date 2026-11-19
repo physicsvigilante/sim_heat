@@ -76,3 +76,24 @@ existing conduction component domain**, not a conductivity-solving or
 OpenModelica qualification milestone. An independent bounded review of this
 new presentation/evidence semantics is required before accepting it; a
 separately authorized native comparison remains a future step.
+
+### Corrected comparison behavior after independent review #01
+
+The comparison is intentionally about **authored source changes** and never
+computes resulting heat flows or temperature trajectories. Every scenario
+selection invalidates unfinished earlier file reads; when a viewed scenario is
+successfully replaced, its graph, selection details, public requests and source
+identity change together. A refused replacement clears the old scenario and
+returns the visible inspector to the baseline instead of displaying obsolete
+facts. A new baseline also cancels pending scenario reads, and a pending
+startup scenario fetch cannot overwrite a subsequent user-selected scenario.
+
+The browser comparison additionally checks that **one declared study SHA-256
+cannot refer to two different model SHA-256 identities**, even if their
+visible component values happen to be equal. It still does *not* authenticate
+model/study bytes, source attribution or an owner's signature: importing a
+source-only JSON file is deliberately display-schema validation only. When a
+component is added, removed or changes its supported law/type, the comparison
+shows the affected authored SI input inventory and original input/component
+provenance as well as the kind/presence change. No unsupported new physical
+law is inferred from a source-only display.

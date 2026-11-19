@@ -6,6 +6,7 @@ let preview=null;
 let baseline=null;
 let scenario=null;
 let loadVersion=0;
+let scenarioVersion=0;
 const element=$('element-select');
 function svg(tag,attrs={},txt){const e=document.createElementNS(SVG,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));if(txt!==undefined)e.textContent=String(txt);return e;}
 function empty(){preview=null;$('graph').replaceChildren();$('requests').replaceChildren();$('identity').replaceChildren();$('model-assumptions').replaceChildren();$('details').replaceChildren();element.replaceChildren(new Option('Source not loaded',''));element.disabled=true;$('graph-title').textContent='Authored connection graph';$('state').textContent='No admitted source loaded';}
@@ -79,36 +80,55 @@ function showComparison(){
   }
 }
 function compareError(message){
-  const staleScenarioDisplayed=preview !== null && preview === scenario;
   scenario=null;clearComparison();
-  // A refused replacement must not leave an older scenario's visible graph,
-  // request labels and assumed inputs looking like the refused candidate.
-  if(staleScenarioDisplayed && baseline)render(baseline);
+  // The rendered graph can belong to a PREVIOUS scenario, not just the
+  // candidate most recently accepted. A refusal always removes that stale
+  // selection, identity, inputs, graph and public request inventory.
+  if(baseline){
+    if(preview!==baseline)render(baseline);
+  }else empty();
   $('comparison-error').textContent='Refused source comparison: '+message;
   $('comparison-error').classList.remove('hidden');
   $('comparison-state').textContent='Scenario refused · no comparison shown';
 }
-function setScenario(value){
+function setScenario(value,showIfViewingScenario=false){
   const candidate=admitPreview(value);
   compareSourcePreviews(baseline,candidate); // refuse contradictory claimed hashes
   scenario=candidate;showComparison();
+  // A valid scenario replacement must keep its visible graph/details in sync
+  // with the displayed scenario identity. No old variant remains rendered.
+  if(showIfViewingScenario)render(candidate);
 }
 $('view-baseline').addEventListener('click',()=>{if(baseline)render(baseline)});
 $('view-variant').addEventListener('click',()=>{if(scenario)render(scenario)});
 $('variant-import').addEventListener('change',async e=>{
   const file=e.target.files?.[0];if(!file)return;
-  const expected=loadVersion;
+  // Every selection gets its own generation: a slow prior File.text() must
+  // not overwrite the latest fast selection (baseline loadVersion alone
+  // does not distinguish two scenario imports of the same baseline).
+  const expectedScenario=++scenarioVersion;
+  const expectedBaseline=loadVersion;
+  const wasViewingScenario=scenario!==null && preview===scenario;
+  scenario=null;clearComparison();
+  if(baseline&&preview!==baseline)render(baseline);
+  $('comparison-state').textContent='Checking newly selected source-only scenario…';
   try{
     if(file.size>524288)throw Error('file exceeds 512 KiB source-only display limit');
     const raw=await file.text();
-    if(expected===loadVersion&&baseline)setScenario(JSON.parse(raw));
-  }catch(err){if(expected===loadVersion)compareError(err.message)}
-  finally{e.target.value=''}
+    if(expectedScenario===scenarioVersion&&expectedBaseline===loadVersion&&baseline)
+      setScenario(JSON.parse(raw),wasViewingScenario);
+  }catch(err){
+    if(expectedScenario===scenarioVersion&&expectedBaseline===loadVersion)
+      compareError(err.message);
+  }finally{
+    if(expectedScenario===scenarioVersion)e.target.value='';
+  }
 });
 element.addEventListener('change',()=>choose(element.value));
 $('import').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;
   const current=++loadVersion;
+  ++scenarioVersion; // invalidate pending scenario file reads from old baseline
   scenario=null;clearComparison();baseline=null;empty();$('error').classList.add('hidden');$('state').textContent='Checking selected source-only file…';
   try{
     if(f.size>524288)throw Error('file exceeds the 512 KiB preview limit');
@@ -118,6 +138,7 @@ $('import').addEventListener('change',async e=>{
   finally{e.target.value=''}
 });
 const initial=++loadVersion;
+let initialScenarioGeneration=scenarioVersion;
 try{
   const response=await fetch('./data/TEACH_SPLIT3.json',{cache:'no-store'});
   if(!response.ok)throw Error('default demonstration unavailable');
@@ -126,10 +147,16 @@ try{
     baseline=admitPreview(payload);render(baseline);
     // Only a local H1 workbench with --compare serves this additional route.
     // Static preview hosting returns 404; that is not a comparison error.
+    initialScenarioGeneration=scenarioVersion;
     const response2=await fetch('./data/VARIANT.json',{cache:'no-store'});
     if(response2.ok){
       const candidate=await response2.json();
-      if(initial===loadVersion)setScenario(candidate);
-    }else if(response2.status!==404)throw Error('scenario source route unavailable');
+      if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion)
+        setScenario(candidate);
+    }else if(response2.status!==404 && initial===loadVersion &&
+             initialScenarioGeneration===scenarioVersion)
+      throw Error('scenario source route unavailable');
   }
-}catch(err){if(initial===loadVersion){if(baseline)compareError(err.message);else error(err.message)}}
+}catch(err){if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion){
+  if(baseline)compareError(err.message);else error(err.message)
+}}

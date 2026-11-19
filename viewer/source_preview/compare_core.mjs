@@ -8,8 +8,8 @@ import {admitPreview} from './core.mjs';
 const identical = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const byId = values => new Map(values.map(value => [value.id, value]));
 const sortedUnion = (a, b) => [...new Set([...a.keys(), ...b.keys()])].sort();
-const inputMap = component => new Map(component.inputs.map(input => [input.name, input]));
-const sourceNotes = component => ({input: component.sourceProvenance, component: component.componentProvenance});
+const inputMap = component => new Map((component?.inputs ?? []).map(input => [input.name, input]));
+const sourceNotes = component => component ? ({input: component.sourceProvenance, component: component.componentProvenance}) : null;
 const nodePortSignature = (preview, id) => {
   const node = preview.nodes.find(n => n.id === id);
   if (!node) throw Error('SOURCE COMPARISON REFUSED: missing logical node');
@@ -26,7 +26,8 @@ const modelShape = preview => ({
     .map(r => [r.id, nodePortSignature(preview, r.from), nodePortSignature(preview, r.to)]),
 });
 const studyShape = preview => ({
-  modelShape: modelShape(preview), studyId: preview.studyId, mode: preview.mode,
+  modelShape: modelShape(preview), modelSha256: preview.source.modelSha256,
+  studyId: preview.studyId, mode: preview.mode,
   requests: preview.requests, modelProvenance: preview.modelProvenance,
   sourceProvenance: [...preview.components].sort((a, b) => a.id.localeCompare(b.id))
     .map(c => [c.id, sourceNotes(c)]),
@@ -57,12 +58,11 @@ export function compareSourcePreviews(left, right) {
     const a = aComponents.get(id), b = bComponents.get(id);
     if (!a || !b) {
       add('component', id, a ? a.kind : 'not present', b ? b.kind : 'not present');
-      continue;
-    }
-    if (a.kind !== b.kind) {
+    } else if (a.kind !== b.kind) {
       add('component', id + ' · kind', a.kind, b.kind);
-      continue;
     }
+    // Never omit authored SI fields or source attribution when the entire
+    // physical component has been added, removed or changed law/type.
     const aInputs = inputMap(a), bInputs = inputMap(b);
     for (const name of sortedUnion(aInputs, bInputs)) {
       const old = aInputs.get(name), next = bInputs.get(name);
@@ -74,7 +74,8 @@ export function compareSourcePreviews(left, right) {
     }
     if (!identical(sourceNotes(a), sourceNotes(b)))
       add('provenance', id + ' · original attribution / assumptions',
-          JSON.stringify(sourceNotes(a)), JSON.stringify(sourceNotes(b)));
+          a ? JSON.stringify(sourceNotes(a)) : 'not present',
+          b ? JSON.stringify(sourceNotes(b)) : 'not present');
   }
   // Compare physical port groups, never generated node_0 indexes or positions.
   const ports = p => p.nodes.map(n => [...n.ports].sort().join(' + ')).sort();
