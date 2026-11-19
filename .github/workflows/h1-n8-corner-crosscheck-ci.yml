@@ -1,0 +1,115 @@
+name: H1-N8 independent rational corner crosscheck - NEVER native
+on:
+  push:
+    branches: [checking/h1-n8-independent-corner-replay]
+  pull_request:
+    branches: [checking/h1-n7-verified-circular-junctions]
+    paths:
+      - qualification/h1_n8/**
+      - .github/workflows/h1-n8-corner-crosscheck-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n8-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-source-proof-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install inherited mathematical checker dependencies only
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Exact FOUR-file scope and immutable source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n8_corner"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head-sha.txt"
+          git rev-parse HEAD^{tree} > "$evidence/head-tree.txt"
+          base=4f4bbabc1083f2e1f8a6ced66c00b95fea1a5128
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git diff --name-status "$base" HEAD > "$evidence/source-diff.txt"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          e=Path(os.environ["RUNNER_TEMP"])/"h1n8_corner"
+          actual=set((e/"source-diff.txt").read_text().splitlines())
+          expected={
+            "A\tqualification/h1_n8/corner_replay.py",
+            "A\tqualification/h1_n8/README.md",
+            "A\tqualification/h1_n8/tests/test_corner_replay.py",
+            "A\t.github/workflows/h1-n8-corner-crosscheck-ci.yml",
+          }
+          assert actual==expected,(actual,expected)
+          p=Path("qualification/h1_n1")
+          pinned={
+            "inputs/T/model.mo":"2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+            "inputs/T/study.json":"12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a",
+            "reference-facts.json":"39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf",
+          }
+          assert all(sha256((p/k).read_bytes()).hexdigest()==v for k,v in pinned.items())
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments viewer docs qualification/h1_c1 qualification/h1_n1 qualification/h1_n2 qualification/h1_n3 qualification/h1_n4 qualification/h1_n5 qualification/h1_n6 qualification/h1_n7
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Independently replay N7 enclosures and all inherited OFFLINE checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n8_corner"
+          python -B -m unittest qualification.h1_n8.tests.test_corner_replay -v 2>&1 | tee "$evidence/n8-corner-tests.log"
+          python -B -m unittest qualification.h1_n7.tests.test_verified_junctions -v 2>&1 | tee "$evidence/n7-interval-tests.log"
+          python -B -m unittest qualification.h1_n6.tests.test_exact_junctions -v 2>&1 | tee "$evidence/n6-exact-tests.log"
+          python -B -m unittest qualification.h1_n5.tests.test_thermal_graph -v 2>&1 | tee "$evidence/n5-graph-tests.log"
+          python -B -m unittest qualification.h1_n4.tests.test_static_physical -v 2>&1 | tee "$evidence/n4-static-tests.log"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$evidence/n3-design-tests.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$evidence/n2-comparator-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$evidence/n1-interval-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$evidence/n1-plan-tests.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1-tests.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+          python -B qualification/h1_n1/check_plan.py --out "$evidence/original-n1-refusals.json" > "$evidence/original-n1-refusals.stdout.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from qualification.h1_n8.tests.test_corner_replay import (
+              four_junction_facts,serialize,IndependentCornerReplay)
+          from qualification.h1_n8.corner_replay import replay
+          from qualification.h1_n7.verified_junctions import solve_snapshot
+          e=Path(os.environ["RUNNER_TEMP"])/"h1n8_corner"
+          raw,pin=serialize(four_junction_facts())
+          temps={"M":"350","X":"375","Y":"310","I":"315"}
+          report=solve_snapshot(raw,expected_sha256=pin,body_node_temperatures=temps)
+          cross=replay(raw,expected_sha256=pin,body_node_temperatures=temps,reported=report)
+          assert cross["endpointCornersChecked"]==16
+          assert cross["negativeUnknownGradientContributionsChecked"]>0
+          assert cross["universalRowComparisonVerified"]
+          assert not cross["referenceAccuracyCertified"] and not cross["nativeExecuted"]
+          (e/"source-only-four-junction-16-corner-crosscheck.json").write_text(
+            json.dumps(cross,sort_keys=True,indent=2,allow_nan=False)+"\n")
+          old=json.loads((e/"original-n1-refusals.json").read_text())
+          assert old["nativeCallsThisCheck"]==0 and not old["nativeExecutionReady"]
+          assert not old["referenceAccuracyCertified"] and len(old["executionBlockers"])==8
+          assert old["constantArithmetic"]["physical100xFailures"]==[
+            "T02.G","T06.A","T06.G","T07.G","T08.G","T10.G","T_Plug.C"]
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: h1-n8-corner-only-${{ github.sha }}
+          path: ${{ runner.temp }}/h1n8_corner/
+          retention-days: 90
+          if-no-files-found: error
