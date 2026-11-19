@@ -1,0 +1,23 @@
+# H1-N2 — checking-only primary-versus-companion comparison (candidate)
+
+**DRAFT / UNMERGED / NO NATIVE.** Stacked on reviewed-but-unmerged PR62 exact head `29bc126967d180e7f92b0a8bc29f50ee17608eb7`; this is a NEW qualification-only module, not a modification of `tools/h1_compare_companions.py`, the production H1 parser, physical solver, old references, runner, frozen H1-C1 or original T1-T author source. Does not grant OpenModelica installation, version queries, builds, launches or native permission.
+
+## Why this is needed
+
+The existing `tools/h1_compare_companions.compare` requires independently prepared primary/dense tolerance vectors to match exactly. PR60 established that four T1-T flow channels legitimately have slightly different per-grid allowance values; their old helper therefore refuses without proving that the system failed physics. Replacing these vectors, ignoring primary allowances or using their sum/max is prohibited.
+
+## Proposed qualification-only contract
+
+One original H1-T1-T primary study and exactly one expressly analysis-only companion, `_N1_TIGHT` (2400 samples intervals; DASSL 1e-10) or `_N1_DENSE` (4800 intervals; DASSL 1e-8), preserve model SHA, all model/study facts, public requests and provenance. No other candidate ID, physical change, extra analysis edit or changed horizon is accepted. Original facts, original study and original Modelica bytes are separately SHA-256 verified each invocation. Companion source is reloaded from its actual study file, not trusted solely from a caller dict.
+
+Both CSV candidates must independently pass the **unchanged** `h1.verification.check_candidate` using their OWN already sealed `sim_heat.reference_bundle/2`, including all 77 exports, source/spec binding, reference identity, timing, conservation, flow integrals, and existing per-run allowance checks. A failing or missing result **refuses before common-time comparison**. The H1 verifier reports `nativeQualified=false` by design; these CSVs are strictly synthetic/unattested checking fixtures until a separate trusted native manifest exists.
+
+Read-only common-time comparison then aligns only exactly shared **planned** timestamps (no interpolation and per-run timing windows remain enforced), and measures all **77 original internal export channels plus eight public observations**, including the oriented T03-port-a minus T_Cool temperature difference. Each comparison uses **only its own original PRIMARY presealed allowance**. The temperature difference uses `h1.policy.local_allowance('K', max(abs(primary_reference_difference)))`, never the sum of operand allowances, companion allowance, native amplitude or post-result fitting. The comparator does **not** require companion allowance equality or modify either bundle. Any ratio above one produces `checks_failed`; altered source, failed per-run check, missing export, non-common time, tampered seal, or nonfinite input produces a fail-closed refusal.
+
+Output is `sim_heat.h1_n2.primary_companion_check/1`, `nativeExecuted=false`, `nativeQualified=false`, `runtimeReady=false`, `referenceAccuracyCertified=false`, `independentlyCertifiedReference=false`. Seven original old static physical 100x checking-centre refusals and all eight actual native blockers stay recorded. This does not replace the missing N1 runner-bound reference migration, authentic host/OMC/MSL identities, three per-host seals, actual native evidence, one-shot manifests, or distinct owner native permission.
+
+## Review/test boundaries
+
+Synthetic source-only vectors from the existing `h1.reference.prepare` are used solely to challenge comparison admission and refusals; their old checking centres still fail seven physical 100x gates. Tests must demonstrate primary/dense unequal allowances can be compared without weakening primary budget; two-sided deviations that individually pass H1 yet fail primary-only cross-run comparison; missing/altered original requests, provenance, source physical facts, grid and hashes; changed seals and missing outputs; no native/evidence status promotion. The correctness of the inherited H1 per-run verifier is outside this focused new-module review unless the adapter exposes a bypass.
+
+**Never insert or adopt these synthetic bundles into production runner or old C1 evidence.** No native query/install/compile/execute. Source and proof/CI must be independently reviewed (R2) before considering this module accepted even for checking.
