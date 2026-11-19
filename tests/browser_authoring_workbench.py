@@ -39,7 +39,7 @@ def run(out: Path) -> None:
                     page.on('request', lambda req: requests.append(req.url))
                     page.on('pageerror', lambda error: errors.append(str(error)))
                     try:
-                        response = page.goto(origin+'/', wait_until='networkidle')
+                        response = page.goto(origin+'/', wait_until='domcontentloaded')
                         assert response and response.ok
                         page.wait_for_function("document.querySelector('#state').textContent.includes('Admitted source only')")
                         assert page.locator('#error').is_hidden()
@@ -85,7 +85,7 @@ def run(out: Path) -> None:
                 page=browser.new_page(viewport={'width':1440,'height':990})
                 page.on('pageerror',lambda err:errors.append(str(err)))
                 try:
-                    response=page.goto(origin+'/',wait_until='networkidle')
+                    response=page.goto(origin+'/',wait_until='domcontentloaded')
                     assert response and response.ok
                     page.wait_for_function("document.querySelector('#comparison-state').textContent.includes('difference(s)')")
                     assert 'H1_D2_K2' in page.locator('#comparison-identity').inner_text()
