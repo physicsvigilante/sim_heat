@@ -36,7 +36,7 @@
   },
   "proposedVersion": {
     "futureCheckingVersion": "sim_heat.h1_n3.physical_interval_reference_v1",
-    "proposedBundleSchema": "sim_heat.h1_n3.reference_bundle_candidate/1",
+    "proposedBundleSchema": "sim_heat.h1_n3.reference_bundle/1",
     "generalH1GraphReferenceRequired": true,
     "fixedOriginalT1TProofIsNotGeneralH1Qualification": true,
     "implementationExists": false,
@@ -158,5 +158,311 @@
     "newReferenceBundleCreated": false,
     "newNativePlanCreated": false,
     "realHostDataIncluded": false
+  },
+  "expectedManifestContract": {
+    "schema": "sim_heat.h1_n3.expected_manifest_authority_contract/1",
+    "futureManifestSchema": "sim_heat.h1_n3.owner_approved_expected_manifest/1",
+    "authorityRepository": "physicsvigilante/review_sandbox",
+    "approvalPathTemplate": "projects/sim_heat/native-approvals/<attemptId>/approved-expected-manifest.json",
+    "ownerGitHubLogin": "physicsvigilante",
+    "independentSourceAndCertificateReviewRequired": true,
+    "ownerExplicitSeparateApprovalRequired": true,
+    "protectedApprovalRevisionRequired": true,
+    "approvalBranchProtectionAndAuditRequired": true,
+    "signatureMethod": "ED25519_DETACHED_OVER_CANONICAL_MANIFEST",
+    "ownerPublicKeyTrustRoot": "PINNED_IN_INDEPENDENTLY_REVIEWED_RUNNER_RELEASE_NOT_CALLER_SUPPLIED",
+    "signedBlobBytesEncoding": "RFC8785_JCS_UTF8_FINITE_NO_DUPLICATE_KEYS",
+    "externalPreOutputServerChronologyRequired": true,
+    "chronology": "GITHUB_SERVER_APPROVAL_EVENT_AND_MANIFEST_COMMIT_STRICTLY_PRECEDE_GITHUB_WORKFLOW_CREATION_AND_ALL_NATIVE_OUTPUTS",
+    "atomicSingleUseAttemptClaimRequired": true,
+    "attemptLedger": "EXTERNAL_APPEND_ONLY_OWNER_CONTROLLED_CLAIM_BEFORE_FIRST_OMC_OPERATION",
+    "runnerMustAuthenticateBeforeAnyOMCOperation": true,
+    "runnerChecksEachInvocation": true,
+    "rejectCallerChosenExpectedHashes": true,
+    "rejectAttemptLocalSealsAsExpected": true,
+    "rejectReapprovalAfterOutput": true,
+    "signedManifestReferenceIncludedInApprovalEnvelope": true,
+    "futureSignedManifestRequiredFields": [
+      "schema",
+      "candidateSourceHead",
+      "candidateSourceTree",
+      "referenceVersion",
+      "implementationClosureSha256",
+      "dependencyLockSha256",
+      "originalModelSha256",
+      "originalStudySha256",
+      "originalFactsSha256",
+      "threeCaseBundleExpectations",
+      "independentFullGridCertificateSha256",
+      "hostBinaryMslAndImageManifest",
+      "singleUseAttemptId",
+      "executionBudgets",
+      "expectedExportNamesAndUnitsSha256",
+      "authorizedBranchAndWorkflowRef",
+      "runAttemptMustEqualOne",
+      "preOutputApprovalPolicyVersion"
+    ],
+    "futurePerCaseExpectationsRequiredFields": [
+      "caseId",
+      "studySha256",
+      "studyDescriptorBytesSha256",
+      "bundleBytesSha256",
+      "bundleSemanticSeal",
+      "gridSha256",
+      "localScalesSha256",
+      "allowancesSha256",
+      "quadratureSha256",
+      "temporalPolicySha256",
+      "physicalCertificateSha256",
+      "exportsAndUnitsSha256",
+      "codeClosureSha256"
+    ],
+    "futureApprovalEnvelopeRequiredFields": [
+      "protectedApprovalGitCommit",
+      "manifestBlobSha256",
+      "manifestPath",
+      "ownerGitHubLogin",
+      "githubApprovalEventId",
+      "githubServerApprovalTimestamp",
+      "independentReviewReportGitBlob",
+      "ownerSignatureBytesSha256",
+      "trustedOwnerKeyId",
+      "runnerReleaseCommit",
+      "attemptLedgerRecordId"
+    ],
+    "approvedManifestExists": false,
+    "approvedManifestGitCommit": null,
+    "pinnedOwnerPublicKeyId": null,
+    "protectedApprovalEventExists": false,
+    "trustedAttemptLedgerExists": false,
+    "actualExternalHostIdentityExists": false,
+    "approvalAuthorityOperational": false
+  },
+  "bundleDispatchContract": {
+    "schema": "sim_heat.h1_n3.bundle_dispatch_contract/1",
+    "canonicalEncoding": "RFC8785_JCS_UTF8_FINITE_NO_DUPLICATE_KEYS",
+    "semanticSealHash": "SHA256_DOMAIN_SEPARATED_JCS_EXCLUDING_SEMANTIC_SEAL",
+    "semanticSealDomain": "sim_heat.h1_n3.reference_bundle/1\\0",
+    "serializedBundleHash": "SHA256_OF_COMPLETE_CANONICAL_BUNDLE_BYTES",
+    "strictByteRepreparationRequired": true,
+    "independentPhysicalErrorCertificateRequired": true,
+    "dispatchImplemented": false,
+    "legacyFallbackPermitted": false,
+    "verifyBothExpectedBundleHashAndSemanticSealBeforeAnyOMC": true,
+    "requireManifestAuthorizedCodeClosureAndDependencyVersions": true,
+    "validateExplicitCaseStudyIdentityBeforeReferencePreparation": true,
+    "requireDistinctPrimaryTightDenseStudyHashes": true,
+    "requireExactAllSamplesAndNoInterpolation": true,
+    "newBundleRequiredFields": [
+      "schema",
+      "checkingVersion",
+      "referenceCaseId",
+      "sourceFactsSha256",
+      "originalModelSha256",
+      "studySha256",
+      "spec",
+      "specSha256",
+      "grid",
+      "columns",
+      "units",
+      "owners",
+      "networkEnvelopes",
+      "scales",
+      "allowances",
+      "temporalPolicy",
+      "flowIntegrals",
+      "quadratureAllowances",
+      "method",
+      "implementationClosureSha256",
+      "dependencyLockSha256",
+      "physicalCertificateSha256",
+      "semanticSeal",
+      "nativeQualified",
+      "nativeExecuted"
+    ],
+    "rows": [
+      {
+        "scope": "legacy",
+        "checkingVersion": "h1.reference.prepare/legacy",
+        "bundleSchema": "sim_heat.reference_bundle/2",
+        "n1Permitted": false,
+        "implemented": true,
+        "requiresExternallyApprovedDispatch": false,
+        "note": "existing runner old preparation only; N1 may NOT silently use its seven physically failing checking centres"
+      },
+      {
+        "scope": "n1_versioned",
+        "checkingVersion": "sim_heat.h1_n3.physical_interval_reference_v1",
+        "bundleSchema": "sim_heat.h1_n3.reference_bundle/1",
+        "n1Permitted": true,
+        "implemented": false,
+        "requiresExternallyApprovedDispatch": true,
+        "note": "future only, explicitly authorized by protected signed approval manifest and independently certified source-physical 100x reference"
+      },
+      {
+        "scope": "interval_candidate",
+        "checkingVersion": "sim_heat.h1_n1.interval_reference_candidate/1",
+        "bundleSchema": "sim_heat.h1_n1.interval_reference_candidate/1",
+        "n1Permitted": false,
+        "implemented": true,
+        "requiresExternallyApprovedDispatch": false,
+        "note": "source-only developer mathematical candidate; never treated as runner reference bundle"
+      }
+    ],
+    "originalH1VerifierMustRefuseNewSchemaUntilVersionedReviewedAdapterExists": true,
+    "missingOrUnrecognizedVersionMustRefuse": true,
+    "crossSchemaOrPostOutputAdoptionMustRefuse": true,
+    "noLegacyDefaultOrSecondChoice": true
+  },
+  "futureRefusalMatrix": [
+    {
+      "condition": "MISSING_OR_STALE_APPROVAL",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "WRONG_OWNER_SIGNATURE_OR_TRUST_ROOT",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "APPROVAL_NOT_BEFORE_NATIVE_RUN",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNPROTECTED_OR_UNREVIEWED_APPROVAL_REVISION",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "SINGLE_USE_ATTEMPT_REPLAY",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "CROSS_CASE_BUNDLE_OR_SEAL",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNKNOWN_CHECKING_VERSION",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "MISSING_CHECKING_VERSION",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "LEGACY_FALLBACK_FOR_N1",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "MIXED_BUNDLE_SCHEMAS",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNSUPPORTED_NEW_SCHEMA_IN_OLD_VERIFIER",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "CHANGED_PRIMARY_ALLOWANCES",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "MISSING_INDEPENDENT_100X_CERTIFICATE",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "INCOMPLETE_77_8_5_PHYSICAL_OR_TEMPORAL_COVERAGE",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "CHANGED_REPREPARED_REFERENCE_BYTES_OR_SEAL",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNATTESTED_HOST",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNATTESTED_CODE_OR_DEPENDENCY_CLOSURE",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "UNFAMILIAR_COMPOSITION_NOT_QUALIFIED",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "POST_OUTPUT_SELF_RESEAL",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "LATE_OR_CROSSED_GITHUB_WORKFLOW",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "MISSING_OR_STALE_STUDY_ORIGINAL_FACTS",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "MISSING_OR_CHANGED_EXPORT_UNIT_OR_GRID",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "FAILED_NEW_BUNDLE_DOUBLE_REPLAY",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    },
+    {
+      "condition": "CHANGED_NATIVE_ATTEMPT_AFTER_PREFLIGHT",
+      "phase": "BEFORE_FIRST_OMC_AND_RECHECK_BEFORE_EACH_CASE",
+      "outcome": "REFUSE_BEFORE_ANY_OMC"
+    }
+  ],
+  "futureGeneralityGate": {
+    "unfamiliarAdmittedH1CompositionsMinimum": 1,
+    "selectedAfterImplementationFreeze": true,
+    "mustNotRequireCoreSolverOrCheckerEdits": true,
+    "mustUseSupportedPublicThermalComponentsAndConnections": true,
+    "mustVerifyIndependentSourceFactsAndRequests": true,
+    "mustExerciseNonT1GraphAndCompletePerOutputPhysicalBounds": true,
+    "externalR2ReviewRequired": true,
+    "demonstrated": false
+  },
+  "futurePhysicalCertificateContract": {
+    "schema": "sim_heat.h1_n3.reference_physical_certificate_contract/1",
+    "sourceMathematics": "EXACT_DECIMAL_RATIONAL_AND_RIGOROUS_PI",
+    "referenceMaximumFraction": "1/100_OF_EACH_ORIGINAL_OUTPUT_NATIVE_ACCEPTANCE_ALLOWANCE",
+    "mandatoryExports": 77,
+    "mandatoryPublicObservations": 8,
+    "mandatoryFlowIntegrals": 5,
+    "primaryRequiredSamples": 2401,
+    "denseRequiredSamples": 4801,
+    "allSamplesRequired": true,
+    "staticNativeUlpAllowance": 64,
+    "staticPhysicalReferenceMaxUlpFraction": "0.64",
+    "dynamicScalePolicy": "UNCHANGED_h1.policy_LOCAL_OUTPUT_K_W_J",
+    "temporalWindowPolicy": "UNCHANGED_STRICTER_h1.temporal_NO_INTERPOLATION",
+    "quadraturePolicy": "UNCHANGED_PER_FLOW_INTEGRAL_OWN_SCALE",
+    "requireSignedOrientationAndBothPorts": true,
+    "independentlyAcceptedPhysicalSourceProof": false,
+    "actualGeneralH1GraphCheckerImplemented": false
   }
 }
