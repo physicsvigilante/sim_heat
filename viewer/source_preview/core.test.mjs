@@ -156,3 +156,66 @@ test('logical topology uses source port grouping, never layout node ids or geome
   const x=compareSourcePreviews(v,reordered);
   assert.equal(x.changes.length,0);
 });
+
+// Independent PR71 R2 review-01 source-evidence regression: test-first RED.
+test('same claimed study SHA cannot identify two different model SHA values',()=>{
+  const variant=copy();
+  variant.source.modelSha256='a'.repeat(64);
+  // Even with all displayed SI values and port groups unchanged, the one
+  // study source byte identity cannot point to a different physical model.
+  assert.equal(variant.source.studySha256,copy().source.studySha256);
+  assert.doesNotThrow(()=>admitPreview(variant));
+  assert.throws(()=>compareSourcePreviews(copy(),variant),/study SHA-256/);
+  const newStudy=copy();newStudy.source.studySha256='b'.repeat(64);
+  const sameModel=compareSourcePreviews(copy(),newStudy);
+  assert.equal(sameModel.baseline.modelSha256,sameModel.variant.modelSha256);
+});
+
+test('cross-kind component changes expose authored inputs and provenance',()=>{
+  const changed=copy(),rod=changed.components.find(c=>c.id==='shortcut');
+  assert.equal(rod.kind,'RodArea');
+  rod.kind='RodCircular';
+  const area=rod.inputs.find(x=>x.name==='A');
+  assert(area);area.name='d';area.quantityType='Length';area.siUnit='m';area.sourceValue=0.02;
+  for(const note of rod.sourceProvenance){
+    if(note.target==='shortcut.A')note.target='shortcut.d';
+    note.appliesTo=note.appliesTo.map(v=>v==='shortcut.A'?'shortcut.d':v);
+    if(note.appliesTo.includes('shortcut.d'))note.note='Source diameter assumed instead of area';
+  }
+  rod.componentProvenance.push({target:'shortcut',kind:'illustrative',
+    locator:'source-only review fixture',note:'Circular, not area, rod assumption'});
+  changed.source.modelSha256='a'.repeat(64);
+  changed.source.studySha256='b'.repeat(64);
+  assert.doesNotThrow(()=>admitPreview(changed));
+  const report=compareSourcePreviews(copy(),changed);
+  assert(report.changes.some(x=>x.category==='component'&&x.label.includes('shortcut')));
+  assert(report.changes.some(x=>x.category==='input'&&x.label.includes('shortcut.A')&&x.to==='not present'));
+  assert(report.changes.some(x=>x.category==='input'&&x.label.includes('shortcut.d')&&x.from==='not present'));
+  assert(report.changes.some(x=>x.category==='provenance'&&x.label.includes('shortcut')&&x.to.includes('Circular')));
+  assert.equal(report.nativeExecuted,false);
+  assert.equal(report.publicRequestStatus,'not_computed');
+});
+
+test('added and removed components report each authored input and attribution',()=>{
+  const baseline=copy(),more=copy(),template=more.components.find(c=>c.kind==='Body');
+  const newBody=structuredClone(template),id='extra_body';
+  newBody.id=id;
+  for(const source of newBody.sourceProvenance){
+    source.target=source.target.replace(template.id+'.',id+'.');
+    source.appliesTo=source.appliesTo.map(x=>x.replace(template.id+'.',id+'.'));
+  }
+  for(const source of newBody.componentProvenance)source.target=id;
+  more.components.push(newBody);
+  more.nodes.push({id:'node_55',owner:id,role:'body',label:id,ports:[id+'.port']});
+  more.source.modelSha256='a'.repeat(64);
+  more.source.studySha256='b'.repeat(64);
+  assert.doesNotThrow(()=>admitPreview(more));
+  const added=compareSourcePreviews(baseline,more);
+  assert(added.changes.some(x=>x.category==='component'&&x.label===id));
+  assert.equal(added.changes.filter(x=>x.category==='input'&&x.label.startsWith(id+'.')).length,3);
+  assert(added.changes.some(x=>x.category==='provenance'&&x.label.includes(id)&&x.to.includes(id+'.m')));
+  const removed=compareSourcePreviews(more,baseline);
+  assert(removed.changes.some(x=>x.category==='component'&&x.label===id));
+  assert.equal(removed.changes.filter(x=>x.category==='input'&&x.label.startsWith(id+'.')).length,3);
+  assert(removed.changes.some(x=>x.category==='provenance'&&x.label.includes(id)&&x.from.includes(id+'.m')));
+});
