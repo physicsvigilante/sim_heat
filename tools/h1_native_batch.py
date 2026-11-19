@@ -48,9 +48,14 @@ def confined(root: Path, name: str) -> Path:
 
 
 def load_plan(root: Path, path: Path, pin: str) -> dict:
-    require(path.is_file() and path.stat().st_size <= 65536 and sha(path) == pin,
+    require(path.is_file() and path.stat().st_size <= 65536,
+            'plan', 'plan missing or oversized')
+    # Hash and parse one immutable snapshot; never authenticate one read and
+    # parse another. This only validates bytes, not native execution authority.
+    raw = path.read_bytes()
+    require(len(raw) <= 65536 and hashlib.sha256(raw).hexdigest() == pin,
             'plan', 'plan identity mismatch')
-    plan = strict_json(path.read_text(encoding='utf-8'))
+    plan = strict_json(raw.decode('utf-8'))
     require(set(plan) == {'schema','branch','caseRoot','library','output','compilerVersion',
                          'mslVersion','dependencies','pins','cases'}, 'plan', 'unexpected plan fields')
     require(plan['schema'] == 'sim_heat.native_batch/1' and plan['compilerVersion'] == 'OpenModelica 1.27.0'
