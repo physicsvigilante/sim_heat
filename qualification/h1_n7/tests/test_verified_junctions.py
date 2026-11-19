@@ -105,7 +105,7 @@ class VerifiedCircularJunctions(unittest.TestCase):
         self.assertEqual(r["sourceFactsSha256"],ORIGINAL_PIN)
         self.assertTrue(r["physicalPiNotReplacedByNumericalMidpoint"])
         self.assertFalse(r["timeTrajectoryComputed"])
-        self.assertFalse(r["fullGrid77Plus8Plus5Certified"])
+        self.assertFalse(r["allGrid77Plus8Plus5Certified"])
 
     def test_simple_pi_one_junction_rigorous_analytical_enclosure(self):
         r=self.run_case(single_circular())
