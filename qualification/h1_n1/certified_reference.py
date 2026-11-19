@@ -129,7 +129,23 @@ def identity(n):
 
 
 def exp_step(b, intervals):
-    """Validated one-grid-step exp(B/intervals) with rigorous Taylor tail."""
+    """Validated affine exp(B/intervals), only for an exactly zero last row.
+
+    Overwriting the affine row with the identity is mathematically valid ONLY
+    when B[-1,:] is exactly zero. Otherwise the helper must REFUSE instead
+    of returning a nonconservative claimed matrix-exponential enclosure.
+    """
+    if type(intervals) is not int or intervals <= 0:
+        raise ValueError('Taylor requires a positive integer grid')
+    if not isinstance(b, (list, tuple)) or not (1 <= len(b) <= 7) or any(
+        not isinstance(row, (list, tuple)) or len(row) != len(b) for row in b
+    ):
+        raise ValueError('Taylor requires a square matrix of dimension 1..7')
+    if any(type(v) is not I or type(v.lo) is not int or type(v.hi) is not int
+           for row in b for v in row):
+        raise ValueError('Taylor matrix entries must be bounded intervals')
+    if any(v.lo != 0 or v.hi != 0 for v in b[-1]):
+        raise ValueError('Taylor requires exactly zero affine last row')
     x = [[e / intervals for e in row] for row in b]
     rho = max(sum((F(max(abs(v.lo), abs(v.hi)), Q) for v in row), F(0)) for row in x)
     if not (F(0) < rho <= F(1, 2)):
@@ -178,6 +194,27 @@ def read_facts(path=HERE/'reference-facts.json'):
     if len(s['bodies']) != 3 or len(s['boundaries']) != 2:
         raise ValueError("wrong body/boundary count")
     return s
+
+
+def _same_pinned_fact_value(actual, expected):
+    """Exact typed recursive equality, not mutable metadata hash assertions.
+
+    This also checks fields which are not currently read by `construct`, such
+    as the full analysis identity and source-attribution provenance. Lexical
+    decimal precision is preserved (Decimal('95') != Decimal('95.0') here).
+    A dict's insertion order is not physical data; list order is preserved.
+    """
+    if type(actual) is not type(expected):
+        return False
+    if type(expected) is dict:
+        return (actual.keys() == expected.keys() and
+                all(_same_pinned_fact_value(actual[k], v) for k, v in expected.items()))
+    if type(expected) is list:
+        return (len(actual) == len(expected) and
+                all(_same_pinned_fact_value(x, y) for x, y in zip(actual, expected)))
+    if type(expected) is Decimal:
+        return actual.as_tuple() == expected.as_tuple()
+    return actual == expected
 
 
 def construct(s):
@@ -340,6 +377,14 @@ def reqs_at(exports):
 
 
 def certify(s, intervals=2400, *, output=None):
+    # The CLI is not the only caller. Never certify a mutable, possibly
+    # altered in-memory object while stamping the trusted FACTS_SHA256.
+    # Compare every typed fact with a fresh, byte-verified source load, and
+    # compute solely from THAT private snapshot (avoids caller TOCTOU edits).
+    pinned=read_facts()
+    if not _same_pinned_fact_value(s, pinned):
+        raise ValueError('pinned source-facts object identity mismatch')
+    s=pinned
     if intervals not in (2400,4800):raise ValueError('unsupported scope grid')
     if output is not None:
         output=Path(output).resolve()

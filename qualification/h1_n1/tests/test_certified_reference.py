@@ -1,5 +1,7 @@
 """Independent and adversarial offline-only tests for the N1 interval candidate."""
 import json
+from copy import deepcopy
+from unittest.mock import patch
 from decimal import Decimal
 from fractions import Fraction as F
 import math
@@ -29,6 +31,84 @@ class ArithmeticSafety(unittest.TestCase):
             p=Path(tmp)/'facts.json';p.write_text(data.replace('0.00013','0.00014',1))
             with self.assertRaisesRegex(ValueError,'byte identity mismatch'):
                 n.read_facts(p)
+
+    def test_f01_mutated_in_memory_facts_refused_before_construct(self):
+        # The original GitHub source-fact file may be byte-pinned while a
+        # public caller changes the mutable object returned by read_facts().
+        # No trajectory computation or source identity receipt is permitted.
+        edits = {
+            'rod_conductivity': lambda x: x['rods']['T10'].__setitem__('k', Decimal('95.00000000000001')),
+            'rod_orientation': lambda x: x['rods']['T10'].__setitem__('a', 'B'),
+            'boundary_temperature': lambda x: x['boundaries']['T_Warm'].__setitem__('T', 366),
+            'body_initial_temperature': lambda x: x['bodies']['T_Ridge'].__setitem__('T_initial', 338),
+            'analysis_horizon': lambda x: x['analysis'].__setitem__('stopTime', 2401),
+            'analysis_grid': lambda x: x['analysis'].__setitem__('intervals', 4800),
+            'node_order': lambda x: x['nodes'].reverse(),
+            'study_identity': lambda x: x.__setitem__('studySha256', '0'*64),
+            'provenance_claim': lambda x: x.__setitem__('provenance', 'fabricated'),
+            'unexpected_field': lambda x: x.__setitem__('unsafe_extra', True),
+            'removed_field': lambda x: x['rods']['T06'].pop('d'),
+            'typed_boolean_spoof': lambda x: x['analysis'].__setitem__('startTime', False),
+            'float_instead_of_exact_decimal': lambda x: x['rods']['T10'].__setitem__('A', 0.00013),
+        }
+        for label, edit in edits.items():
+            with self.subTest(mutation=label):
+                supplied=deepcopy(n.read_facts())
+                edit(supplied)
+                with patch.object(n, 'construct', side_effect=AssertionError('forged object reached solver')) as build:
+                    with self.assertRaisesRegex(ValueError, 'pinned source-facts object identity mismatch'):
+                        n.certify(supplied, 2400)
+                    build.assert_not_called()
+
+    def test_f01_refusal_creates_no_output_directory(self):
+        supplied=deepcopy(n.read_facts())
+        supplied['boundaries']['T_Cool']['T']=Decimal('289.00000001')
+        with tempfile.TemporaryDirectory() as td:
+            dest=Path(td)/'should-not-be-created'
+            with patch.object(n, 'construct', side_effect=AssertionError('should not compute')) as build:
+                with self.assertRaisesRegex(ValueError, 'pinned source-facts object identity mismatch'):
+                    n.certify(supplied, 2400, output=dest)
+                build.assert_not_called()
+            self.assertFalse(dest.exists())
+
+    def test_f01_unchanged_in_memory_facts_pass_identity_gate(self):
+        supplied=deepcopy(n.read_facts())
+        with patch.object(n, 'construct', side_effect=RuntimeError('trusted facts reached construct')) as build:
+            with self.assertRaisesRegex(RuntimeError, 'trusted facts reached construct'):
+                n.certify(supplied, 2400)
+            build.assert_called_once()
+            # Future modifications to a caller-owned object cannot change the
+            # snapshot that actually drives the mathematical reference.
+            self.assertIsNot(build.call_args.args[0], supplied)
+
+    def test_f02_nonzero_affine_last_row_refuses_instead_of_false_enclosure(self):
+        bad_matrices = [
+            [[n.interval(1)]],  # old code returned [1,1] instead of exp(1/2400)
+            [[n.interval(0), n.interval(0)], [n.interval(1), n.interval(0)]],
+            [[n.interval(1), n.interval(0)], [n.I(-1, 1), n.interval(0)]],
+        ]
+        for i, bad in enumerate(bad_matrices):
+            with self.subTest(counterexample=i):
+                with self.assertRaisesRegex(ValueError, 'exactly zero affine last row'):
+                    n.exp_step(bad, 2400)
+
+    def test_f02_matrix_shape_and_types_refused(self):
+        non_square = [
+            [],
+            [[n.interval(1), n.interval(0)]],
+            [[n.interval(1)], [n.interval(0)]],
+            [[n.interval(1), n.interval(0)], [n.interval(0)]],
+            [[], []],
+            n.identity(8),  # bounded source-only 7-state affine scope
+        ]
+        for i, bad in enumerate(non_square):
+            with self.subTest(shape=i):
+                with self.assertRaisesRegex(ValueError, 'square matrix'):
+                    n.exp_step(bad, 2400)
+        with self.assertRaisesRegex(ValueError, 'matrix entries must be bounded intervals'):
+            n.exp_step([[n.interval(1), 0], [n.interval(0), n.interval(0)]], 2400)
+        with self.assertRaisesRegex(ValueError, 'positive integer grid'):
+            n.exp_step([[n.interval(1), n.interval(0)], [n.interval(0), n.interval(0)]], 0)
 
     def test_fixed_point_outward_endpoints_and_inversion(self):
         third=n.interval(F(1,3))
