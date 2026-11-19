@@ -20,6 +20,20 @@ CIRCUIT_KINDS = ("RodArea", "RodCircular")
 RE_IDENT = re.compile(r"[A-Za-z][A-Za-z0-9_]*\Z")
 RE_HASH = re.compile(r"[0-9a-f]{64}\Z")
 
+# Mirror only production H1's Modelica INSTANCE identifier restriction.
+# Metadata study IDs and synthetic graph node labels are not Modelica names.
+# Parity against h1.model.RESERVED is enforced in the offline tests.
+COMPONENT_RESERVED = set(
+    "algorithm and annotation block break class connect connector constant "
+    "constrainedby der discrete each else elseif elsewhen encapsulated end "
+    "enumeration equation expandable extends external false final flow for "
+    "function if import impure in initial inner input loop model not operator "
+    "or outer output package parameter partial protected public pure record "
+    "redeclare replaceable return stream then true type when while within "
+    "time Real Integer Boolean String Modelica SimHeat".split()
+)
+
+
 class PhysicalRefusal(ValueError):
     """A physical input, evidence or exact-arithmetic premise is not satisfied."""
 
@@ -60,7 +74,12 @@ def _fraction_positive(number):
     return value
 
 def _ident(name):
+    # This type check applies to study metadata IDs and synthetic node labels.
     return type(name) is str and RE_IDENT.fullmatch(name) is not None
+
+def _component_ident(name):
+    # Components become Modelica instance names; reserved keywords cannot pass.
+    return _ident(name) and name not in COMPONENT_RESERVED
 
 def parse_facts(raw, *, expected_sha256):
     """Hash the SAME input bytes that are parsed; caller's hash is NOT an approval."""
@@ -94,13 +113,16 @@ def parse_facts(raw, *, expected_sha256):
     used=set()
     owned=set()
     incident=set()
+    # Port incidence counts every physical rod end (parallel rods count twice).
+    # Graph neighbours alone cannot detect an ownerless open degree-one port.
+    port_incidence={node:0 for node in nodes}
     for group,maximum in (("bodies",8),("boundaries",8),("rods",32)):
         records=data[group]
         need(type(records) is dict and len(records) <= maximum,
              "unsupported H1 component inventory")
         for name,c in records.items():
-            need(_ident(name) and name not in all_names and type(c) is dict,
-                 "invalid or duplicate component identity")
+            need(_component_ident(name) and name not in all_names and type(c) is dict,
+                 "invalid, reserved or duplicate component identity")
             all_names.add(name)
             if group=="bodies":
                 need(set(c)=={"node","m","c","T_initial"}, "body fields drift")
@@ -124,6 +146,8 @@ def parse_facts(raw, *, expected_sha256):
                      "invalid rod endpoints")
                 incident.update((c["a"],c["b"]))
                 used.update((c["a"],c["b"]))
+                port_incidence[c["a"]]+=1
+                port_incidence[c["b"]]+=1
             if group!="rods":
                 node=c["node"]
                 need(type(node) is str and node in nodes and node not in owned,
@@ -131,6 +155,8 @@ def parse_facts(raw, *, expected_sha256):
                 owned.add(node)
                 used.add(node)
     need(used==set(nodes), "unused source node")
+    need(all(port_incidence[node]>=2 for node in nodes if node not in owned),
+         "open ownerless rod end: every ownerless junction requires two rod ports")
     need(all(c["node"] in incident for c in data["boundaries"].values()),
          "disconnected maintained boundary")
     need(bool(data["bodies"]) if data["mode"]=="transient"
