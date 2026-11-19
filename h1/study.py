@@ -184,6 +184,21 @@ def _same_typed(actual, expected) -> bool:
     if type(expected) in (tuple, list):
         return len(actual) == len(expected) and all(
             _same_typed(a, b) for a, b in zip(actual, expected))
+    if type(expected) in (set, frozenset):
+        # Native set equality equates bool and int (True == 1), even when
+        # their types differ. Match unordered members one-to-one through
+        # the same recursive exact-type rule as every other snapshot field.
+        if len(actual) != len(expected):
+            return False
+        remaining = list(actual)
+        for member in expected:
+            for index, candidate in enumerate(remaining):
+                if _same_typed(candidate, member):
+                    remaining.pop(index)
+                    break
+            else:
+                return False
+        return not remaining
     return actual == expected
 
 
