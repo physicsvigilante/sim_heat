@@ -104,6 +104,35 @@ class StaticPhysicalCandidateTests(unittest.TestCase):
         self.assertEqual(r["staticExports"],1)
         self.assertEqual(set(r["exports"]),{"Bar.G"})
 
+    def test_h1_analysis_envelope_and_anchored_components_fail_closed(self):
+        changes={
+          "missing_transient_key":lambda s:s["analysis"].pop("solver"),
+          "extra_transient_key":lambda s:s["analysis"].update(method="explicit"),
+          "boolean_intervals":lambda s:s["analysis"].update(intervals=True),
+          "odd_intervals":lambda s:s["analysis"].update(intervals=1001),
+          "coarse_intervals":lambda s:s["analysis"].update(intervals=50),
+          "wrong_solver":lambda s:s["analysis"].update(solver="euler"),
+          "wrong_tolerance":lambda s:s["analysis"].update(tolerance=1e-5),
+          "start_changed":lambda s:s["analysis"].update(startTime=1),
+          "negative_time":lambda s:s["analysis"].update(stopTime=-1),
+          "non_H1_node":lambda s:s["nodes"].append("Floating"),
+          "boundary_unplugged":lambda s:s["rods"].pop("Bar"),
+        }
+        for label,mutate in changes.items():
+            with self.subTest(case=label):
+                spec=small_graph()
+                mutate(spec)
+                raw,digest=raw_and_sha(spec)
+                with self.assertRaises(n4.PhysicalRefusal):
+                    n4.create_static_candidate(raw,expected_sha256=digest)
+        steady=small_graph()
+        steady["mode"]="steady"
+        steady["bodies"]={}
+        steady["analysis"]={"stopTime":10}
+        raw,digest=raw_and_sha(steady)
+        with self.assertRaises(n4.PhysicalRefusal):
+            n4.create_static_candidate(raw,expected_sha256=digest)
+
     def test_binary64_ties_exact_round_to_even_and_subnormal_boundary(self):
         self.assertEqual(n4.rn_even_binary64(F(1)+F(1,2**53)),F(1))
         self.assertEqual(n4.rn_even_binary64(F(1)+3*F(1,2**53)),

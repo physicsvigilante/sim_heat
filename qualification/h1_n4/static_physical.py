@@ -136,8 +136,43 @@ def parse_facts(raw, *, expected_sha256):
     need(bool(data["bodies"]) if data["mode"]=="transient"
          else bool(data["rods"]) and bool(data["boundaries"]) and not data["bodies"],
          "invalid steady/transient component domain")
-    need(type(data["analysis"]) is dict,
-         "analysis must be explicitly present (not interpreted by static checker)")
+    analysis=data["analysis"]
+    need(type(analysis) is dict, "analysis must be an explicit H1 object")
+    if data["mode"]=="steady":
+        need(not analysis,"steady reference must not claim physical time")
+    else:
+        need(set(analysis)=={"startTime","stopTime","intervals","solver","tolerance"},
+             "transient analysis fields")
+        start=analysis["startTime"]
+        need(type(start) in (int,Decimal) and F(start)==0,
+             "original source analysis must start at zero")
+        stop=_fraction_positive(analysis["stopTime"])
+        need(F(1,10**6)<=stop<=F(10**7),
+             "physical time horizon outside H1 domain")
+        count=analysis["intervals"]
+        need(type(count) is int and 1000<=count<=20000 and count%2==0,
+             "transient sample intervals outside H1 domain")
+        tolerance=_fraction_positive(analysis["tolerance"])
+        need(type(analysis["solver"]) is str and analysis["solver"]=="dassl"
+             and tolerance in (F(1,10**8),F(1,10**10)),
+             "H1 study solver/tolerance not supported")
+    adjacency={n:set() for n in nodes}
+    for rod in data["rods"].values():
+        adjacency[rod["a"]].add(rod["b"])
+        adjacency[rod["b"]].add(rod["a"])
+    remaining=set(nodes)
+    while remaining:
+        start=remaining.pop()
+        component={start}
+        frontier=[start]
+        while frontier:
+            for other in adjacency[frontier.pop()]:
+                if other not in component:
+                    component.add(other)
+                    remaining.discard(other)
+                    frontier.append(other)
+        need(bool(component & owned),
+             "unanchored H1 thermal component")
     return data
 
 def power_two(e):
