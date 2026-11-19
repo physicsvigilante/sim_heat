@@ -359,6 +359,46 @@ class IndependentCornerReplay(unittest.TestCase):
         with self.assertRaises(n8.CornerRefusal):
             self.cross(pin="0"*64)
 
+    def test_review02_coherently_widened_area_junction_exceeds_declared_width_refuses(self):
+        """Chat B review-02: every duplicated label/physical ledger stays coherent.
+
+        Source G_A=1, G_B=2, H=410, C=300; true J=1010/3. An
+        untrusted report that claims a 1e-6 K precision limit must not PASS
+        with a mathematically conservative but 110 K-wide temperature band.
+        This must fail at the width guard, NOT a malformed-alias guard.
+        """
+        raw,pin=serialize(area_chain())
+        good=n7.solve_snapshot(raw,expected_sha256=pin,body_node_temperatures={})
+        fake=deepcopy(good)
+        self.assertEqual(good["junctionTemperatureEnclosuresK"]["J"],
+                         ["1010/3","1010/3"])
+        for key in ("junctionTemperatureEnclosuresK",
+                    "allNodeTemperatureKExactPhysicalEnclosures"):
+            fake[key]["J"]=["300","410"]
+        fake["proof"]["rows"][0]["enclosureK"]=["300","410"]
+        fake["rodHeatFlows"]["A"]["heatFlowWExactPhysicalEnclosure"]=["0","110"]
+        fake["rodHeatFlows"]["B"]["heatFlowWExactPhysicalEnclosure"]=["0","220"]
+        for node,bounds in (("Hot",["0","110"]),("Cold",["-220","0"]),
+                            ("J",["-110","220"])):
+            fake["nodeBalanceEnclosures"][node][
+                "outwardHeatFlowWIndependentIntervalSum"]=bounds
+        fake["nodeBalanceEnclosures"]["Hot"]["boundarySupplyWEnclosure"]=["0","110"]
+        fake["nodeBalanceEnclosures"]["Cold"]["boundarySupplyWEnclosure"]=["-220","0"]
+        allowed=F(fake["proof"]["maximumPermittedEnclosureWidthK"])
+        published=tuple(map(F,fake["junctionTemperatureEnclosuresK"]["J"]))
+        self.assertEqual(allowed,F(1,10**6))
+        self.assertEqual(published[1]-published[0],F(110))
+        self.assertLess(allowed,published[1]-published[0])
+        # The new width assertion is the FIRST failing predicate for this
+        # fully coordinated physical-source and flow-record mutation.
+        with self.assertRaisesRegex(n8.CornerRefusal,
+                                    "published junction enclosure width exceeds declared maximum"):
+            n8.replay(raw,expected_sha256=pin,body_node_temperatures={},
+                      reported=fake)
+        # Original N7 report's exact-singleton teaching output still passes.
+        self.assertEqual(n8.replay(raw,expected_sha256=pin,
+                body_node_temperatures={},reported=good)["endpointCornersChecked"],1)
+
     def test_area_only_corner_replay_is_exact_singleton(self):
         raw,pin=serialize(area_chain())
         r=n7.solve_snapshot(raw,expected_sha256=pin,body_node_temperatures={})
