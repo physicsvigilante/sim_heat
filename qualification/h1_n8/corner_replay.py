@@ -478,6 +478,14 @@ def _replay_impl(raw,*,expected_sha256,body_node_temperatures,reported):
     known_lo,known_hi=min(known.values()),max(known.values())
     for name in junctions:
         lo,hi=enclosure[name]
+        # N7/1 also promises a *maximum published resolution*, not merely
+        # mathematical containment of the true physical temperature.
+        # Independently verify that the claimed full width honours the
+        # source-only precision limit. The zero-junction proof has no such
+        # field and intentionally does not enter this loop.
+        maximum_width=F(reported["proof"]["maximumPermittedEnclosureWidthK"])
+        need(F(0)<=hi-lo<=maximum_width,
+             "published junction enclosure width exceeds declared maximum")
         safe_lo=max(known_lo,centre[name]-barriers[name])
         safe_hi=min(known_hi,centre[name]+barriers[name])
         need(safe_lo<=safe_hi and lo<=safe_lo<=safe_hi<=hi,

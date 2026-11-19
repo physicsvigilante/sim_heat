@@ -399,6 +399,26 @@ class IndependentCornerReplay(unittest.TestCase):
         self.assertEqual(n8.replay(raw,expected_sha256=pin,
                 body_node_temperatures={},reported=good)["endpointCornersChecked"],1)
 
+    def test_review02_no_unknown_junction_remains_supported(self):
+        """A zero-junction certificate has no junction width obligation."""
+        spec=area_chain()
+        spec["id"]="NoUnknownCircularFreeDirectConduction"
+        spec["nodes"]=["Hot","Cold"]
+        spec["rods"]={
+            "A":{"kind":"RodArea","a":"Hot","b":"Cold",
+                 "k":10,"A":0.1,"L":1}
+        }
+        raw,pin=serialize(spec)
+        r=n7.solve_snapshot(raw,expected_sha256=pin,body_node_temperatures={})
+        self.assertEqual(r["junctionsEnclosed"],0)
+        self.assertEqual(r["proof"]["algorithm"],"NO_UNKNOWN_JUNCTIONS")
+        self.assertNotIn("maximumPermittedEnclosureWidthK",r["proof"])
+        verified=n8.replay(raw,expected_sha256=pin,
+                           body_node_temperatures={},reported=r)
+        self.assertEqual(verified["junctionsCompared"],0)
+        self.assertEqual(verified["endpointCornersChecked"],1)
+        self.assertFalse(verified["nativeQualified"])
+
     def test_area_only_corner_replay_is_exact_singleton(self):
         raw,pin=serialize(area_chain())
         r=n7.solve_snapshot(raw,expected_sha256=pin,body_node_temperatures={})

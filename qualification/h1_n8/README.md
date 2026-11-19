@@ -25,3 +25,21 @@ The corrected N8 verifier now requires the exact, explicit N7/1 **source-only** 
 Independently re-parsed source facts now anchor every reported model/study hash string, body assumption, prescribed source boundary Kelvin, source geometry, oriented conductor endpoint, sign convention and **full rational conductance interval**. The cross-verifier reconstructs each full physical flux interval and each node's outward ledger, conditional body rate and boundary supply and checks the N7 report's signed physical labels and qualification notes. It confirms every all-node temperature enclosure matches the junction proof or source-exact known value and checks the source proof rows' published intervals. This is **semantic verification of the N7/1 report supplied to N8**; it does NOT certify the external Modelica source, authorize the old native runner, or qualify a dynamic trajectory.
 
 Malformed/missing nested report structures refuse as \`CornerRefusal\`, not arbitrary Python errors. The exact source Pi and independent Cramer-corner/universal-barrier methods remain unchanged, and all previously frozen N1–N7 code is untouched. Further independent R2 correction review is required at the NEW N8 HEAD before accepting this cross-verifier.
+
+## Independent review-02: reported precision versus proof containment
+
+A second Chat B report (CHANGES REQUESTED on prior HEAD 23172ce2)
+confirmed the original false authority flags and rod direction/G metadata
+findings were repaired, but exposed a missing **declared precision** check.
+N8 can independently prove a physically valid interval yet must not certify
+a claimed N7/1 result whose **published temperature enclosure** is wider than
+the proof's maximumPermittedEnclosureWidthK (exactly 1/1000000 K). A
+coordinated report forgery widened an exact-area junction from a singleton
+1010/3 K to 300..410 K, correctly updating its three duplicated interval
+aliases, both signed rod fluxes and all node ledgers. The old N8 returned
+PASS because containment of the true temperature alone is insufficient
+for **N7 report fidelity**. The new exact-rational width guard rejects that
+report; legitimate zero-junction N7 reports, which have no width field, are
+still admitted. The mathematical N7 proof, source facts, native runner,
+and older historical reports remain unchanged. A new narrow independent
+R2 correction review is required for this repaired N8 evidence contract.
