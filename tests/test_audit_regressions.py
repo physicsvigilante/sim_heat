@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from h1.model import Binding, Refusal
 from h1.source_preview import build_source_preview, serialized
-from h1.study import load_study
+from h1.study import load_study, verified_snapshot, _same_typed
 from tools.h1_native_batch import load_plan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +55,35 @@ class AuditRegressions(unittest.TestCase):
         study.request_report['requests'][0]['unit'] = 'J'
         with self.assertRaises(Refusal):
             build_source_preview(study)
+
+    def test_frozenset_member_type_drift_refuses_source_preview_identity(self):
+        # Independent R2 review: True compares equal to 1 in native set
+        # equality. Exact typed source re-admission must not coerce it.
+        admitted = load_study(CASES/'D1/study.json', CASES)
+        self.assertEqual(admitted.topology.anchored_nodes, frozenset({0, 1}))
+        wrong = replace(admitted, topology=replace(
+            admitted.topology, anchored_nodes=frozenset({0, True})))
+        self.assertEqual(wrong.topology.anchored_nodes,
+                         admitted.topology.anchored_nodes)
+        self.assertFalse(_same_typed(wrong, admitted))
+        with self.assertRaises(Refusal) as found:
+            verified_snapshot(wrong)
+        self.assertEqual(found.exception.code, 'identity')
+        with self.assertRaises(Refusal):
+            build_source_preview(wrong)
+
+    def test_unordered_typed_snapshot_equality_keeps_legitimate_copies(self):
+        admitted = load_study(CASES/'D1/study.json', CASES)
+        copied = replace(admitted, topology=replace(
+            admitted.topology, anchored_nodes=frozenset({1, 0})))
+        self.assertTrue(_same_typed(copied, admitted))
+        self.assertEqual(build_source_preview(copied)['status'],
+                         'admitted_source_only')
+        self.assertFalse(_same_typed(frozenset({0, True}),
+                                     frozenset({0, 1})))
+        self.assertFalse(_same_typed(frozenset({True}), frozenset({1})))
+        self.assertFalse(_same_typed({0, True}, {0, 1}))
+        self.assertTrue(_same_typed(frozenset({1, 0}), frozenset({0, 1})))
 
     def test_preview_rejects_mutated_topology(self):
         study = load_study(CASES/'D1/study.json', CASES)
