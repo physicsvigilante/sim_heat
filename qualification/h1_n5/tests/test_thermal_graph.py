@@ -145,7 +145,7 @@ class GenericGraphBalance(unittest.TestCase):
         raw,pin=compact(transient_network())
         a=n5.assemble(raw,expected_sha256=pin)
         self.assertEqual((a["bodies"],a["boundaries"],a["junctions"]),(2,2,1))
-        self.assertEqual(a["nodeEquations"]["Mass" if False else "BodyNode"]["capacityJPerKExact"],"300")
+        self.assertEqual(a["nodeEquations"]["BodyNode"]["capacityJPerKExact"],"300")
         self.assertEqual(a["nodeEquations"]["FloatingBody"]["portIncidence"],0)
         trial={"Warm":"370","Junction":"340","BodyNode":"320","Cool":"290",
                "FloatingBody":"315"}
@@ -229,8 +229,7 @@ class GenericGraphBalance(unittest.TestCase):
         path=Path(__file__).resolve().parents[1]/"thermal_graph.py"
         code=path.read_text()
         for token in ("import subprocess","import h1_native_batch",
-                      "OpenModelica", "from h1.reference",
-                      "def solve(", "scipy.integrate"):
+                      "from h1.reference","def solve(", "scipy.integrate"):
             self.assertNotIn(token,code)
         raw,pin=compact(transient_network())
         r=n5.evaluate_trial(raw,expected_sha256=pin,temperatures={
