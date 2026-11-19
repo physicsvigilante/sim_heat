@@ -9,7 +9,7 @@ import shutil
 import sys
 from threading import Thread
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -89,7 +89,7 @@ def run(out: Path) -> None:
                 try:
                     response=page.goto(origin+'/',wait_until='domcontentloaded')
                     assert response and response.ok
-                    page.wait_for_function("document.querySelector('#comparison-state').textContent.includes('difference(s)')")
+                    expect(page.locator('#comparison-state')).to_contain_text('difference(s)')
                     assert 'H1_D2_K2' in page.locator('#comparison-identity').inner_text()
                     assert 'shortcut' not in page.locator('#comparison-changes').inner_text()
                     assert 'rod.k' in page.locator('#comparison-changes').inner_text()
@@ -128,7 +128,7 @@ def run(out: Path) -> None:
                     page.locator('#variant-import').set_input_files({
                         'name':'admitted-D1.json','mimeType':'application/json',
                         'buffer':json.dumps(d1).encode('utf-8')})
-                    page.wait_for_function("document.querySelector('#comparison-identity').textContent.includes('H1_D1')")
+                    expect(page.locator('#comparison-identity')).to_contain_text('H1_D1')
                     page.locator('#view-variant').click()
                     assert 'H1_D1' in page.locator('#graph-title').inner_text()
                     assert d1['source']['studySha256'] in page.locator('#identity').inner_text()
@@ -153,8 +153,9 @@ def run(out: Path) -> None:
                         const pending=original.apply(this,args);
                         if(this.name==='slow-D1.json'){
                           return new Promise((resolve,reject)=>{
+                            document.body.dataset.slowScenarioPending='yes';
                             window.__releaseSlowScenario=()=>pending.then(v=>{
-                              window.__slowReadDelivered=true;resolve(v);
+                              window.__slowReadDelivered=true;document.body.dataset.slowReadDelivered='yes';resolve(v);
                             },reject);
                           });
                         }
@@ -165,15 +166,15 @@ def run(out: Path) -> None:
                     page.locator('#variant-import').set_input_files({
                         'name':'slow-D1.json','mimeType':'application/json',
                         'buffer':json.dumps(d1).encode('utf-8')})
-                    page.wait_for_function("typeof window.__releaseSlowScenario==='function'")
+                    page.locator('body[data-slow-scenario-pending="yes"]').wait_for()
                     page.locator('#variant-import').set_input_files({
                         'name':'fast-S1.json','mimeType':'application/json',
                         'buffer':json.dumps(s1).encode('utf-8')})
-                    page.wait_for_function("document.querySelector('#comparison-identity').textContent.includes('H1_S1')")
+                    expect(page.locator('#comparison-identity')).to_contain_text('H1_S1')
                     page.locator('#view-variant').click()
                     assert 'H1_S1' in page.locator('#graph-title').inner_text()
-                    page.evaluate('window.__releaseSlowScenario()')
-                    page.wait_for_function('window.__slowReadDelivered')
+                    page.evaluate("() => window.__releaseSlowScenario()")
+                    page.locator('body[data-slow-read-delivered="yes"]').wait_for()
                     page.wait_for_timeout(150)
                     assert 'H1_S1' in page.locator('#graph-title').inner_text()
                     assert 'H1_S1' in page.locator('#comparison-identity').inner_text()
@@ -213,7 +214,7 @@ def run(out: Path) -> None:
                     page.locator('#variant-import').set_input_files({
                         'name':'circular-source-only-variant.json','mimeType':'application/json',
                         'buffer':json.dumps(circular).encode('utf-8')})
-                    page.wait_for_function("document.querySelector('#comparison-state').textContent.includes('difference(s)')")
+                    expect(page.locator('#comparison-state')).to_contain_text('difference(s)')
                     summary=page.locator('#comparison-changes').inner_text()
                     assert 'rod · kind' in summary
                     assert 'rod.A' in summary and 'rod.d' in summary
