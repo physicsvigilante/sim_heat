@@ -181,6 +181,50 @@ def run(out: Path) -> None:
                     assert s1['source']['studySha256'] in page.locator('#identity').inner_text()
                     assert page.locator('#requests .request').count()==len(s1['requests'])
                     page.screenshot(path=str(out/'d2-last-import-wins.png'),full_page=True)
+                    # Reviewer F-02: a byte-identical STUDY identifier cannot
+                    # claim a different model SHA without changed study bytes.
+                    same_study_wrong_model=json.loads(json.dumps(baseline))
+                    same_study_wrong_model['source']['modelSha256']='f'*64
+                    page.locator('#variant-import').set_input_files({
+                        'name':'impossible-study-model-pair.json','mimeType':'application/json',
+                        'buffer':json.dumps(same_study_wrong_model).encode('utf-8')})
+                    page.locator('#comparison-error').wait_for(state='visible')
+                    assert 'study SHA-256' in page.locator('#comparison-error').inner_text()
+                    assert page.locator('#view-variant').is_disabled()
+                    assert 'H1_D2' in page.locator('#graph-title').inner_text()
+                    assert baseline['source']['studySha256'] in page.locator('#identity').inner_text()
+                    assert page.locator('#comparison-changes .compare-item').count()==0
+                    # Reviewer F-03: changing supported component law/type
+                    # cannot silently omit its SI field and original attribution.
+                    circular=json.loads(json.dumps(baseline))
+                    rod=next(c for c in circular['components'] if c['id']=='rod')
+                    assert rod['kind']=='RodArea'
+                    rod['kind']='RodCircular'
+                    area=next(v for v in rod['inputs'] if v['name']=='A')
+                    area.update(name='d',quantityType='Length',siUnit='m',sourceValue=0.04)
+                    for note in rod['sourceProvenance']:
+                        if note['target']=='rod.A':
+                            note['target']='rod.d'
+                            note['note']='Revised from source area to illustrative diameter'
+                        note['appliesTo']=[('rod.d' if x=='rod.A' else x)
+                                           for x in note['appliesTo']]
+                    circular['source']['modelSha256']='a'*64
+                    circular['source']['studySha256']='b'*64
+                    page.locator('#variant-import').set_input_files({
+                        'name':'circular-source-only-variant.json','mimeType':'application/json',
+                        'buffer':json.dumps(circular).encode('utf-8')})
+                    page.wait_for_function("document.querySelector('#comparison-state').textContent.includes('difference(s)')")
+                    summary=page.locator('#comparison-changes').inner_text()
+                    assert 'rod · kind' in summary
+                    assert 'rod.A' in summary and 'rod.d' in summary
+                    assert 'provenance' in summary and 'Revised from source area' in summary
+                    page.locator('#view-variant').click()
+                    page.locator('#element-select').select_option('component:rod')
+                    assert 'RodCircular' in page.locator('#details').inner_text()
+                    assert 'd (source SI)' in page.locator('#details').inner_text()
+                    assert page.locator('#requests .request').count()==len(baseline['requests'])
+                    assert 'not_computed' in page.locator('#requests').inner_text()
+                    page.screenshot(path=str(out/'d2-cross-kind-input-provenance.png'),full_page=True)
                 finally:
                     page.close()
             finally:
