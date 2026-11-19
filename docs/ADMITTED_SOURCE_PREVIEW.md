@@ -36,3 +36,43 @@ The browser's input graph is intentionally schematic. Nodes are arranged with a 
 The tests run both **Python source admission** and **JavaScript source schema** against the authored case and separately against existing steady/transient H1 fixtures, including negative mutations and invalid preview imports. Hosted Chromium tests load real HTTP, click/keyboard-inspect components, refuse an inappropriately qualified imported document while clearing stale state, and accept a second unrelated source-only H1 payload with the same viewer code. CI also runs inherited offline tests and replays the six original *native diagnostic* bundles byte-for-byte, without executing their binaries. These distinct evidence classes must not be conflated.
 
 This milestone stops **before** any new native command or authorization. The next meaningful gate requires a reviewed, non-regenerating native plan with trusted host/OMC/MSL/source/reference identity and a bounded attempt budget **followed by explicit owner permission**. No C1 frozen reference or failing historical C1 result may be rewritten by this exercise.
+
+## Teaching source-only what-if comparison (offline, no predictions)
+
+The local read-only authoring workbench can now independently admit **two**
+existing H1 studies before opening its loopback socket. For example:
+
+```sh
+python -B tools/authoring_workbench.py h1/cases/D2/study.json --root h1/cases \
+  --compare h1/cases/D2_K2/study.json
+```
+
+Open the printed local inspector URL and look under **06 · teacher what-if**.
+The existing D2 and D2_K2 studies form a legitimate conductivity revision:
+`rod.k` is an **authored** 100 → 200 W/(m K) change, and the second
+source/model hashes are distinct. Teachers can inspect either composition's
+physical source connections, inputs, units, provenance and requests in the
+same viewer without modifying the core solver. There is deliberately **no
+computed heat flow, temperature trajectory, final answer or automatic
+OpenModelica execution**. Compare statements describe source documents, not
+measured or simulated changes. The original revision studies are not edited.
+
+Alternatively, choose a second preview JSON in the page; this is only
+client-side shape checking, and the browser does **not** verify the uploaded
+preview against original model/study bytes or independently authenticate
+textbook provenance. A second source submitted through `--compare` is instead
+fully re-admitted by Python under the same trusted root before binding the
+loopback socket. Both routes preserve `nativeExecuted=false`,
+`nativeQualified=false` and every public request `not_computed`. The browser
+refuses impossible same-hash but changed-model/study metadata, stale/forged
+native evidence and inconsistent H1 graph descriptors, while using physical
+port groups rather than generated node numbers when comparing connectivity.
+A refused replacement clears the stale scenario from the visible viewer.
+The server still offers only exact allowlisted GET routes, rejects writes
+and foreign Host headers, and never serves raw source files.
+
+This is one step toward an explorable JEE teaching workflow **within the
+existing conduction component domain**, not a conductivity-solving or
+OpenModelica qualification milestone. An independent bounded review of this
+new presentation/evidence semantics is required before accepting it; a
+separately authorized native comparison remains a future step.

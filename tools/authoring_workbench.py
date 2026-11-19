@@ -24,6 +24,7 @@ from h1.study import load_study
 
 VIEW = ROOT / 'viewer' / 'source_preview'
 DEFAULT_ROUTE = '/viewer/source_preview/data/TEACH_SPLIT3.json'
+VARIANT_ROUTE = '/viewer/source_preview/data/VARIANT.json'
 
 # This is an intentional local-session alias for the fixed default JSON fetch
 # in the already-reviewed generic viewer. Its response contains the *actual*
@@ -52,17 +53,21 @@ def _viewer_html() -> bytes:
     return page.encode('utf-8')
 
 
-def _resources(payload: bytes) -> dict[str, tuple[bytes, str]]:
+def _resources(payload: bytes, variant: bytes | None = None) -> dict[str, tuple[bytes, str]]:
     # Files are snapshotted before the server starts. No path is constructed
     # from a URL, model name, study ID, or remotely supplied string.
-    return {
+    resources = {
         '/viewer/source_preview/': (_viewer_html(), 'text/html; charset=utf-8'),
         '/viewer/source_preview/index.html': (_viewer_html(), 'text/html; charset=utf-8'),
         '/viewer/source_preview/app.mjs': ((VIEW / 'app.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
         '/viewer/source_preview/core.mjs': ((VIEW / 'core.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
+        '/viewer/source_preview/compare_core.mjs': ((VIEW / 'compare_core.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
         DEFAULT_ROUTE: (payload, 'application/json; charset=utf-8'),
         '/index.html': (HELP, 'text/html; charset=utf-8'),
     }
+    if variant is not None:
+        resources[VARIANT_ROUTE] = (variant, 'application/json; charset=utf-8')
+    return resources
 
 
 class PreviewHandler(BaseHTTPRequestHandler):
@@ -132,13 +137,21 @@ class PreviewHandler(BaseHTTPRequestHandler):
     do_PUT = do_DELETE = do_PATCH = do_POST
 
 
-def create_server(study: Path, root: Path, port: int = 0) -> tuple[ThreadingHTTPServer, dict]:
+def create_server(study: Path, root: Path, port: int = 0,
+                  comparison_study: Path | None = None) -> tuple[ThreadingHTTPServer, dict]:
     """Complete genuine H1 admission before opening any listening socket."""
     require(type(port) is int and 0 <= port <= 65535, 'path', 'port out of range')
     admitted = load_study(study, root)
     payload = build_source_preview(admitted)
     source_only = serialized(payload)
-    resources = _resources(source_only)
+    # BOTH original source files are independently admitted and snapshotted
+    # before any socket is opened; a bad comparison never leaks the baseline.
+    variant = None
+    if comparison_study is not None:
+        require(isinstance(comparison_study, Path), 'path', 'comparison study must be a filesystem Path')
+        comparison = load_study(comparison_study, root)
+        variant = serialized(build_source_preview(comparison))
+    resources = _resources(source_only, variant)
     server = ThreadingHTTPServer(('127.0.0.1', port),
                                  partial(PreviewHandler, resources=resources))
     server.daemon_threads = True
@@ -150,9 +163,11 @@ def main() -> int:
     parser.add_argument('study', type=Path, help='Existing H1 study.json (never rewritten)')
     parser.add_argument('--root', type=Path, required=True, help='Trusted authored case root')
     parser.add_argument('--port', type=int, default=0, help='Loopback port (0 selects an available port)')
+    parser.add_argument('--compare', type=Path, help='Optional second independently admitted H1 study.json; source-only comparison')
     args = parser.parse_args()
     try:
-        server, preview = create_server(args.study, args.root, args.port)
+        server, preview = create_server(args.study, args.root, args.port,
+                                        comparison_study=args.compare)
     except (Refusal, OSError, UnicodeError, ValueError) as exc:
         print(json.dumps({'stage': 'local_authoring_workbench', 'admitted': False,
                           'nativeExecuted': False, 'code': getattr(exc, 'code', 'input_error'),
@@ -164,7 +179,8 @@ def main() -> int:
                           'modelSha256': preview['source']['modelSha256'],
                           'studySha256': preview['source']['studySha256'],
                           'url': f'http://127.0.0.1:{server.server_port}/viewer/source_preview/',
-                          'publicRequestStatus': 'not_computed'}, allow_nan=False), flush=True)
+                          'publicRequestStatus': 'not_computed',
+                          'comparisonAvailable': args.compare is not None}, allow_nan=False), flush=True)
         server.serve_forever(poll_interval=0.1)
     except KeyboardInterrupt:
         pass

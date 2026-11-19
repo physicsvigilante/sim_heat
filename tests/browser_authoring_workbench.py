@@ -74,6 +74,52 @@ def run(out: Path) -> None:
                         page.close()
                 finally:
                     server.shutdown(); server.server_close(); thread.join(timeout=5)
+            # Teacher what-if mode: TWO genuinely admitted H1 studies served
+            # read-only on one loopback session, never simulated or uploaded.
+            server,baseline=create_server(ROOT/'h1/cases/D2/study.json',ROOT/'h1/cases',
+                                          comparison_study=ROOT/'h1/cases/D2_K2/study.json')
+            thread=Thread(target=server.serve_forever,daemon=True)
+            thread.start()
+            origin=f'http://127.0.0.1:{server.server_port}'
+            try:
+                page=browser.new_page(viewport={'width':1440,'height':990})
+                page.on('pageerror',lambda err:errors.append(str(err)))
+                try:
+                    response=page.goto(origin+'/',wait_until='networkidle')
+                    assert response and response.ok
+                    page.wait_for_function("document.querySelector('#comparison-state').textContent.includes('difference(s)')")
+                    assert 'H1_D2_K2' in page.locator('#comparison-identity').inner_text()
+                    assert 'shortcut' not in page.locator('#comparison-changes').inner_text()
+                    assert 'rod.k' in page.locator('#comparison-changes').inner_text()
+                    assert '100 W/(m K)' in page.locator('#comparison-changes').inner_text()
+                    assert '200 W/(m K)' in page.locator('#comparison-changes').inner_text()
+                    assert 'not_computed' in page.locator('#comparison-state').inner_text() or 'no computed' in page.locator('#comparison-state').inner_text()
+                    assert 'nativeExecuted=false' in page.locator('#state').inner_text()
+                    assert 'H1_D2' in page.locator('#graph-title').inner_text()
+                    assert page.locator('#view-variant').is_enabled()
+                    page.locator('#view-variant').click()
+                    assert 'H1_D2_K2' in page.locator('#graph-title').inner_text()
+                    assert '200 W/(m K)' in page.locator('#details').inner_text() or '200 W/(m K)' in page.locator('#comparison-changes').inner_text()
+                    page.screenshot(path=str(out/'d2-whatif-source-only.png'),full_page=True)
+                    # Replace the selected scenario with a forged native-status
+                    # variant. The previous scenario graph must be cleared.
+                    bad=json.loads(page.request.get(origin+'/viewer/source_preview/data/VARIANT.json').body())
+                    bad['source']['nativeQualified']=True
+                    page.locator('#variant-import').set_input_files({
+                        'name':'forged-native-variant.json','mimeType':'application/json',
+                        'buffer':json.dumps(bad).encode('utf-8')})
+                    page.locator('#comparison-error').wait_for(state='visible')
+                    assert page.locator('#comparison-changes .compare-item').count()==0
+                    assert page.locator('#view-variant').is_disabled()
+                    assert 'H1_D2_K2' not in page.locator('#graph-title').inner_text()
+                    assert 'H1_D2' in page.locator('#graph-title').inner_text()
+                    assert page.request.get(origin+'/h1/cases/D2_K2/model.mo').status==404
+                    assert page.request.post(origin+'/viewer/source_preview/data/VARIANT.json',data=b'x').status==405
+                    page.screenshot(path=str(out/'d2-whatif-refusal.png'),full_page=True)
+                finally:
+                    page.close()
+            finally:
+                server.shutdown();server.server_close();thread.join(timeout=5)
             assert not errors, errors
         finally:
             browser.close()

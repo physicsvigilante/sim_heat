@@ -88,3 +88,71 @@ test('reject cross-mode metadata and unrecognized provenance kinds',()=>{
   p.modelProvenance=p.modelProvenance.filter(p=>p.kind==='source_diagram');
   assert.throws(()=>admitPreview(p),/REFUSED/); // H1 requires a regime assumption
 });
+
+// Proposed teacher what-if comparison is a read-only display of TWO claimed
+// source documents. It NEVER computes temperatures, powers or time histories.
+import {compareSourcePreviews} from './compare_core.mjs';
+const withChangedRod = () => {
+  const changed=copy();
+  const rod=changed.components.find(c=>c.id==='shortcut');
+  const field=rod.inputs.find(v=>v.name==='k');
+  field.sourceValue=field.sourceValue*2;
+  changed.source.modelSha256='a'.repeat(64);
+  changed.source.studySha256='b'.repeat(64);
+  changed.studyId='TEACH_SPLIT3_Variant';
+  changed.modelName='TEACH_SPLIT3_Variant';
+  return changed;
+};
+test('source-only teacher compare finds changed k but never invents heat flow or native results',()=>{
+  const result=compareSourcePreviews(copy(),withChangedRod());
+  assert.equal(result.schema,'sim_heat.viewer.authored_source_comparison/1');
+  assert.equal(result.status,'source_facts_only_not_simulated');
+  assert.equal(result.nativeExecuted,false);
+  assert.equal(result.nativeQualified,false);
+  assert.equal(result.publicRequestStatus,'not_computed');
+  const k=result.changes.find(x=>x.category==='input'&&x.label==='shortcut.k · authored SI');
+  assert(k);assert.match(k.from,/W\/\(m K\)/);assert.notEqual(k.from,k.to);
+  assert(!('heatFlow' in result)&&!('temperatureHistory' in result)&&!('nativeResults' in result));
+  assert(result.disclaimer.includes('no physical trajectory'));
+});
+test('same source creates zero changes, not an invented physical equality claim',()=>{
+  const x=compareSourcePreviews(copy(),copy());
+  assert.equal(x.changes.length,0);
+  assert.equal(x.status,'source_facts_only_not_simulated');
+});
+test('changes to assumed provenance and public request labels remain visible',()=>{
+  const x=copy();
+  x.components.find(c=>c.id==='shortcut').sourceProvenance[0].note='Explicitly changed assumption';
+  x.requests[0].id='whatif_request';
+  x.source.studySha256='c'.repeat(64);
+  const r=compareSourcePreviews(copy(),x);
+  assert(r.changes.some(c=>c.category==='provenance'&&c.label.includes('shortcut')));
+  assert(r.changes.some(c=>c.category==='request'));
+  assert(r.changes.every(c=>typeof c.from==='string'&&typeof c.to==='string'));
+});
+test('source SHA identities cannot remain unchanged when model or study facts drift',()=>{
+  const changed=copy();
+  changed.components.find(c=>c.id==='shortcut').inputs.find(v=>v.name==='k').sourceValue*=2;
+  assert.throws(()=>compareSourcePreviews(copy(),changed),/model SHA-256/);
+  const requestChanged=copy();requestChanged.requests[0].id='renamed_request';
+  assert.throws(()=>compareSourcePreviews(copy(),requestChanged),/study SHA-256/);
+});
+test('not-computed displays refuse forged qualified or computed source documents',()=>{
+  for(const makeBad of [p=>p.source.nativeQualified=true,p=>p.source.nativeExecuted=true,
+    p=>p.requests[0].status='computed',p=>p.results={temperature:314},
+    p=>p.source.publicRequestStatus='certified']){
+    const p=withChangedRod();makeBad(p);
+    assert.throws(()=>compareSourcePreviews(copy(),p),/REFUSED/);
+  }
+});
+test('logical topology uses source port grouping, never layout node ids or geometry',()=>{
+  const v=withChangedRod();
+  const reordered=structuredClone(v);
+  // Renumber every logical node ID, preserving actual authored port groupings.
+  const lookup=new Map(reordered.nodes.map((n,i)=>[n.id,'node_'+(90+i)]));
+  for(const n of reordered.nodes)n.id=lookup.get(n.id);
+  for(const rod of reordered.rods){rod.from=lookup.get(rod.from);rod.to=lookup.get(rod.to);}
+  // Same model hash and same physical model, despite different layout node IDs.
+  const x=compareSourcePreviews(v,reordered);
+  assert.equal(x.changes.length,0);
+});
