@@ -241,7 +241,7 @@ class IndependentCornerReplay(unittest.TestCase):
             ("G_zero",lambda r:r.__setitem__("conductanceWPerKExactPhysicalInterval",["0","0"])),
             ("G_swapped",lambda r:r.__setitem__(
                 "conductanceWPerKExactPhysicalInterval",
-                list(reversed(r["conductanceWPerKExactPhysicalInterval"]))),
+                list(reversed(r["conductanceWPerKExactPhysicalInterval"])))),
             ("G_drift",lambda r:r.__setitem__(
                 "conductanceWPerKExactPhysicalInterval",
                 ["1","2"])),
