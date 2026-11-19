@@ -14,6 +14,8 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools.authoring_workbench import create_server
+from h1.study import load_study
+from h1.source_preview import serialized, build_source_preview
 
 
 def run(out: Path) -> None:
@@ -116,6 +118,69 @@ def run(out: Path) -> None:
                     assert page.request.get(origin+'/h1/cases/D2_K2/model.mo').status==404
                     assert page.request.post(origin+'/viewer/source_preview/data/VARIANT.json',data=b'x').status==405
                     page.screenshot(path=str(out/'d2-whatif-refusal.png'),full_page=True)
+                    # Chat B PR71 F-01 A->B->bad replacement: the latest
+                    # comparison, rendered graph, selection details and requests
+                    # must all refer to the same admitted display or baseline.
+                    d1=json.loads(serialized(build_source_preview(load_study(
+                        ROOT/'h1/cases/D1/study.json',ROOT/'h1/cases'))))
+                    s1=json.loads(serialized(build_source_preview(load_study(
+                        ROOT/'h1/cases/S1/study.json',ROOT/'h1/cases'))))
+                    page.locator('#variant-import').set_input_files({
+                        'name':'admitted-D1.json','mimeType':'application/json',
+                        'buffer':json.dumps(d1).encode('utf-8')})
+                    page.wait_for_function("document.querySelector('#comparison-identity').textContent.includes('H1_D1')")
+                    page.locator('#view-variant').click()
+                    assert 'H1_D1' in page.locator('#graph-title').inner_text()
+                    assert d1['source']['studySha256'] in page.locator('#identity').inner_text()
+                    assert page.locator('#requests .request').count()==len(d1['requests'])
+                    page.locator('#variant-import').set_input_files({
+                        'name':'malformed-variant.json','mimeType':'application/json',
+                        'buffer':b'{}'})
+                    page.locator('#comparison-error').wait_for(state='visible')
+                    assert 'H1_D2' in page.locator('#graph-title').inner_text()
+                    assert 'H1_D1' not in page.locator('#graph-title').inner_text()
+                    assert baseline['source']['studySha256'] in page.locator('#identity').inner_text()
+                    assert page.locator('#requests .request').count()==len(baseline['requests'])
+                    assert page.locator('#view-variant').is_disabled()
+                    assert page.locator('#comparison-changes .compare-item').count()==0
+                    page.screenshot(path=str(out/'d2-replacement-refused.png'),full_page=True)
+                    # Exercise an actual race between TWO file reads, not only
+                    # the baseline loadVersion. The second chosen S1 scenario
+                    # must win even after the first D1 file read resolves.
+                    page.evaluate("""() => {
+                      const original=File.prototype.text;
+                      File.prototype.text=function(...args){
+                        const pending=original.apply(this,args);
+                        if(this.name==='slow-D1.json'){
+                          return new Promise((resolve,reject)=>{
+                            window.__releaseSlowScenario=()=>pending.then(v=>{
+                              window.__slowReadDelivered=true;resolve(v);
+                            },reject);
+                          });
+                        }
+                        return pending;
+                      };
+                      window.__slowReadDelivered=false;
+                    }""")
+                    page.locator('#variant-import').set_input_files({
+                        'name':'slow-D1.json','mimeType':'application/json',
+                        'buffer':json.dumps(d1).encode('utf-8')})
+                    page.wait_for_function("typeof window.__releaseSlowScenario==='function'")
+                    page.locator('#variant-import').set_input_files({
+                        'name':'fast-S1.json','mimeType':'application/json',
+                        'buffer':json.dumps(s1).encode('utf-8')})
+                    page.wait_for_function("document.querySelector('#comparison-identity').textContent.includes('H1_S1')")
+                    page.locator('#view-variant').click()
+                    assert 'H1_S1' in page.locator('#graph-title').inner_text()
+                    page.evaluate('window.__releaseSlowScenario()')
+                    page.wait_for_function('window.__slowReadDelivered')
+                    page.wait_for_timeout(150)
+                    assert 'H1_S1' in page.locator('#graph-title').inner_text()
+                    assert 'H1_S1' in page.locator('#comparison-identity').inner_text()
+                    assert 'H1_D1' not in page.locator('#comparison-identity').inner_text()
+                    assert s1['source']['studySha256'] in page.locator('#identity').inner_text()
+                    assert page.locator('#requests .request').count()==len(s1['requests'])
+                    page.screenshot(path=str(out/'d2-last-import-wins.png'),full_page=True)
                 finally:
                     page.close()
             finally:
