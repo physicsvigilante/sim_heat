@@ -1,5 +1,5 @@
 """Read-only descriptors, provenance and narrow conductivity revisions."""
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 import hashlib
 import json
 import math
@@ -79,6 +79,8 @@ class Study:
     grid: tuple[float, ...]
     request_report: dict
     condition: float
+    # Retain the admitted revision/path boundary for later read-only revalidation.
+    case_root: Path | None = None
 
 
 def check_provenance(model: Model, records: list) -> None:
@@ -123,13 +125,14 @@ def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     """Validate offline only; this function never writes or invokes a compiler."""
     root = root.resolve(strict=True)
     try:
-        relative = str(path.absolute().relative_to(root))
+        relative = path.absolute().relative_to(root).as_posix()
     except ValueError as exc:
         raise Refusal('path', 'study outside case root') from exc
     path = checked_path(root, relative, root, '.json')
     require(path not in seen and len(seen) < 16, 'revision', 'cyclic/too deep parent chain')
     require(path.stat().st_size <= 262144, 'resource_limit', 'study exceeds 256 KiB')
     raw = path.read_bytes()
+    require(len(raw) <= 262144, 'resource_limit', 'study exceeds 256 KiB')
     try:
         data = strict_json(raw.decode('utf-8'))
     except UnicodeError as exc:
@@ -142,6 +145,7 @@ def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     model_path = checked_path(path.parent, data['model']['path'], path.parent, '.mo')
     require(model_path.stat().st_size <= 65536, 'resource_limit', 'model exceeds 64 KiB')
     model_raw = model_path.read_bytes()
+    require(len(model_raw) <= 65536, 'resource_limit', 'model exceeds 64 KiB')
     require(sha256(model_raw) == data['model']['sha256'], 'identity', 'model hash mismatch')
     try:
         model = parse_model(model_raw.decode('utf-8'))
@@ -152,7 +156,7 @@ def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     grid = analysis_grid(data['mode'], data['analysis'])
     check_provenance(model, data['provenance'])
     report = requests(model, data['requests'])
-    study = Study(path, data, sha256(raw), sha256(model_raw), model, graph, grid, report, condition)
+    study = Study(path, data, sha256(raw), sha256(model_raw), model, graph, grid, report, condition, root)
     if 'revision' in data:
         rev = data['revision']
         exact_keys(rev, {'parentStudyPath', 'parentStudySha256', 'parentModelSha256', 'target', 'reason', 'origin'}, 'revision')
@@ -165,6 +169,62 @@ def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
                 'revision', 'stale parent identity')
         compare_revision(parent, study, rev['target'])
     return study
+
+
+def _same_typed(actual, expected) -> bool:
+    """No bool/int coercion, container-subclass hooks or caller-derived results."""
+    if type(actual) is not type(expected):
+        return False
+    if is_dataclass(expected):
+        return all(_same_typed(getattr(actual, f.name), getattr(expected, f.name))
+                   for f in fields(expected))
+    if type(expected) is dict:
+        return actual.keys() == expected.keys() and all(
+            _same_typed(actual[k], value) for k, value in expected.items())
+    if type(expected) in (tuple, list):
+        return len(actual) == len(expected) and all(
+            _same_typed(a, b) for a, b in zip(actual, expected))
+    if type(expected) in (set, frozenset):
+        # Native set equality equates bool and int (True == 1), even when
+        # their types differ. Match unordered members one-to-one through
+        # the same recursive exact-type rule as every other snapshot field.
+        if len(actual) != len(expected):
+            return False
+        remaining = list(actual)
+        for member in expected:
+            for index, candidate in enumerate(remaining):
+                if _same_typed(candidate, member):
+                    remaining.pop(index)
+                    break
+            else:
+                return False
+        return not remaining
+    return actual == expected
+
+
+def verified_snapshot(study: Study) -> Study:
+    """Re-admit original source bytes and return detached, freshly derived facts.
+
+    Frozen dataclasses do not freeze their nested dictionaries. An original
+    digest alone must never authenticate caller-mutated component values,
+    topology, provenance or request reports. Also preserve the original case
+    root when rechecking conductivity revisions across sibling directories.
+    """
+    require(type(study) is Study and isinstance(study.case_root, Path),
+            'identity', 'source preview requires an admitted study and case root')
+    try:
+        fresh = load_study(study.path, study.case_root)
+    except Refusal:
+        raise
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise Refusal('identity', 'admitted source cannot be revalidated') from exc
+    try:
+        same = _same_typed(study, fresh)
+    except (RecursionError, TypeError, ValueError) as exc:
+        raise Refusal('identity', 'malformed admitted source snapshot') from exc
+    require(same, 'identity',
+            'admitted source or derived facts changed after loading')
+    return fresh
 
 
 def report(study: Study) -> dict:

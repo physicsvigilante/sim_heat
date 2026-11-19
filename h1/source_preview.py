@@ -13,7 +13,7 @@ from pathlib import Path
 import tempfile
 
 from .model import Refusal, SLOTS, require
-from .study import Study, load_study
+from .study import Study, load_study, verified_snapshot
 
 UNITS = {
     'Mass': 'kg', 'SpecificHeatCapacity': 'J/(kg K)', 'Temperature': 'K',
@@ -30,6 +30,7 @@ DISCLAIMERS = (
 
 def build_source_preview(study: Study) -> dict:
     """Build a shape-independent source payload solely from admitted H1 objects."""
+    study = verified_snapshot(study)
     require(study.request_report['admitted'], 'request', 'refused requests cannot be previewed')
     require(all(r['status'] == 'not_computed' for r in study.request_report['requests']),
             'request', 'source preview requires uncomputed requests')

@@ -13,11 +13,15 @@ from pathlib import Path
 import sys
 from urllib.parse import urlsplit
 
+# Direct-script execution must not depend on PYTHONPATH or the current directory.
+ROOT = Path(__file__).resolve().parents[1]
+if __package__ in (None, ''):
+    sys.path.insert(0, str(ROOT))
+
 from h1.model import Refusal, require
 from h1.source_preview import build_source_preview, serialized
 from h1.study import load_study
 
-ROOT = Path(__file__).resolve().parents[1]
 VIEW = ROOT / 'viewer' / 'source_preview'
 DEFAULT_ROUTE = '/viewer/source_preview/data/TEACH_SPLIT3.json'
 
