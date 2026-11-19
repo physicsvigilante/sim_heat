@@ -1,0 +1,95 @@
+name: H1-N3 offline migration design - NEVER native
+on:
+  push:
+    branches: [planning/h1-n3-versioned-reference-migration]
+  pull_request:
+    branches: [checking/h1-n2-primary-companion-v1]
+    paths:
+      - qualification/h1_n3/**
+      - .github/workflows/h1-n3-design-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n3-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-design-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install offline checker dependencies only
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Preserve original H1 and bound exact design diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n3_design"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head-sha.txt"
+          git rev-parse HEAD^{tree} > "$evidence/head-tree.txt"
+          base=6baba681ae1680e2fcae1ea8efbf0953afcb031b
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git diff --name-status "$base" HEAD > "$evidence/source-diff.txt"
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          folder=Path(os.environ['RUNNER_TEMP'])/'h1n3_design'
+          actual=set((folder/'source-diff.txt').read_text().splitlines())
+          expected={
+            'A\tqualification/h1_n3/MIGRATION-CONTRACT.md',
+            'A\tqualification/h1_n3/migration-plan.json',
+            'A\tqualification/h1_n3/check_migration_plan.py',
+            'A\tqualification/h1_n3/tests/test_migration_plan.py',
+            'A\t.github/workflows/h1-n3-design-ci.yml'
+          }
+          assert actual==expected,(actual,expected)
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments viewer docs qualification/h1_c1 qualification/h1_n1 qualification/h1_n2
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Read-only design/refusal and inherited offline regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n3_design"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$evidence/n3-design-tests.log"
+          python -B -m qualification.h1_n3.check_migration_plan --out "$evidence/DESIGN_CHECK_RECEIPT.json" 2>&1 | tee "$evidence/n3-design-report.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$evidence/n2-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$evidence/n1-interval-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$evidence/n1-plan-tests.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1-tests.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+          python -B qualification/h1_n1/check_plan.py --out "$evidence/old-n1-refusal.json" > "$evidence/old-n1-refusal.stdout.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          folder=Path(os.environ['RUNNER_TEMP'])/'h1n3_design'
+          design=json.loads((folder/'DESIGN_CHECK_RECEIPT.json').read_text())
+          assert design['status']=='DESIGN_VERIFIED_NATIVE_BLOCKED'
+          assert design['nativeExecuted'] is False and design['nativeQualified'] is False
+          assert design['referenceMigrated'] is False and design['runtimeReady'] is False
+          assert design['nativeCalls']==0 and len(design['nativeExecutionBlockers'])==8
+          old=json.loads((folder/'old-n1-refusal.json').read_text())
+          assert old['nativeCallsThisCheck']==0 and old['nativeExecutionReady'] is False
+          assert old['referenceAccuracyCertified'] is False and len(old['executionBlockers'])==8
+          assert old['constantArithmetic']['physical100xFailures']==[
+            'T02.G','T06.A','T06.G','T07.G','T08.G','T10.G','T_Plug.C']
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: h1-n3-design-only-${{ github.sha }}
+          path: ${{ runner.temp }}/h1n3_design/
+          retention-days: 90
+          if-no-files-found: error
