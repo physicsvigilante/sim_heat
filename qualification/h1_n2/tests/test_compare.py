@@ -196,6 +196,56 @@ class FrozenOriginalComparator(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "UTF-8"):
             direct(primary_csv=ac + "\ud800")
 
+    def test_f01_full_admission_refuses_reselfsealed_mutated_provenance_after_race(self):
+        # A caller-controlled hash/seal pair is NOT a trusted pre-output pin.
+        # This case isolates the file-byte authentication boundary itself.
+        a, b = deepcopy(self.bundles["primary"]), deepcopy(self.bundles["dense"])
+        fake_note = "replacement provenance after SHA check"
+        for bundle in (a, b):
+            bundle["spec"]["provenance"] = fake_note
+            bundle["specSha256"] = ref.fingerprint(bundle["spec"])
+            bundle["seal"] = ref.fingerprint({k: v for k, v in bundle.items() if k != "seal"})
+        first, second = self.studies["primary"], self.studies["dense"]
+        ac, bc = self.csvs["primary"], self.csvs["dense"]
+        ar, br = candidate_receipt(first, a, ac), candidate_receipt(second, b, bc)
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            original = (
+                ("h1_n1/reference-facts.json", HERE / "reference-facts.json"),
+                ("h1_n1/inputs/T/model.mo", HERE / "inputs/T/model.mo"),
+                ("h1_n1/inputs/T/study.json", HERE / "inputs/T/study.json"),
+            )
+            for destination, source in original:
+                target = root / destination
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(source.read_bytes())
+            facts_path = root / "h1_n1/reference-facts.json"
+            modified = json.loads(facts_path.read_bytes())
+            modified["provenance"] = fake_note
+            mutated_raw = json.dumps(modified, sort_keys=True).encode()
+            counts = 0
+            read_real = Path.read_bytes
+
+            def replace_after_verified_read(this):
+                nonlocal counts
+                result = read_real(this)
+                if this == facts_path:
+                    counts += 1
+                    if counts == 1:
+                        this.write_bytes(mutated_raw)
+                return result
+
+            with patch.object(n2, "HERE", root), patch.object(
+                    Path, "read_bytes", replace_after_verified_read):
+                with self.assertRaisesRegex(Refusal, "primary reference facts"):
+                    n2.compare_candidates(
+                        first, a, ac, ar, a["seal"],
+                        second, b, bc, br, b["seal"], variant="dense")
+            self.assertEqual(counts, 1)
+            self.assertNotEqual(sha256(facts_path.read_bytes()).hexdigest(),
+                                n2.ORIGINAL_FACTS_SHA)
+
     def test_canonical_primary_and_companions_are_synthetic_only(self):
         for variant in ("tight", "dense"):
             with self.subTest(variant=variant):

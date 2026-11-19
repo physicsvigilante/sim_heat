@@ -39,7 +39,13 @@ def _need(condition, explanation):
 
 
 def _positive_finite(number):
-    return type(number) in (float, int) and math.isfinite(number) and number > 0
+    if type(number) not in (float, int):
+        return False
+    try:
+        return math.isfinite(number) and number > 0
+    except (OverflowError, TypeError, ValueError):
+        # math.isfinite(10**400) can overflow converting int to float.
+        return False
 
 
 def _typed_equal(a, b):
@@ -57,12 +63,21 @@ def _original_inputs():
     facts_path = HERE / "h1_n1/reference-facts.json"
     model_path = HERE / "h1_n1/inputs/T/model.mo"
     study_path = HERE / "h1_n1/inputs/T/study.json"
-    for path, digest in ((facts_path, ORIGINAL_FACTS_SHA),
-                         (model_path, ORIGINAL_MODEL_SHA),
-                         (study_path, ORIGINAL_STUDY_SHA)):
-        _need(sha256(path.read_bytes()).hexdigest() == digest,
+    # Authenticate exactly the bytes we subsequently parse. A second
+    # Path.read_bytes after checking the digest would permit a TOCTOU swap
+    # of facts or provenance between verification and use (review-01 F-01).
+    snapshots = {}
+    for name, path, digest in (("facts", facts_path, ORIGINAL_FACTS_SHA),
+                               ("model", model_path, ORIGINAL_MODEL_SHA),
+                               ("study", study_path, ORIGINAL_STUDY_SHA)):
+        raw = path.read_bytes()
+        _need(sha256(raw).hexdigest() == digest,
               "original source/facts byte identity mismatch")
-    return json.loads(facts_path.read_bytes()), json.loads(study_path.read_bytes())
+        snapshots[name] = raw
+    try:
+        return json.loads(snapshots["facts"]), json.loads(snapshots["study"])
+    except (ValueError, UnicodeError, TypeError) as exc:
+        raise Refusal("n2_comparison", "malformed verified original JSON") from exc
 
 
 def _reload_study(given):
@@ -78,6 +93,15 @@ def _reload_study(given):
 def _companion_contract(first, second, a, b, variant):
     _need(type(variant) is str and variant in ("tight", "dense"),
           "undeclared companion")
+    # Public calls may supply malformed/untrusted dictionaries. Refuse at the
+    # boundary rather than leaking KeyError/TypeError in the source guards.
+    mandatory = {"spec": dict, "columns": dict, "allowances": dict,
+                 "units": dict, "flowIntegrals": dict, "grid": list,
+                 "temporalPolicy": dict, "seal": str}
+    for label, bundle in (("primary", a), ("companion", b)):
+        _need(type(bundle) is dict and all(
+                  type(bundle.get(field)) is kind for field, kind in mandatory.items()),
+              "malformed " + label + " reference bundle")
     original_spec, original_study = _original_inputs()
     _need(first.sha256 == ORIGINAL_STUDY_SHA and
           first.model_sha256 == second.model_sha256 == ORIGINAL_MODEL_SHA and
@@ -206,7 +230,7 @@ def _checks(primary_columns, companion_columns, a, requests):
     return checks
 
 
-def compare_candidates(primary_study, primary_reference, primary_csv,
+def _compare_candidates_impl(primary_study, primary_reference, primary_csv,
                        primary_receipt, primary_seal, companion_study,
                        companion_reference, companion_csv, companion_receipt,
                        companion_seal, *, variant):
@@ -219,6 +243,10 @@ def compare_candidates(primary_study, primary_reference, primary_csv,
     _need(type(primary_csv) is str and type(companion_csv) is str and
           type(primary_seal) is str and type(companion_seal) is str,
           "read-only candidate bytes and seal identifiers required")
+    try:
+        primary_bytes, companion_bytes = primary_csv.encode("utf-8"), companion_csv.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise Refusal("n2_comparison", "candidate CSV must be UTF-8 encodable") from exc
     # Snapshot the inputs before both independent verifications and comparison.
     first = _reload_study(deepcopy(primary_study))
     second = _reload_study(deepcopy(companion_study))
@@ -271,11 +299,33 @@ def compare_candidates(primary_study, primary_reference, primary_csv,
         "modelSha256": ORIGINAL_MODEL_SHA,
         "primaryStudySha256": first.sha256, "companionStudySha256": second.sha256,
         "primaryReferenceSeal": primary_seal, "companionReferenceSeal": companion_seal,
-        "primaryCsvSha256": sha256(primary_csv.encode()).hexdigest(),
-        "companionCsvSha256": sha256(companion_csv.encode()).hexdigest(),
+        "primaryCsvSha256": sha256(primary_bytes).hexdigest(),
+        "companionCsvSha256": sha256(companion_bytes).hexdigest(),
         "commonSamples": len(a["grid"]),
         "perRunChecks": {"primary": verified_a["status"], "companion": verified_b["status"]},
         "exportsCompared": 77, "publicObservationsCompared": 8,
         "checks": checks,
         "limit": "not native execution attestation, not certified runner reference, not release permission",
     }
+
+
+def compare_candidates(primary_study, primary_reference, primary_csv,
+                       primary_receipt, primary_seal, companion_study,
+                       companion_reference, companion_csv, companion_receipt,
+                       companion_seal, *, variant):
+    """Public checking-only API; malformed input always fails as H1 Refusal.
+
+    Native acceptance, authenticated pre-output seals, and actual host identity
+    are external requirements; this function cannot establish them.
+    """
+    try:
+        return _compare_candidates_impl(
+            primary_study, primary_reference, primary_csv,
+            primary_receipt, primary_seal, companion_study,
+            companion_reference, companion_csv, companion_receipt,
+            companion_seal, variant=variant)
+    except Refusal:
+        raise
+    except (KeyError, TypeError, ValueError, OverflowError, UnicodeError,
+            RecursionError, OSError) as exc:
+        raise Refusal("n2_comparison", "malformed comparator input") from exc
