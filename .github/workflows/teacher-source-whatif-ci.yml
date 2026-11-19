@@ -1,0 +1,116 @@
+name: Teacher source what-if comparison - OFFLINE, NEVER native
+on:
+  push:
+    branches: [teaching/t1-source-whatif-compare]
+  pull_request:
+    branches: [audit/2026-11-19-project-health]
+    paths:
+      - viewer/source_preview/**
+      - tools/authoring_workbench.py
+      - tests/test_authoring_workbench.py
+      - tests/browser_authoring_workbench.py
+      - docs/ADMITTED_SOURCE_PREVIEW.md
+      - .github/workflows/teacher-source-whatif-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-teacher-whatif-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-authoring-two-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install OFFLINE checker and browser libraries ONLY (no OpenModelica)
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 playwright==1.57.0
+      - name: Use installed Chromium or pinned Playwright fallback
+        run: |
+          if command -v google-chrome >/dev/null; then google-chrome --version
+          elif command -v chromium >/dev/null; then chromium --version
+          else python -m playwright install --with-deps chromium; fi
+      - name: Pin parent tree, nine-file source-only diff and legacy invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/teacher_source_whatif"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head-sha.txt"
+          git rev-parse 'HEAD^{tree}' > "$evidence/head-tree.txt"
+          base=c2bd9ce63a6d725fdcd63d2d5d7c5416c7843739
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git cat-file -e "${base}^{commit}"
+          git diff --name-status "$base" HEAD > "$evidence/source-diff.txt"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          evidence=Path(os.environ['RUNNER_TEMP'])/'teacher_source_whatif'
+          actual=set((evidence/'source-diff.txt').read_text().splitlines())
+          expected={
+            'M\tdocs/ADMITTED_SOURCE_PREVIEW.md',
+            'M\ttests/browser_authoring_workbench.py',
+            'M\ttests/test_authoring_workbench.py',
+            'M\ttools/authoring_workbench.py',
+            'M\tviewer/source_preview/app.mjs',
+            'A\tviewer/source_preview/compare_core.mjs',
+            'M\tviewer/source_preview/core.test.mjs',
+            'M\tviewer/source_preview/index.html',
+            'A\t.github/workflows/teacher-source-whatif-ci.yml',
+          }
+          assert actual==expected,(sorted(actual),sorted(expected))
+          PY
+          git diff --exit-code "$base" HEAD -- h1 experiments qualification viewer/network tools/h1_native_batch.py docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Run full inherited H1/product/JavaScript + new source comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/teacher_source_whatif"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1.log"
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee "$evidence/analytical.log"
+          python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v 2>&1 | tee "$evidence/adapters.log"
+          python -B -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee "$evidence/product.log"
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/core.test.mjs 2>&1 | tee "$evidence/javascript.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+          python -B -m h1.source_preview h1/cases/TEACH_SPLIT3/study.json --root h1/cases --out "$evidence/unchanged-source.json"
+          cmp "$evidence/unchanged-source.json" viewer/source_preview/data/TEACH_SPLIT3.json
+          python -B viewer/network/tools/build_compare_index.py --out "$evidence/unchanged-archive-index.json"
+          cmp "$evidence/unchanged-archive-index.json" viewer/network/data/compare_index.json
+      - name: Replay original six diagnostics without native execution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sim_heat_original_archives"
+          for id in 14152886226 14155084346 14204656273 14215520616 14153251022; do
+            gh api "repos/physicsvigilante/sim_heat/actions/artifacts/$id/zip" > "$RUNNER_TEMP/sim_heat_original_archives/artifact-$id.zip"
+          done
+          python -B viewer/network/tools/replay_published_archives.py --archives "$RUNNER_TEMP/sim_heat_original_archives" > "$RUNNER_TEMP/teacher_source_whatif/archived-diagnostic-replay.json"
+      - name: Real HTTP Chromium source what-if and existing explorer/refusal tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/teacher_source_whatif"
+          python -B tests/browser_authoring_workbench.py --out "$evidence/loopback-browser" 2>&1 | tee "$evidence/loopback-browser.log"
+          python -B tests/browser_source_preview.py --out "$evidence/source-browser" 2>&1 | tee "$evidence/source-browser.log"
+          python -B viewer/network/tests/browser_smoke.py --out "$evidence/historical-explorer" 2>&1 | tee "$evidence/historical-browser.log"
+      - name: Upload evidence, including refusals, even when CI is red
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: teacher-source-whatif-${{ github.sha }}
+          path: ${{ runner.temp }}/teacher_source_whatif/
+          retention-days: 90
+          if-no-files-found: error
