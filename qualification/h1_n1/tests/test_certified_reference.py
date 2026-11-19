@@ -110,6 +110,41 @@ class ArithmeticSafety(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'positive integer grid'):
             n.exp_step([[n.interval(1), n.interval(0)], [n.interval(0), n.interval(0)]], 0)
 
+    def test_f02_switching_container_cannot_change_matrix_after_admission(self):
+        zero, one = n.interval(0), n.interval(1)
+
+        class SwitchingRow(list):
+            def __init__(self):
+                super().__init__([one, zero])  # actual final row is nonzero
+                self.passes = 0
+
+            def __iter__(self):
+                self.passes += 1
+                if self.passes <= 2:
+                    return iter([zero, zero])  # fake zero-row validation
+                return iter([one, zero])  # nonzero arithmetic row
+
+        row = SwitchingRow()
+        with self.assertRaisesRegex(ValueError, 'square matrix'):
+            n.exp_step([[zero, zero], row], 2400)
+        self.assertEqual(row.passes, 0)  # rejected before calling overridden iterator
+
+        class SwitchingMatrix(list):
+            def __iter__(self):
+                raise AssertionError('outer matrix iterator must not be called')
+
+        with self.assertRaisesRegex(ValueError, 'square matrix'):
+            n.exp_step(SwitchingMatrix([[zero, zero], [zero, zero]]), 2400)
+
+        # Stable built-in tuple matrices and original seven-state source are
+        # admitted, including the precise zero-row affine simplification.
+        for grid in (2400, 4800):
+            result, _ = n.exp_step(((one, zero), (zero, zero)), grid)
+            self.assertEqual(result[-1], [zero, one])
+            source = n.construct(n.read_facts())['matrix']
+            source_result, _ = n.exp_step(source, grid)
+            self.assertEqual(source_result[-1], n.identity(7)[-1])
+
     def test_fixed_point_outward_endpoints_and_inversion(self):
         third=n.interval(F(1,3))
         self.assertTrue(third.contains(F(1,3)))

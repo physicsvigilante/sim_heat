@@ -137,13 +137,27 @@ def exp_step(b, intervals):
     """
     if type(intervals) is not int or intervals <= 0:
         raise ValueError('Taylor requires a positive integer grid')
-    if not isinstance(b, (list, tuple)) or not (1 <= len(b) <= 7) or any(
-        not isinstance(row, (list, tuple)) or len(row) != len(b) for row in b
-    ):
+    # Never run separate admission and arithmetic passes on caller-owned
+    # containers: overridden __iter__ can change the matrix between passes.
+    # Admit only the exact built-in containers, and snapshot every endpoint
+    # into new, immutable I cells before checking or using matrix values.
+    if type(b) not in (list, tuple) or not (1 <= len(b) <= 7):
         raise ValueError('Taylor requires a square matrix of dimension 1..7')
-    if any(type(v) is not I or type(v.lo) is not int or type(v.hi) is not int
-           for row in b for v in row):
-        raise ValueError('Taylor matrix entries must be bounded intervals')
+    dimension = len(b)
+    private_rows = []
+    for row in b:
+        if type(row) not in (list, tuple) or len(row) != dimension:
+            raise ValueError('Taylor requires a square matrix of dimension 1..7')
+        private_row = []
+        for value in row:
+            if type(value) is not I:
+                raise ValueError('Taylor matrix entries must be bounded intervals')
+            lo, hi = value.lo, value.hi
+            if type(lo) is not int or type(hi) is not int:
+                raise ValueError('Taylor matrix entries must be bounded intervals')
+            private_row.append(I(lo, hi))
+        private_rows.append(tuple(private_row))
+    b = tuple(private_rows)
     if any(v.lo != 0 or v.hi != 0 for v in b[-1]):
         raise ValueError('Taylor requires exactly zero affine last row')
     x = [[e / intervals for e in row] for row in b]
