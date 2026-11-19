@@ -188,6 +188,99 @@ class IndependentCornerReplay(unittest.TestCase):
         with self.assertRaisesRegex(n8.CornerRefusal,"midpoint proof centre"):
             self.cross(reported=fake)
 
+    def test_n8_f01_all_false_native_and_proof_authority_fields_are_enforced(self):
+        """Old N8 falsely PASSED an untrusted N7 report with omitted claims."""
+        blocked=(
+            "sourceInterpretationIndependentlyAuthenticated",
+            "ownerApprovedExpectedReferenceManifestVerified",
+            "independentlyCertifiedReference","referenceAccuracyCertified",
+            "referenceBundleWritten","allGrid77Plus8Plus5Certified",
+            "nativeExecuted","nativeQualified","runtimeReady",
+            "timeTrajectoryComputed","initialValueProblemSolved",
+            "generalH1DynamicsQualified","fullSystemAlgebraicAndDynamicStateSolved",
+        )
+        for name in blocked:
+            for mode in ("promote","remove"):
+                with self.subTest(field=name,mode=mode):
+                    fake=deepcopy(self.report)
+                    if mode=="promote":
+                        fake[name]=True
+                    else:
+                        fake.pop(name)
+                    with self.assertRaises(n8.CornerRefusal):
+                        self.cross(reported=fake)
+        for name in ("proofIsIndependentNativeCertificate",
+                     "nominalCentresArePhysicalAnswers"):
+            for mode in ("promote","remove"):
+                with self.subTest(proof=name,mode=mode):
+                    fake=deepcopy(self.report)
+                    if mode=="promote":
+                        fake["proof"][name]=True
+                    else:
+                        fake["proof"].pop(name)
+                    with self.assertRaises(n8.CornerRefusal):
+                        self.cross(reported=fake)
+        attack=deepcopy(self.report)
+        attack["independentlyCertifiedReference"]=True
+        attack["allGrid77Plus8Plus5Certified"]=True
+        attack["proof"]["proofIsIndependentNativeCertificate"]=True
+        with self.assertRaises(n8.CornerRefusal):
+            self.cross(reported=attack)
+
+    def test_n8_f02_untrusted_rod_direction_G_and_sign_labels_must_match_source(self):
+        """Numerically valid q bounds do not authenticate the rod's direction."""
+        original=self.report["rodHeatFlows"]["ArcX_J4"]
+        self.assertEqual((original["fromNode"],original["toNode"]),("X","J4"))
+        attacks=(
+            ("from",lambda r:r.__setitem__("fromNode","J4")),
+            ("to",lambda r:r.__setitem__("toNode","X")),
+            ("both",lambda r:r.update(fromNode="J4",toNode="X")),
+            ("positive",lambda r:r.__setitem__("positiveFromTo",False)),
+            ("positive_type",lambda r:r.__setitem__("positiveFromTo",1)),
+            ("orientation",lambda r:r.__setitem__("orientation","q_to_from=G*(T_from-T_to)")),
+            ("G_zero",lambda r:r.__setitem__("conductanceWPerKExactPhysicalInterval",["0","0"])),
+            ("G_swapped",lambda r:r.__setitem__(
+                "conductanceWPerKExactPhysicalInterval",
+                list(reversed(r["conductanceWPerKExactPhysicalInterval"]))),
+            ("G_drift",lambda r:r.__setitem__(
+                "conductanceWPerKExactPhysicalInterval",
+                ["1","2"])),
+            ("missing_from",lambda r:r.pop("fromNode")),
+            ("missing_G",lambda r:r.pop("conductanceWPerKExactPhysicalInterval")),
+        )
+        for name,mutate in attacks:
+            with self.subTest(attack=name):
+                fake=deepcopy(self.report)
+                mutate(fake["rodHeatFlows"]["ArcX_J4"])
+                with self.assertRaises(n8.CornerRefusal):
+                    self.cross(reported=fake)
+        joint=deepcopy(self.report)
+        joint["rodHeatFlows"]["ArcX_J4"].update(
+            fromNode="J4",toNode="X",
+            conductanceWPerKExactPhysicalInterval=["0","0"])
+        with self.assertRaises(n8.CornerRefusal):
+            self.cross(reported=joint)
+
+    def test_n8_f02_reported_body_boundary_source_and_node_enclosure_labels_checked(self):
+        """A PASS must not silently endorse unvalidated attached Kelvin metadata."""
+        checks=(
+            ("body_value",lambda r:r["bodyTemperatureAssumptionsKExact"].__setitem__("M","999")),
+            ("boundary_value",lambda r:r["fixedBoundaryTemperaturesKExact"].__setitem__("H","999")),
+            ("model_hash",lambda r:r.__setitem__("graphSourceModelSha256","f"*64)),
+            ("study_hash",lambda r:r.__setitem__("graphSourceStudySha256","f"*64)),
+            ("node_interval",lambda r:r["allNodeTemperatureKExactPhysicalEnclosures"].__setitem__(
+                "J1",["0","0"])),
+            ("missing_node",lambda r:r["allNodeTemperatureKExactPhysicalEnclosures"].pop("J2")),
+            ("body_status",lambda r:r.__setitem__("bodyRatesConditionalOnUserAssumedTemperatures",False)),
+            ("false_circular",lambda r:r.__setitem__("hasCircularConductor",False)),
+        )
+        for name,mutate in checks:
+            with self.subTest(attack=name):
+                fake=deepcopy(self.report)
+                mutate(fake)
+                with self.assertRaises(n8.CornerRefusal):
+                    self.cross(reported=fake)
+
     def test_native_and_source_trust_forgery_refuses(self):
         for name in ("nativeQualified","nativeExecuted","referenceAccuracyCertified"):
             fake=deepcopy(self.report)
