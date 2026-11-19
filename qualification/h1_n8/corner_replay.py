@@ -212,6 +212,16 @@ def replay(raw,*,expected_sha256,body_node_temperatures,reported):
         radii[name]=bounded(F(row["residualAbsoluteBoundW"]))
         need(barriers[name]>=0 and radii[name]>=0,"negative physical comparison proof")
     centre_all={**known,**centre}
+    # Authenticates the proof centre independently: the source-residual r
+    # formula assumes x0 EXACTLY solves the midpoint equations. A merely
+    # close/fitted centre could invalidate a claimed universal error bound.
+    midpoint={name:bounded((lo+hi)/2) for name,_,_,lo,hi in edges}
+    mid_mat,mid_rhs=_matrix(junctions,known,edges,midpoint)
+    for j,name in enumerate(junctions):
+        lhs=bounded(sum((mid_mat[j][k]*centre[junctions[k]]
+                         for k in range(len(junctions))),F(0)))
+        need(lhs==mid_rhs[j],
+             "claimed midpoint proof centre does not solve exact midpoint equations")
     # Crucial universal check: signed worst-case row contributions from the
     # source-derived full G intervals, NOT just endpoint-sampled solutions.
     negative_gradients=0
@@ -236,12 +246,17 @@ def replay(raw,*,expected_sha256,body_node_temperatures,reported):
                for name in junctions}
     need(all(lo<=hi for lo,hi in enclosure.values()),
          "invalid reported junction interval")
+    # N7 publishes the intersection of the proven ±barrier and a passive
+    # known-source temperature envelope. The *entire* certified interval must
+    # be contained in the report; merely including the nominal midpoint is
+    # insufficient and could admit a post-hoc narrowed, uncertified claim.
+    known_lo,known_hi=min(known.values()),max(known.values())
     for name in junctions:
         lo,hi=enclosure[name]
-        need(lo<=centre[name]-barriers[name]<=centre[name]+barriers[name]<=hi
-             or (lo>=min(known.values()) and hi<=max(known.values())
-                 and lo<=centre[name]<=hi),
-             "reported enclosure incompatible with verified radius/envelope")
+        safe_lo=max(known_lo,centre[name]-barriers[name])
+        safe_hi=min(known_hi,centre[name]+barriers[name])
+        need(safe_lo<=safe_hi and lo<=safe_lo<=safe_hi<=hi,
+             "reported enclosure not covering universal certified envelope")
     corner_outputs=[]
     for signs in product((0,1),repeat=len(circular)):
         selected={name:bit for name,bit in zip(circular,signs)}

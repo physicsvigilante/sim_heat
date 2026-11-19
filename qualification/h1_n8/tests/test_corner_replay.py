@@ -162,10 +162,31 @@ class IndependentCornerReplay(unittest.TestCase):
         with self.assertRaisesRegex(n8.CornerRefusal,"barrier|lower|signed"):
             self.cross(reported=wrong)
         wrong=deepcopy(self.report)
-        row=next(row for row in wrong["proof"]["rows"] if row["junctionNode"]=="J3")
+        row=next(row for row in wrong["proof"]["rows"] if row["junctionNode"]=="J1")
+        self.assertGreater(F(row["residualAbsoluteBoundW"]),0)
         row["residualAbsoluteBoundW"]="0"
         with self.assertRaisesRegex(n8.CornerRefusal,"source-residual"):
             self.cross(reported=wrong)
+
+    def test_crosschecker_rejects_narrowing_the_universal_interval(self):
+        fake=deepcopy(self.report)
+        row=next(r for r in fake["proof"]["rows"] if r["junctionNode"]=="J1")
+        centre=F(row["nominalProofCentreK"])
+        barrier=F(row["verifiedBarrierRadiusK"])
+        self.assertGreater(barrier,0)
+        published=tuple(map(F,fake["junctionTemperatureEnclosuresK"]["J1"]))
+        # Deliberately remove part of the rigorously proved left envelope.
+        fake["junctionTemperatureEnclosuresK"]["J1"]=[
+            str((published[0]+centre)/2), str(published[1])]
+        with self.assertRaisesRegex(n8.CornerRefusal,"universal certified envelope"):
+            self.cross(reported=fake)
+
+    def test_claimed_midpoint_centre_must_solve_independently_rebuilt_source_matrix(self):
+        fake=deepcopy(self.report)
+        row=next(r for r in fake["proof"]["rows"] if r["junctionNode"]=="J3")
+        row["nominalProofCentreK"]=str(F(row["nominalProofCentreK"])+F(1,10**80))
+        with self.assertRaisesRegex(n8.CornerRefusal,"midpoint proof centre"):
+            self.cross(reported=fake)
 
     def test_native_and_source_trust_forgery_refuses(self):
         for name in ("nativeQualified","nativeExecuted","referenceAccuracyCertified"):
