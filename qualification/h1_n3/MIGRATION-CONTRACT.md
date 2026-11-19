@@ -1,0 +1,32 @@
+# H1-N3-P0 — versioned reference migration boundary (offline design only)
+
+**Status:** R2 DESIGN CANDIDATE. No new checking reference, runner dispatch, executable plan, host manifest, native result, external pre-output seal or independent numerical certificate is created by this milestone. It is stacked on still-draft PR63 source commit `6baba681ae1680e2fcae1ea8efbf0953afcb031b`. PR63, PR62, PR60 and PR59 remain draft and unmerged; production main and historic C1 remain unchanged.
+
+## Why this checkpoint matters
+
+The PR62 source-only interval generator provides a new mathematically self-checked **fixed original T1-T** 2,401/4,801-point reference candidate, including 77 exports, eight original public observations, five integrated flows and strict 100× error checks. Its output is **not** `sim_heat.reference_bundle/2` and remains labelled `independentlyCertifiedReference=false`. PR63 independently reviewed the checking-only primary-versus-companion comparator using synthetic legacy float64 bundles; it likewise did not certify a native reference.
+
+Meanwhile, `tools/h1_native_batch.py:prepare` still calls `h1.reference.prepare(spec)` to regenerate **legacy checking centres**. Seven original static C/G/A fields fail source-exact physical 100× even though the inherited 64-ULP native comparison may pass. A hand-edited reference JSON is not a repair: the runner's re-preparation and saved file/seal comparison would detect drift, and self-consistent new seals do not authenticate an expected reference chosen *before* viewing results.
+
+## Explicit proposed architecture
+
+The machine-readable `migration-plan.json` pins the entire baseline source lineage with exact original model, study and source-facts SHA256, plus actual Git-blob identities of the current interval generator, comparator, existing checker, temporal policy, verifier, plan and native batch runner. `check_migration_plan.py` verifies those Git blob contents from the same on-disk bytes, the three original source SHA256 identities and the unchanged legacy runner's old preparation call. It refuses mutations, unknown fields and any proposed authority/status promotion. The receipt always returns `DESIGN_BLOCKED`; it does not make an executable runner plan or permit a native command.
+
+**Future, in a distinct separately reviewed implementation:** introduce an explicitly versioned **general H1 graph checking-reference adapter**, not a hidden apparatus-specific alternate solver. It must bind the exact original T1-T source and the two authorized analysis-only companion descriptors to an independently checked physical interval reference. It must handle all required exports and original local allowance and sealed temporal/integral budgets, and prepare/serialize each new N1-only reference deterministically; the entire physical 100× obligation must be independently accepted, not inferred from a self-check alone.
+
+The actual runner must have a new explicit **version-dispatch and fail-closed read-only expected-seal binding**, with a prospective trust anchor independent of the generated bundle or caller-selected fingerprint. It must compare an externally committed expected bundle SHA and semantic seal against the re-prepared bytes **before execute**. No fallback to `h1.reference.prepare` for an unrecognized new version, no in-place mutation of historical bundles or broadening of source/physical tolerances. Reference bundle schema migration is a new reviewed trust/evidence behavior, not automatically enabled by this plan.
+
+## Required next steps in chronological order
+
+1. Implement and independently review the new versioned reference checker and full physical source/trajectory/integral 100× certification, for **all 77+8+5 original observations at every required sample**. Respect the unchanged original static 64-ULP tolerance and 0.64-ULP reference budget. Do not fit reference centres to native values.
+2. Generate exact original and analysis-only primary/tight/dense study bytes and record their hashes. Re-bind those studies to the original model/facts/provenance. The tight/primary mathematical path may share the physical 2400-grid trajectory, but **must retain separate study/reference identities**.
+3. On an actually authorized and attested host, prepare three distinct, new-version N1-only reference bundles, certificates, local per-output scales, flow-integral quadrature and temporal windows. Reproduce twice in fresh directories; require identical byte hashes *and* semantic seals. Original `h1.reference.prepare` remains unchanged.
+4. Prospectively record trusted expected reference and full implementation/host/OS/compiler/MSL/dependency/manifest hashes **outside** the execution attempt. Bind future runner re-preparation to them with a single-use attempt identity; refuse a changed hash, re-sealed post-output fingerprint, stale branch or reused authority.
+5. Invoke the PR63 primary-only comparator only after **both** unchanged H1 per-run verifications pass against their respective new sealed bundles. Check exact common planned timestamps, all 77 internal and eight public observations, especially the signed temperature difference, with unchanged **primary** allowance only.
+6. Seek separate explicit owner authorization before **any** OpenModelica version query, installation, build, launch or new native evidence. The three 1-query/1-build/1-launch ceilings, no retries, network/memory/storage containment and original unsealed T1 author trial remain intact.
+
+## What this design expressly does NOT qualify
+
+Neither reference self-check nor a static Git hash certifies scientific correctness of the general graph checker. A real host is not attested by Python package versions, an Ubuntu label or a text file declaring compiler identity. The original lost pre-author hidden key cannot be reconstructed by later successful experiments. The old seven static physical-100× failures and eight native blockers remain **evidence**, not warnings to suppress. The design avoids new apparatus-specific runner branches, but actual generality, LLM authorability and teacher-facing visualization must be demonstrated in later tests.
+
+**No native actions, no merges, no copying synthetic comparator fixtures into a real reference bundle and no historical C1 changes.** After this bounded design is tested and independently reviewed, implement the future versioned checker and explicit migration wiring in a NEW milestone, not by changing the reviewed PR63 code.
