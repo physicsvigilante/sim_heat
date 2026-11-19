@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import qualification.h1_n2.compare as n2
 
 from h1 import reference as ref
 from h1.model import Refusal
@@ -103,6 +105,96 @@ class FrozenOriginalComparator(unittest.TestCase):
         return compare_candidates(x, a, ac, ar, primary_seal or a["seal"],
                                   y, b, bc, br, companion_seal or b["seal"],
                                   variant=variant)
+
+    def test_f01_hashed_original_bytes_are_the_parsed_bytes_even_under_file_race(self):
+        # Preserve the true original project files. Each scratch copy changes
+        # immediately AFTER its first successful SHA-pinned read. A second
+        # read would consume unauthenticated provenance (the review-01 bug).
+        raw_facts = (HERE / "reference-facts.json").read_bytes()
+        raw_study = (HERE / "inputs/T/study.json").read_bytes()
+        raw_model = (HERE / "inputs/T/model.mo").read_bytes()
+        expected_facts, expected_study = json.loads(raw_facts), json.loads(raw_study)
+        for attack in ("facts", "study"):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                facts = root / "h1_n1/reference-facts.json"
+                study = root / "h1_n1/inputs/T/study.json"
+                model = root / "h1_n1/inputs/T/model.mo"
+                for path, raw in ((facts, raw_facts), (study, raw_study), (model, raw_model)):
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(raw)
+                target = facts if attack == "facts" else study
+                changed = deepcopy(expected_facts if attack == "facts" else expected_study)
+                if attack == "facts":
+                    changed["provenance"] = "replacement after SHA check"
+                else:
+                    changed["provenance"][0]["note"] = "replacement after SHA check"
+                tampered = json.dumps(changed, sort_keys=True).encode()
+                reads = {facts: 0, study: 0, model: 0}
+                real_read = Path.read_bytes
+
+                def change_after_first_read(this):
+                    raw = real_read(this)
+                    if this in reads:
+                        reads[this] += 1
+                        if this == target and reads[this] == 1:
+                            target.write_bytes(tampered)
+                    return raw
+
+                with patch.object(n2, "HERE", root), patch.object(
+                        Path, "read_bytes", change_after_first_read):
+                    actual_facts, actual_study = n2._original_inputs()
+
+                self.assertEqual(actual_facts, expected_facts)
+                self.assertEqual(actual_study, expected_study)
+                self.assertEqual(reads, {facts: 1, study: 1, model: 1})
+                self.assertNotEqual(sha256(target.read_bytes()).hexdigest(),
+                                    n2.ORIGINAL_FACTS_SHA if attack == "facts"
+                                    else n2.ORIGINAL_STUDY_SHA)
+
+    def test_f01_file_tampered_before_hash_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            paths = (
+                ("h1_n1/reference-facts.json", HERE / "reference-facts.json"),
+                ("h1_n1/inputs/T/study.json", HERE / "inputs/T/study.json"),
+                ("h1_n1/inputs/T/model.mo", HERE / "inputs/T/model.mo"),
+            )
+            for target, source in paths:
+                dest = root / target
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(source.read_bytes())
+            facts = root / "h1_n1/reference-facts.json"
+            fake = json.loads(facts.read_bytes())
+            fake["provenance"] = "malicious before hash"
+            facts.write_text(json.dumps(fake))
+            with patch.object(n2, "HERE", root):
+                with self.assertRaisesRegex(Refusal, "byte identity mismatch"):
+                    n2._original_inputs()
+
+    def test_f02_malformed_public_api_inputs_refuse_not_python_traceback(self):
+        first, second = self.studies["primary"], self.studies["dense"]
+        a, b = self.bundles["primary"], self.bundles["dense"]
+        ac, bc = self.csvs["primary"], self.csvs["dense"]
+        ar, br = candidate_receipt(first, a, ac), candidate_receipt(second, b, bc)
+
+        def direct(primary_bundle=a, primary_csv=ac):
+            return n2.compare_candidates(
+                first, primary_bundle, primary_csv, ar, a["seal"],
+                second, b, bc, br, b["seal"], variant="dense")
+
+        for malformed in ({}, [], {"spec": None}, {"spec": {}}):
+            with self.subTest(bundle=repr(malformed)):
+                with self.assertRaises(Refusal):
+                    direct(primary_bundle=malformed)
+
+        huge = deepcopy(a)
+        huge["allowances"]["T_Cool.T"] = 10 ** 400
+        with self.assertRaises(Refusal):
+            direct(primary_bundle=huge)
+
+        with self.assertRaisesRegex(Refusal, "UTF-8"):
+            direct(primary_csv=ac + "\ud800")
 
     def test_canonical_primary_and_companions_are_synthetic_only(self):
         for variant in ("tight", "dense"):
