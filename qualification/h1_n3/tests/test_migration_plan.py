@@ -111,6 +111,104 @@ class MigrationPlanSafety(unittest.TestCase):
         with self.assertRaisesRegex(n3.DesignRefusal,"outside-repo"):
             n3.check(n3.ROOT/"qualification/h1_n3/NOT_NATIVE.json")
 
+    def test_f01_future_manifest_requires_independent_protected_owner_authority(self):
+        plan=n3.read_plan()
+        authority=plan["expectedManifestContract"]
+        self.assertEqual(authority["schema"],"sim_heat.h1_n3.expected_manifest_authority_contract/1")
+        self.assertEqual(authority["futureManifestSchema"],
+                         "sim_heat.h1_n3.owner_approved_expected_manifest/1")
+        self.assertEqual(authority["ownerGitHubLogin"],"physicsvigilante")
+        self.assertEqual(authority["authorityRepository"],"physicsvigilante/review_sandbox")
+        self.assertEqual(authority["signatureMethod"],"ED25519_DETACHED_OVER_CANONICAL_MANIFEST")
+        self.assertTrue(authority["protectedApprovalRevisionRequired"])
+        self.assertTrue(authority["externalPreOutputServerChronologyRequired"])
+        self.assertTrue(authority["atomicSingleUseAttemptClaimRequired"])
+        self.assertTrue(authority["runnerMustAuthenticateBeforeAnyOMCOperation"])
+        self.assertTrue(authority["rejectCallerChosenExpectedHashes"])
+        self.assertFalse(authority["approvedManifestExists"])
+        self.assertIsNone(authority["pinnedOwnerPublicKeyId"])
+        self.assertIsNone(authority["approvedManifestGitCommit"])
+        for field in ("candidateSourceHead","candidateSourceTree","referenceVersion",
+                      "implementationClosureSha256","dependencyLockSha256",
+                      "originalModelSha256","originalStudySha256","originalFactsSha256",
+                      "threeCaseBundleExpectations","independentFullGridCertificateSha256",
+                      "hostBinaryMslAndImageManifest","singleUseAttemptId","executionBudgets"):
+            self.assertIn(field,authority["futureSignedManifestRequiredFields"],field)
+        for field in ("caseId","studySha256","bundleBytesSha256",
+                      "bundleSemanticSeal","gridSha256","localScalesSha256",
+                      "allowancesSha256","quadratureSha256","temporalPolicySha256"):
+            self.assertIn(field,authority["futurePerCaseExpectationsRequiredFields"],field)
+
+    def test_f02_future_dispatch_and_refusal_matrix_are_normative(self):
+        plan=n3.read_plan()
+        contract=plan["bundleDispatchContract"]
+        self.assertEqual(contract["schema"],"sim_heat.h1_n3.bundle_dispatch_contract/1")
+        self.assertEqual(contract["canonicalEncoding"],"RFC8785_JCS_UTF8_FINITE_NO_DUPLICATE_KEYS")
+        self.assertEqual(contract["semanticSealHash"],"SHA256_DOMAIN_SEPARATED_JCS_EXCLUDING_SEMANTIC_SEAL")
+        self.assertEqual(contract["serializedBundleHash"],"SHA256_OF_COMPLETE_CANONICAL_BUNDLE_BYTES")
+        self.assertFalse(contract["dispatchImplemented"])
+        self.assertFalse(contract["legacyFallbackPermitted"])
+        self.assertTrue(contract["verifyBothExpectedBundleHashAndSemanticSealBeforeAnyOMC"])
+        rows={row["scope"]:row for row in contract["rows"]}
+        self.assertEqual(set(rows),{"legacy","n1_versioned","interval_candidate"})
+        self.assertEqual(rows["n1_versioned"]["bundleSchema"],"sim_heat.h1_n3.reference_bundle/1")
+        self.assertFalse(rows["n1_versioned"]["implemented"])
+        self.assertFalse(rows["legacy"]["n1Permitted"])
+        self.assertFalse(rows["interval_candidate"]["n1Permitted"])
+        self.assertTrue(rows["n1_versioned"]["requiresExternallyApprovedDispatch"])
+        failures={row["condition"]:row["outcome"] for row in plan["futureRefusalMatrix"]}
+        for condition in ("MISSING_OR_STALE_APPROVAL","WRONG_OWNER_SIGNATURE_OR_TRUST_ROOT",
+                          "APPROVAL_NOT_BEFORE_NATIVE_RUN","SINGLE_USE_ATTEMPT_REPLAY",
+                          "CROSS_CASE_BUNDLE_OR_SEAL","UNKNOWN_CHECKING_VERSION",
+                          "LEGACY_FALLBACK_FOR_N1","MIXED_BUNDLE_SCHEMAS",
+                          "CHANGED_PRIMARY_ALLOWANCES","MISSING_INDEPENDENT_100X_CERTIFICATE",
+                          "CHANGED_REPREPARED_REFERENCE_BYTES_OR_SEAL",
+                          "UNATTESTED_HOST","UNFAMILIAR_COMPOSITION_NOT_QUALIFIED"):
+            self.assertEqual(failures[condition],"REFUSE_BEFORE_ANY_OMC",condition)
+        gate=plan["futureGeneralityGate"]
+        self.assertEqual(gate["unfamiliarAdmittedH1CompositionsMinimum"],1)
+        self.assertTrue(gate["mustNotRequireCoreSolverOrCheckerEdits"])
+        self.assertFalse(gate["demonstrated"])
+
+    def test_f03_documented_status_matches_actual_design_receipt(self):
+        contract=(n3.ROOT/"qualification/h1_n3/MIGRATION-CONTRACT.md").read_text()
+        self.assertIn("DESIGN_VERIFIED_NATIVE_BLOCKED",contract)
+        self.assertNotIn(chr(96)+"DESIGN_BLOCKED"+chr(96),contract)
+        self.assertEqual(n3.check()["status"],"DESIGN_VERIFIED_NATIVE_BLOCKED")
+
+    def test_f04_nonfinite_exponent_literals_are_refused(self):
+        for literal in (b'{"a":1e309}',b'{"a":-1e309}',
+                        b'{"outer":[{"inside":1e9999}]}',
+                        b'{"outer":{"nested":[-1e10000]}}'):
+            with self.subTest(literal=literal):
+                with self.assertRaisesRegex(n3.DesignRefusal,"nonfinite"):
+                    n3.strict_json(literal)
+        self.assertEqual(n3.strict_json(b'{"a":1.5,"b":-2.5e-3}'),
+                         {"a":1.5,"b":-0.0025})
+
+    def test_f05_full_check_uses_one_authenticated_plan_snapshot(self):
+        raw=n3.PLAN_PATH.read_bytes()
+        with tempfile.TemporaryDirectory() as td:
+            shadow=Path(td)/"plan.json"
+            shadow.write_bytes(raw)
+            real_read=Path.read_bytes
+            reads=[0]
+            def swapped_after_first_read(path):
+                before=real_read(path)
+                if path == shadow:
+                    reads[0]+=1
+                    if reads[0]==1:
+                        shadow.write_bytes(raw+b" unauthenticated later file bytes")
+                return before
+            with patch.object(n3,"PLAN_PATH",shadow), patch.object(
+                    Path,"read_bytes",swapped_after_first_read):
+                self.assertEqual(n3.check()["status"],"DESIGN_VERIFIED_NATIVE_BLOCKED")
+            self.assertEqual(reads[0],1)
+        changed=deepcopy(n3.read_plan())
+        changed["designFlags"]["nativeQualified"]=True
+        with self.assertRaisesRegex(n3.DesignRefusal,"unreviewed in-memory plan"):
+            n3.audit(changed)
+
     def test_no_unavailable_host_reference_or_new_checkers_are_claimed(self):
         p=n3.read_plan()
         self.assertFalse(p["originalEvidence"]["nativeEvidence"])
