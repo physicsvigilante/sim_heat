@@ -133,6 +133,91 @@ class StaticPhysicalCandidateTests(unittest.TestCase):
         with self.assertRaises(n4.PhysicalRefusal):
             n4.create_static_candidate(raw,expected_sha256=digest)
 
+    def test_r2_01_open_ownerless_steady_and_transient_rod_end_refused(self):
+        steady=small_graph()
+        steady.update(id="OpenEndContradictsH1",mode="steady",analysis={},
+                      nodes=["Hot","Free"],bodies={},
+                      boundaries={"Thermostat":{"node":"Hot","T":340}},
+                      rods={"DanglingRod":{"kind":"RodArea","a":"Hot","b":"Free",
+                                           "k":12,"L":0.5,"A":0.001}})
+        raw,digest=raw_and_sha(steady)
+        with self.assertRaisesRegex(n4.PhysicalRefusal,"ownerless|open"):
+            n4.create_static_candidate(raw,expected_sha256=digest)
+        transient=small_graph()
+        transient.update(id="OpenTransientFin",nodes=["BodyNode","FreeNode"],
+                         bodies={"Plate":{"node":"BodyNode","m":0.4,"c":500,
+                                          "T_initial":310}},
+                         boundaries={},
+                         rods={"Finned":{"kind":"RodCircular","a":"BodyNode",
+                                         "b":"FreeNode","k":30,"L":0.2,"d":0.01}})
+        raw,digest=raw_and_sha(transient)
+        with self.assertRaisesRegex(n4.PhysicalRefusal,"ownerless|open"):
+            n4.create_static_candidate(raw,expected_sha256=digest)
+
+    def test_r2_01_degree_two_junction_parallel_loops_and_isolated_body_admit(self):
+        steady=small_graph()
+        steady.update(id="ComposedSteadyJunction",mode="steady",analysis={},
+                      nodes=["Hot","Junction","Cold"],bodies={},
+                      boundaries={"Warm":{"node":"Hot","T":355},
+                                  "Cool":{"node":"Cold","T":290}},
+                      rods={"Up":{"kind":"RodArea","a":"Hot","b":"Junction",
+                                   "k":40,"L":0.2,"A":0.001},
+                            "Down":{"kind":"RodArea","a":"Junction","b":"Cold",
+                                     "k":50,"L":0.3,"A":0.001}})
+        raw,digest=raw_and_sha(steady)
+        self.assertEqual(set(n4.create_static_candidate(raw,expected_sha256=digest)["exports"]),
+                         {"Up.G","Down.G"})
+        # A parallel conductor and loop add incidences, not just distinct neighbours.
+        steady["rods"]["Parallel"]={"kind":"RodArea","a":"Hot","b":"Junction",
+                                    "k":60,"L":0.2,"A":0.001}
+        steady["rods"]["Loop"]={"kind":"RodArea","a":"Hot","b":"Cold",
+                                "k":40,"L":0.4,"A":0.001}
+        raw,digest=raw_and_sha(steady)
+        self.assertEqual(set(n4.create_static_candidate(raw,expected_sha256=digest)["exports"]),
+                         {"Up.G","Down.G","Parallel.G","Loop.G"})
+        # No boundary on an isolated body is allowed; it has its own owned node.
+        dynamic=small_graph()
+        dynamic["nodes"].append("IsolatedNode")
+        dynamic["bodies"]["Isolated"]={"node":"IsolatedNode","m":0.5,"c":500,
+                                        "T_initial":310}
+        raw,digest=raw_and_sha(dynamic)
+        self.assertIn("Isolated.C",
+                      n4.create_static_candidate(raw,expected_sha256=digest)["exports"])
+
+    def test_r2_02_component_name_reservations_match_h1_grammar(self):
+        from h1.model import RESERVED, identifier
+        self.assertEqual(n4.COMPONENT_RESERVED, RESERVED)
+        for keyword in ("model","flow","SimHeat","time","class","Real","false"):
+            self.assertFalse(identifier(keyword))
+            self.assertFalse(n4._component_ident(keyword))
+            spec=small_graph()
+            value=spec["rods"].pop("Bar")
+            spec["rods"][keyword]=value
+            raw,digest=raw_and_sha(spec)
+            with self.subTest(rod=keyword):
+                with self.assertRaisesRegex(n4.PhysicalRefusal,"reserved|component"):
+                    n4.create_static_candidate(raw,expected_sha256=digest)
+        for group,old,new in (("bodies","Block","model"),
+                              ("boundaries","Hot","SimHeat")):
+            spec=small_graph()
+            value=spec[group].pop(old)
+            spec[group][new]=value
+            raw,digest=raw_and_sha(spec)
+            with self.subTest(group=group):
+                with self.assertRaisesRegex(n4.PhysicalRefusal,"reserved|component"):
+                    n4.create_static_candidate(raw,expected_sha256=digest)
+        self.assertTrue(identifier("CustomConductor"))
+        self.assertTrue(n4._component_ident("CustomConductor"))
+        # Metadata study IDs and topology node labels are NOT Modelica instances.
+        spec=small_graph()
+        spec["id"]="flow"
+        spec["nodes"][0]="model"
+        spec["boundaries"]["Hot"]["node"]="model"
+        spec["rods"]["Bar"]["a"]="model"
+        raw,digest=raw_and_sha(spec)
+        self.assertEqual(n4.create_static_candidate(raw,expected_sha256=digest)["sourceStudyId"],
+                         "flow")
+
     def test_binary64_ties_exact_round_to_even_and_subnormal_boundary(self):
         self.assertEqual(n4.rn_even_binary64(F(1)+F(1,2**53)),F(1))
         self.assertEqual(n4.rn_even_binary64(F(1)+3*F(1,2**53)),
