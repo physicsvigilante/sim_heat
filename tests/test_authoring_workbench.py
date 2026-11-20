@@ -10,15 +10,17 @@ from threading import Thread
 import unittest
 
 from h1.model import Refusal
-from tools.authoring_workbench import create_server, DEFAULT_ROUTE
+from tools.authoring_workbench import create_server, DEFAULT_ROUTE, VARIANT_ROUTE
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / 'h1' / 'cases'
 
 
 @contextmanager
-def listening(name):
-    server, preview = create_server(CASES / name / 'study.json', CASES)
+def listening(name, comparison=None):
+    compared = CASES / comparison / 'study.json' if comparison else None
+    server, preview = create_server(CASES / name / 'study.json', CASES,
+                                    comparison_study=compared)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -152,6 +154,57 @@ class LocalAuthoringWorkbenchTests(unittest.TestCase):
             self.assertIn(b'Do not include secrets', help_page)
             self.assertIn(b'press Ctrl+C after inspection', help_page)
             self.assertNotIn(b'within;', help_page)
+
+    def test_two_admitted_source_variants_are_served_readonly_before_bind(self):
+        with listening('D2',comparison='D2_K2') as (server,base):
+            self.assertEqual(server.server_address[0], '127.0.0.1')
+            status,headers,raw=request(server.server_port,path=VARIANT_ROUTE)
+            self.assertEqual(status,200)
+            variant=json.loads(raw)
+            self.assertEqual(variant['studyId'],'H1_D2_K2')
+            self.assertEqual(base['studyId'],'H1_D2')
+            self.assertNotEqual(base['source']['modelSha256'],variant['source']['modelSha256'])
+            self.assertNotEqual(base['source']['studySha256'],variant['source']['studySha256'])
+            def k(preview):
+                return next(v['sourceValue'] for v in next(c for c in preview['components']
+                            if c['id']=='rod')['inputs'] if v['name']=='k')
+            self.assertEqual(k(base),100)
+            self.assertEqual(k(variant),200)
+            self.assertEqual(variant['source']['publicRequestStatus'],'not_computed')
+            self.assertFalse(variant['source']['nativeExecuted'])
+            self.assertIn('no-store',headers['Cache-Control'])
+            self.assertNotIn('Access-Control-Allow-Origin',headers)
+            for path in ('/viewer/source_preview/compare_core.mjs',
+                         '/viewer/source_preview/index.html'):
+                self.assertEqual(request(server.server_port,path=path)[0],200)
+            for forbidden in ('/h1/cases/D2_K2/model.mo','/h1/cases/D2_K2/study.json',
+                              VARIANT_ROUTE+'?show=source',VARIANT_ROUTE+'../study.json'):
+                self.assertEqual(request(server.server_port,path=forbidden)[0],404)
+            self.assertEqual(request(server.server_port,'POST',VARIANT_ROUTE,data=b'x')[0],405)
+            self.assertEqual(request(server.server_port,'GET',VARIANT_ROUTE,
+                                     headers={'Host':'evil.example'})[0],421)
+
+    def test_optional_scenario_not_exposed_without_independent_admission(self):
+        with listening('D2') as (server, _):
+            self.assertEqual(request(server.server_port,path=VARIANT_ROUTE)[0],404)
+            self.assertEqual(request(server.server_port,path='/viewer/source_preview/compare_core.mjs')[0],200)
+
+    def test_invalid_second_study_refuses_before_socket_and_does_not_rewrite_either(self):
+        with TemporaryDirectory() as tmp:
+            cases=Path(tmp)/'cases'; case=cases/'second'; case.mkdir(parents=True)
+            model=(CASES/'D2_K2/model.mo').read_bytes()
+            original_study=(CASES/'D2_K2/study.json').read_bytes()
+            (case/'model.mo').write_bytes(model.replace(b'k=200.0',b'k=250.0'))
+            (case/'study.json').write_bytes(original_study)
+            unchanged_baseline=(CASES/'D2/study.json').read_bytes()
+            with self.assertRaises(Refusal):
+                create_server(CASES/'D2/study.json',CASES,
+                              comparison_study=case/'study.json')
+            self.assertEqual((case/'study.json').read_bytes(),original_study)
+            self.assertEqual((CASES/'D2/study.json').read_bytes(),unchanged_baseline)
+            with self.assertRaises(Refusal):
+                create_server(CASES/'D2/study.json',CASES,
+                              comparison_study=CASES.parent/'study.json')
 
     def test_rejected_stale_hash_never_opens_server_or_mutates_draft(self):
         with TemporaryDirectory() as tmp:
