@@ -6,11 +6,13 @@ import json
 import socket
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from threading import Thread
 import unittest
 
 from h1.model import Refusal
 from tools.authoring_workbench import create_server, DEFAULT_ROUTE, VARIANT_ROUTE
+from tools.published_diagnostic_bridge import published_diagnostic_pair, COMPARE_ROUTE
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / 'h1' / 'cases'
@@ -42,6 +44,97 @@ def request(port, method='GET', path=DEFAULT_ROUTE, headers=None, data=None):
 
 
 class LocalAuthoringWorkbenchTests(unittest.TestCase):
+    def test_preadmitted_exact_source_pair_opens_only_existing_archived_diagnostic(self):
+        with listening('D2', 'D2_K2') as (server, baseline):
+            port = server.server_port
+            html = request(port, path='/viewer/source_preview/')[2].decode('utf-8')
+            self.assertIn('published-diagnostic-link', html)
+            self.assertIn('original server-admitted H1_D2 → H1_D2_K2 source pair', html)
+            self.assertIn('diagnostic_only', html)
+            self.assertIn('nativeQualified=false', html)
+            self.assertIn(COMPARE_ROUTE, html)
+            status, headers, body = request(port, path=COMPARE_ROUTE)
+            self.assertEqual(status, 200)
+            self.assertIn('text/html', headers['Content-Type'])
+            self.assertIn('original and hypothetical', body.decode().lower())
+            self.assertIn(b'Return to admitted source inputs', body)
+            self.assertNotIn(b'Open network explorer', body)
+            self.assertIn('no-store', headers['Cache-Control'])
+            pair = json.loads(request(port, path='/viewer/network/data/compare_index.json')[2])
+            catalog = json.loads(request(port, path='/viewer/network/data/index.json')[2])
+            self.assertEqual(len(pair['pairs']), 1)
+            self.assertEqual(len(catalog['cases']), 2)
+            self.assertEqual({c['id'] for c in catalog['cases']}, {'H1_D2', 'H1_D2_K2'})
+            self.assertEqual(pair['pairs'][0]['revision']['target'], 'rod.k')
+            self.assertEqual((pair['pairs'][0]['revision']['before'],
+                              pair['pairs'][0]['revision']['after']), (100, 200))
+            for field, preview in (('parent', baseline), ('child', json.loads(request(port, path=VARIANT_ROUTE)[2]))):
+                self.assertEqual(pair['pairs'][0]['revision'][field+'StudySha256'],
+                                 preview['source']['studySha256'])
+                self.assertEqual(pair['pairs'][0]['revision'][field+'ModelSha256'],
+                                 preview['source']['modelSha256'])
+            for original in catalog['cases']:
+                route='/viewer/network/'+original['file']
+                status, headers, raw = request(port,path=route)
+                self.assertEqual(status,200)
+                self.assertEqual(hashlib.sha256(raw).hexdigest(),original['sha256'])
+                historic=json.loads(raw)
+                self.assertFalse(historic['source']['nativeQualified'])
+                self.assertEqual(historic['source']['publicRequestStatus'], 'diagnostic_only')
+                self.assertTrue(historic['source']['artifactId']>0)
+            for asset in ('compare.mjs', 'compare_core.mjs', 'core.mjs'):
+                self.assertEqual(request(port,path='/viewer/network/'+asset)[0],200)
+            for forbidden in ('/viewer/network/index.html',
+                              '/viewer/network/data/DEV_BRIDGE.json',
+                              '/viewer/network/data/D1.json',
+                              '/viewer/network/data/TEACH_RING4.json',
+                              '/h1/cases/D2/model.mo',
+                              '/viewer/network/data/compare_index.json?view=other'):
+                with self.subTest(forbidden=forbidden):
+                    self.assertEqual(request(port,path=forbidden)[0],404)
+            self.assertEqual(request(port,'POST',COMPARE_ROUTE,data=b'x')[0],405)
+            self.assertEqual(request(port,'GET',COMPARE_ROUTE,
+                                     headers={'Host':'evil.example'})[0],421)
+
+    def test_unpublished_compositions_and_reverse_pair_have_no_native_result_link(self):
+        for baseline, variant in (('D1','S1'),('D2_K2','D2'),('D2','S1')):
+            with self.subTest(baseline=baseline,variant=variant), listening(baseline, variant) as (s,_):
+                port=s.server_port
+                html=request(port,path='/viewer/source_preview/')[2]
+                self.assertNotIn(b'published-diagnostic-link',html)
+                self.assertIn(b'no-published-diagnostic',html)
+                self.assertIn(b'No matching published diagnostic',html)
+                self.assertEqual(request(port,path=COMPARE_ROUTE)[0],404)
+                self.assertEqual(request(port,path='/viewer/network/data/D2.json')[0],404)
+        with listening('D2') as (server,_):
+            self.assertEqual(request(server.server_port,path=COMPARE_ROUTE)[0],404)
+            self.assertNotIn(b'no-published-diagnostic',
+                             request(server.server_port,path='/viewer/source_preview/')[2])
+
+    def test_diagnostic_manifest_drift_removes_link_without_replacing_source_result(self):
+        from h1.study import load_study
+        from h1.source_preview import build_source_preview
+        from tools import published_diagnostic_bridge as bridge
+        a=build_source_preview(load_study(CASES/'D2/study.json',CASES))
+        b=build_source_preview(load_study(CASES/'D2_K2/study.json',CASES))
+        raw, label = published_diagnostic_pair(a,b)
+        self.assertTrue(raw)
+        self.assertEqual(label['baselineStudy'],a['studyId'])
+        a['source']['modelSha256']='0'*64
+        self.assertEqual(published_diagnostic_pair(a,b), ({},None))
+        a=build_source_preview(load_study(CASES/'D2/study.json',CASES))
+        with TemporaryDirectory() as tmp:
+            invalid=Path(tmp)/'compare_sources.json'
+            invalid.write_text('{"untrusted":true}',encoding='utf-8')
+            with patch.object(bridge,'SOURCE_MANIFEST',invalid):
+                self.assertEqual(published_diagnostic_pair(a,b), ({},None))
+                with listening('D2','D2_K2') as (server,p):
+                    self.assertEqual(p['studyId'],'H1_D2')
+                    self.assertEqual(request(server.server_port,path=DEFAULT_ROUTE)[0],200)
+                    self.assertEqual(request(server.server_port,path=COMPARE_ROUTE)[0],404)
+                    self.assertNotIn(b'published-diagnostic-link',
+                                     request(server.server_port,path='/viewer/source_preview/')[2])
+
     def test_real_h1_compositions_load_without_special_case_code(self):
         for name, expected_mode, count in (('D1', 'transient', 3),
                                            ('S1', 'steady', 4),

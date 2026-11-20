@@ -21,6 +21,7 @@ if __package__ in (None, ''):
 from h1.model import Refusal, require
 from h1.source_preview import build_source_preview, serialized
 from h1.study import load_study
+from tools.published_diagnostic_bridge import published_diagnostic_pair, published_link_markup
 
 VIEW = ROOT / 'viewer' / 'source_preview'
 DEFAULT_ROUTE = '/viewer/source_preview/data/TEACH_SPLIT3.json'
@@ -41,24 +42,32 @@ HELP = b'''<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SIM
 <main><h1>Local H1 source-preview session</h1><p><a href="viewer/source_preview/">Return to the source-only inspector</a>.</p>
 <p>This session serves only a previously admitted H1 source description from memory. Its inputs are authored assumptions, not simulated values. No OpenModelica tool runs and no files are uploaded or modified.</p>
 <p>Do not include secrets in model inputs or provenance notes. Any process on this computer that learns the local session port can read the admitted source preview; avoid shared/untrusted machines and press Ctrl+C after inspection.</p>
-<p>To inspect the separate archived native diagnostic explorer, use the normal repository server as described in the README; this restricted session intentionally does not expose repository source files or archives.</p>
+<p>The local workbench serves no raw source files, MAT archives, binaries or executable plans. Only when two separately admitted original sources exactly match a prepublished diagnostic pair does it also allowlist those two existing normalized diagnostic JSON cases and the already-published historical comparison viewer. That display remains diagnostic_only, never nativeQualified; browser-imported JSON cannot select or relabel archived results.</p>
 </main></body></html>'''
 
 
-def _viewer_html() -> bytes:
+def _viewer_html(archived_link: dict | None = None, *, compared: bool = False) -> bytes:
     page = (VIEW / 'index.html').read_text(encoding='utf-8')
     for old, new in _REPLACE.items():
         require(page.count(old) == 1, 'source_preview', 'reviewed viewer default text changed')
         page = page.replace(old, new)
+    if compared:
+        marker = '</main><footer class="foot">'
+        require(page.count(marker) == 1, 'source_preview',
+                'reviewed source-only viewer section marker changed')
+        page = page.replace(marker, published_link_markup(archived_link, compared=compared) + marker)
     return page.encode('utf-8')
 
 
-def _resources(payload: bytes, variant: bytes | None = None) -> dict[str, tuple[bytes, str]]:
+def _resources(payload: bytes, variant: bytes | None = None,
+               archived_resources: dict | None = None, archived_link: dict | None = None
+               ) -> dict[str, tuple[bytes, str]]:
     # Files are snapshotted before the server starts. No path is constructed
     # from a URL, model name, study ID, or remotely supplied string.
+    html = _viewer_html(archived_link, compared=variant is not None)
     resources = {
-        '/viewer/source_preview/': (_viewer_html(), 'text/html; charset=utf-8'),
-        '/viewer/source_preview/index.html': (_viewer_html(), 'text/html; charset=utf-8'),
+        '/viewer/source_preview/': (html, 'text/html; charset=utf-8'),
+        '/viewer/source_preview/index.html': (html, 'text/html; charset=utf-8'),
         '/viewer/source_preview/app.mjs': ((VIEW / 'app.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
         '/viewer/source_preview/core.mjs': ((VIEW / 'core.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
         '/viewer/source_preview/compare_core.mjs': ((VIEW / 'compare_core.mjs').read_bytes(), 'text/javascript; charset=utf-8'),
@@ -67,6 +76,12 @@ def _resources(payload: bytes, variant: bytes | None = None) -> dict[str, tuple[
     }
     if variant is not None:
         resources[VARIANT_ROUTE] = (variant, 'application/json; charset=utf-8')
+    if archived_resources:
+        # A fixed catalog of already published normalised diagnostic JSON,
+        # never raw source, compiler output or an executable native endpoint.
+        require(not set(resources).intersection(archived_resources),
+                'source_preview', 'archived diagnostic route collision')
+        resources.update(archived_resources)
     return resources
 
 
@@ -147,11 +162,14 @@ def create_server(study: Path, root: Path, port: int = 0,
     # BOTH original source files are independently admitted and snapshotted
     # before any socket is opened; a bad comparison never leaks the baseline.
     variant = None
+    variant_payload = None
     if comparison_study is not None:
         require(isinstance(comparison_study, Path), 'path', 'comparison study must be a filesystem Path')
         comparison = load_study(comparison_study, root)
-        variant = serialized(build_source_preview(comparison))
-    resources = _resources(source_only, variant)
+        variant_payload = build_source_preview(comparison)
+        variant = serialized(variant_payload)
+    archived_resources, archived_link = published_diagnostic_pair(payload, variant_payload)
+    resources = _resources(source_only, variant, archived_resources, archived_link)
     server = ThreadingHTTPServer(('127.0.0.1', port),
                                  partial(PreviewHandler, resources=resources))
     server.daemon_threads = True

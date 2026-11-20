@@ -97,3 +97,22 @@ component is added, removed or changes its supported law/type, the comparison
 shows the affected authored SI input inventory and original input/component
 provenance as well as the kind/presence change. No unsupported new physical
 law is inferred from a source-only display.
+
+## Original archived diagnostic handoff (T1-V2 candidate, no new native run)
+
+For the existing D2 → D2_K2 original direct conductivity revision, the local
+workbench may offer a clearly labeled link **from admitted authored-source
+inputs** to the separately recorded historical OpenModelica diagnostic
+comparison. It appears only when **both** locally admitted model/study source
+hash identities match the original published source-pair manifest and already
+checked original native-case bytes. Other source pairs receive the explicit
+message *"No matching published diagnostic"* and stay source-only. Uploaded
+browser preview JSON does **not** select, authenticate, or repin these results;
+its selection hides the original-pair link until the workbench is refreshed.
+
+The linked historical viewer uses the existing saved native-case data and
+never starts OpenModelica, integrates an equation, interpolates missing source
+timestamps, or substitutes checking data for an unavailable native result. Its
+records remain `diagnostic_only` and `nativeQualified=false`; their published
+host/artifact/source-relative provenance is not a new independent source-owner
+certificate. Read the [handoff contract](TEACHER_ARCHIVED_DIAGNOSTIC_HANDOFF.md).

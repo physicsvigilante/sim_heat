@@ -10,6 +10,10 @@ let scenarioVersion=0;
 let baselineLoading=true;
 let queuedScenario=null;
 const element=$('element-select');
+function hidePublishedHandoff(){
+  const original=document.getElementById('published-diagnostic-link');
+  if(original)original.hidden=true;
+}
 function svg(tag,attrs={},txt){const e=document.createElementNS(SVG,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));if(txt!==undefined)e.textContent=String(txt);return e;}
 function empty(){preview=null;$('graph').replaceChildren();$('requests').replaceChildren();$('identity').replaceChildren();$('model-assumptions').replaceChildren();$('details').replaceChildren();element.replaceChildren(new Option('Source not loaded',''));element.disabled=true;$('graph-title').textContent='Authored connection graph';$('state').textContent='No admitted source loaded';}
 function error(message){baselineLoading=false;queuedScenario=null;baseline=null;scenario=null;clearComparison();empty();$('error').textContent='Refused source preview: '+message;$('error').classList.remove('hidden')}
@@ -119,6 +123,9 @@ $('view-baseline').addEventListener('click',()=>{if(baseline)render(baseline)});
 $('view-variant').addEventListener('click',()=>{if(scenario)render(scenario)});
 $('variant-import').addEventListener('change',async e=>{
   const file=e.target.files?.[0];if(!file)return;
+  // Browser imports are not independently H1-admitted source bytes. Never
+  // let their changed graph appear linked to the original session's result.
+  hidePublishedHandoff();
   // Every selection gets its own generation: a slow prior File.text() must
   // not overwrite the latest fast selection (baseline loadVersion alone
   // does not distinguish two scenario imports of the same baseline).
@@ -153,6 +160,7 @@ $('variant-import').addEventListener('change',async e=>{
 element.addEventListener('change',()=>choose(element.value));
 $('import').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;
+  hidePublishedHandoff();
   const current=++loadVersion;
   ++scenarioVersion; // invalidate pending scenario file reads from old baseline
   queuedScenario=null;baselineLoading=true;

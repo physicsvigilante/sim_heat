@@ -103,6 +103,42 @@ def run(out: Path) -> None:
                     assert 'H1_D2_K2' in page.locator('#graph-title').inner_text()
                     assert '200 W/(m K)' in page.locator('#details').inner_text() or '200 W/(m K)' in page.locator('#comparison-changes').inner_text()
                     page.screenshot(path=str(out/'d2-whatif-source-only.png'),full_page=True)
+                    # This link is generated ONLY for the original two
+                    # independently H1-admitted studies that exactly match an
+                    # already published archival diagnostic pair. Browser-file
+                    # imports cannot select or relabel those native values.
+                    link=page.locator('#open-recorded-diagnostic')
+                    assert link.count()==1
+                    assert link.get_attribute('href')=='/viewer/network/compare.html'
+                    note=page.locator('#published-diagnostic-link').inner_text()
+                    assert 'original server-admitted H1_D2 → H1_D2_K2 source pair' in note
+                    assert 'diagnostic_only' in note and 'nativeQualified=false' in note
+                    recorded=browser.new_page(viewport={'width':1280,'height':920})
+                    recorded.on('pageerror',lambda err:errors.append(str(err)))
+                    try:
+                        response=recorded.goto(origin+link.get_attribute('href'),wait_until='domcontentloaded')
+                        assert response and response.ok
+                        expect(recorded.locator('#inspector')).to_be_visible(timeout=20000)
+                        revision=recorded.locator('#revision').inner_text()
+                        assert 'rod.k' in revision and '100' in revision and '200' in revision
+                        assert recorded.locator('#quantity-select').input_value()=='rod.Q_flow'
+                        assert recorded.locator('#baseline-value').inner_text()=='+12 W'
+                        assert recorded.locator('#successor-value').inner_text()=='+24 W'
+                        assert 'diagnostic_only' in recorded.locator('main').inner_text()
+                        assert 'nativeQualified=false' in recorded.locator('main').inner_text()
+                        before=recorded.locator('#baseline-value').inner_text()
+                        recorded.locator('#time-slider').focus()
+                        recorded.locator('#time-slider').press('ArrowRight')
+                        assert recorded.locator('#baseline-value').inner_text()!=before
+                        recorded.locator('#quantity-select').select_option('hot.T')
+                        assert 'K' in recorded.locator('#baseline-value').inner_text()
+                        assert 'K' in recorded.locator('#successor-value').inner_text()
+                        recorded.screenshot(path=str(out/'source-to-original-recorded-diagnostic.png'),full_page=True)
+                        assert recorded.request.get(origin+'/h1/cases/D2/model.mo').status==404
+                        assert recorded.request.get(origin+'/viewer/network/data/D1.json').status==404
+                        assert recorded.request.post(origin+'/viewer/network/data/D2.json',data=b'x').status==405
+                    finally:
+                        recorded.close()
                     # Replace the selected scenario with a forged native-status
                     # variant. The previous scenario graph must be cleared.
                     bad=json.loads(page.request.get(origin+'/viewer/source_preview/data/VARIANT.json').body())
@@ -111,6 +147,9 @@ def run(out: Path) -> None:
                         'name':'forged-native-variant.json','mimeType':'application/json',
                         'buffer':json.dumps(bad).encode('utf-8')})
                     page.locator('#comparison-error').wait_for(state='visible')
+                    # The original recorded pair must not remain linked from
+                    # a newly imported browser-only source scenario.
+                    assert page.locator('#published-diagnostic-link').is_hidden()
                     assert page.locator('#comparison-changes .compare-item').count()==0
                     assert page.locator('#view-variant').is_disabled()
                     assert 'H1_D2_K2' not in page.locator('#graph-title').inner_text()
