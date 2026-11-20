@@ -1,9 +1,9 @@
 name: Teacher unfamiliar dual-network H1 composition - OFFLINE only
 on:
   push:
-    branches: [teaching/t4-dual-network-composition]
+    branches: [teaching/t4-dual-network-composition, teaching/t5-dual-network-svg-regression]
   pull_request:
-    branches: [teaching/t3-archived-diagnostic-hardening]
+    branches: [teaching/t3-archived-diagnostic-hardening, teaching/t4-dual-network-composition]
     paths:
       - experiments/teacher_dual_network/**
       - tests/test_teacher_dual_network.py
@@ -44,7 +44,9 @@ jobs:
           git rev-parse 'HEAD^{tree}' > "$evidence/checked-out-tree.txt"
           base=ba625afe3223d4c0fda5d23b88445d08d64771c6
           if [ "${{ github.event_name }}" = pull_request ]; then
-            test "$(git rev-parse HEAD^1)" = "$base"
+            # PR74 targets the original PR73 base; this tests-only successor
+            # targets PR74. Both must use the exact event base/head parents.
+            test "$(git rev-parse HEAD^1)" = "${{ github.event.pull_request.base.sha }}"
             test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
           fi
           git cat-file -e "${base}^{commit}"
