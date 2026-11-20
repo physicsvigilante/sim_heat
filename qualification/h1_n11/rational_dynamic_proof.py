@@ -434,7 +434,9 @@ def field_unit(name):
 
 
 def compare_float(f, enclosure: Box, unit, field, i):
-    need(type(f) in (float,int) and isfinite(f) and type(enclosure) is Box,
+    # The published N1 centres are binary64 floats; reject giant integers
+    # before isfinite() can overflow, and do not silently coerce bool/string.
+    need(type(f) is float and isfinite(f) and type(enclosure) is Box,
          "nonfinite/invalid original reference centre")
     need(unit in ("K","W","J","W/K","J/K","m2"),"unrecognized SI dimension")
     original=F.from_float(float(f))
