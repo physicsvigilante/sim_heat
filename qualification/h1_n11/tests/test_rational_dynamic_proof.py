@@ -130,6 +130,94 @@ class RationalDynamicProofTests(TestCase):
                 n11.audit(output=Path(tmp))
 
 
+class OriginalN11ReviewerTamperTests(TestCase):
+    """Freeze PR78 Chat B F2 adversarial probes against real original bytes.
+
+    The original trace is regenerated once from unchanged N1 source and
+    verified by N9's full-byte SHA/inventory gate before adversarial copies.
+    Never place a modified sample inside actual source files or native data.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        from hashlib import sha256
+        cls.facts,cls.requests=n11.first_source()
+        cls.physical=n11.build_physics(cls.facts)
+        cls.static=n11.create_static_candidate(
+            n11.FACTS.read_bytes(),expected_sha256=n11.FACTS_SHA)
+        with TemporaryDirectory(prefix="n11-pr78-reviewer-") as scratch:
+            target=Path(scratch)/"original-primary"
+            receipt=n11.n1.certify(n11.n1.read_facts(),2400,output=target)
+            blob=(target/"N1_T1T_reference_grid2400.json").read_bytes()
+            assert sha256(blob).hexdigest()==n11.ORIGINAL_GRID_HASHES[2400]
+            assert receipt["fullTraceSha256"]==sha256(blob).hexdigest()
+            n11.verify_historical_grid(blob,2400,cls.static)
+            cls.original_blob=blob
+            cls.original=json.loads(blob)
+
+    def test_reversed_rod_flips_sign_but_cannot_pass_original_source_candidate(self):
+        reverse=deepcopy(self.facts)
+        rod=reverse["rods"]["T06"]
+        rod["a"],rod["b"]=rod["b"],rod["a"]
+        altered=n11.build_physics(reverse)
+        self.assertEqual(altered["matrix"],self.physical["matrix"])
+        values,_,_=n11.sample_physics(self.physical,self.physical["start"],F(0),self.requests)
+        values_reversed,_,_=n11.sample_physics(altered,altered["start"],F(0),self.requests)
+        self.assertTrue((values["T06.Q_flow"]+values_reversed["T06.Q_flow"]).contains_zero())
+        self.assertLess(values["T06.Q_flow"].high,0)
+        self.assertGreater(values_reversed["T06.Q_flow"].low,0)
+        with self.assertRaisesRegex(n11.ProofRefusal,r"T06.T_a @ 0"):
+            n11.checked_grid(self.original,2400,altered,self.requests)
+
+    def test_very_late_one_ulp_static_change_refuses_on_actual_saved_grid(self):
+        changed=deepcopy(self.original)
+        source=changed["columns"]["T10.G"]
+        original=source[2400]
+        source[2400]=nextafter(original,inf)
+        self.assertEqual(source[:2400],self.original["columns"]["T10.G"][:2400])
+        with self.assertRaisesRegex(n11.ProofRefusal,r"T10.G @ 2400"):
+            n11.checked_grid(changed,2400,self.physical,self.requests)
+
+    def test_missing_or_wrong_unit_source_output_refuses(self):
+        missing=deepcopy(self.original)
+        del missing["columns"]["T06.Q_flow"]
+        with self.assertRaisesRegex(n11.ProofRefusal,r"missing or added exports field"):
+            n11.checked_grid(missing,2400,self.physical,self.requests)
+        wrong=deepcopy(self.original)
+        wrong["units"]["T06.Q_flow"]="K"
+        with self.assertRaisesRegex(n11.ProofRefusal,r"source SI unit discrepancy: T06.Q_flow"):
+            n11.checked_grid(wrong,2400,self.physical,self.requests)
+
+    def test_forged_native_flag_refused_at_original_byte_gate(self):
+        import json
+        from hashlib import sha256
+        # Re-encoding the SAME original object must preserve the exact frozen
+        # bytes; refusal must be caused by the forged flag, not JSON whitespace.
+        canonical=json.dumps(self.original,sort_keys=True,separators=(",",":"),
+                             allow_nan=False).encode("utf-8")
+        self.assertEqual(sha256(canonical).hexdigest(),
+                         n11.ORIGINAL_GRID_HASHES[2400])
+        changed=deepcopy(self.original)
+        changed["report"]["nativeExecuted"]=True
+        mutated=json.dumps(changed,sort_keys=True,separators=(",",":"),
+                           allow_nan=False).encode("utf-8")
+        self.assertNotEqual(mutated,canonical)
+        with self.assertRaisesRegex(n11.CrosscheckRefusal,r"originally reviewed"):
+            n11.verify_historical_grid(mutated,2400,self.static)
+
+    def test_nonzero_time_junction_perturbation_refuses_conservation(self):
+        step,_=n11.verified_exponential_step(self.physical["matrix"],2400)
+        physical=deepcopy(self.physical)
+        state=n11.apply(step,physical["start"])
+        # Interfere with a *derived junction temperature coefficient*, not
+        # the first author source or a saved candidate. Proof must refuse.
+        j=physical["junctions"][0]
+        physical["weights"][j][3]=physical["weights"][j][3]+n11.Box.exact(F(1,10))
+        with self.assertRaisesRegex(n11.ProofRefusal,r"junction balance"):
+            n11.sample_physics(physical,state,F(1),self.requests)
+
+
 if __name__=="__main__":
     import unittest
     unittest.main()
