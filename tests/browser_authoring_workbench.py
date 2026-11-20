@@ -226,6 +226,90 @@ def run(out: Path) -> None:
                     assert page.locator('#requests .request').count()==len(baseline['requests'])
                     assert 'not_computed' in page.locator('#requests').inner_text()
                     page.screenshot(path=str(out/'d2-cross-kind-input-provenance.png'),full_page=True)
+                    # Chat B R2 review-02 F-01: a scenario file selected while
+                    # a new baseline file read is pending MUST be settled once
+                    # that baseline is admitted, not left in Checking forever.
+                    page.evaluate("""() => {
+                      const oldText=File.prototype.text;
+                      File.prototype.text=function(...args){
+                        const reading=oldText.apply(this,args);
+                        if(this.name==='slow-baseline-S1.json'){
+                          document.body.dataset.holdingBaseline='yes';
+                          return new Promise((resolve,reject)=>{
+                            window.__releasePendingBaseline=()=>reading.then(v=>{
+                              document.body.dataset.baselineReleased='yes';resolve(v);
+                            },reject);
+                          });
+                        }
+                        return reading;
+                      };
+                    }""")
+                    page.locator('#import').set_input_files({
+                        'name':'slow-baseline-S1.json','mimeType':'application/json',
+                        'buffer':json.dumps(s1).encode('utf-8')})
+                    page.locator('body[data-holding-baseline="yes"]').wait_for()
+                    page.locator('#variant-import').set_input_files({
+                        'name':'scenario-during-baseline-D1.json','mimeType':'application/json',
+                        'buffer':json.dumps(d1).encode('utf-8')})
+                    expect(page.locator('#comparison-state')).to_contain_text('waiting for baseline')
+                    assert page.locator('#view-variant').is_disabled()
+                    assert page.locator('#graph g').count()==0
+                    page.evaluate('() => window.__releasePendingBaseline()')
+                    page.locator('body[data-baseline-released="yes"]').wait_for()
+                    expect(page.locator('#graph-title')).to_contain_text('H1_S1')
+                    expect(page.locator('#comparison-identity')).to_contain_text('H1_D1')
+                    assert 'Checking' not in page.locator('#comparison-state').inner_text()
+                    assert page.locator('#view-variant').is_enabled()
+                    assert s1['source']['studySha256'] in page.locator('#identity').inner_text()
+                    page.locator('#view-variant').click()
+                    expect(page.locator('#graph-title')).to_contain_text('H1_D1')
+                    assert d1['source']['studySha256'] in page.locator('#identity').inner_text()
+                    assert page.locator('#requests .request').count()==len(d1['requests'])
+                    page.screenshot(path=str(out/'scenario-pending-baseline-accepted.png'),full_page=True)
+
+                    # On INITIAL startup, delay the baseline response itself.
+                    # A user-picked D1 scenario must supersede server-default
+                    # D2_K2 even if chosen before initial TEACH_SPLIT3 loads.
+                    startup=browser.new_page(viewport={'width':1140,'height':900})
+                    startup.on('pageerror',lambda err:errors.append(str(err)))
+                    try:
+                        startup.add_init_script(script="""(() => {
+                          const oldFetch=window.fetch.bind(window);
+                          window.fetch=(input,options)=>{
+                            const pending=oldFetch(input,options);
+                            if(String(input).includes('TEACH_SPLIT3.json')){
+                              document.body.dataset.holdingInitial='yes';
+                              return new Promise((resolve,reject)=>{
+                                window.__releaseInitialBaseline=()=>pending.then(v=>{
+                                  document.body.dataset.initialReleased='yes';resolve(v);
+                                },reject);
+                              });
+                            }
+                            return pending;
+                          };
+                        })();""")
+                        initial_response=startup.goto(origin+'/',wait_until='domcontentloaded')
+                        assert initial_response and initial_response.ok
+                        startup.locator('body[data-holding-initial="yes"]').wait_for()
+                        startup.locator('#variant-import').set_input_files({
+                            'name':'scenario-before-startup-D1.json',
+                            'mimeType':'application/json',
+                            'buffer':json.dumps(d1).encode('utf-8')})
+                        expect(startup.locator('#comparison-state')).to_contain_text('waiting for baseline')
+                        startup.evaluate('() => window.__releaseInitialBaseline()')
+                        startup.locator('body[data-initial-released="yes"]').wait_for()
+                        expect(startup.locator('#graph-title')).to_contain_text('H1_D2')
+                        expect(startup.locator('#comparison-identity')).to_contain_text('H1_D1')
+                        startup.wait_for_timeout(180)
+                        assert 'H1_D2_K2' not in startup.locator('#comparison-identity').inner_text()
+                        assert 'Checking' not in startup.locator('#comparison-state').inner_text()
+                        startup.locator('#view-variant').click()
+                        expect(startup.locator('#graph-title')).to_contain_text('H1_D1')
+                        assert d1['source']['studySha256'] in startup.locator('#identity').inner_text()
+                        assert startup.locator('#requests .request').count()==len(d1['requests'])
+                        startup.screenshot(path=str(out/'scenario-chosen-before-startup-default.png'),full_page=True)
+                    finally:
+                        startup.close()
                 finally:
                     page.close()
             finally:
