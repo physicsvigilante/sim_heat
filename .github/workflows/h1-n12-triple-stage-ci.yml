@@ -1,0 +1,150 @@
+name: H1-N12 source-only three-case reference staging - NEVER native
+on:
+  push:
+    branches: [numerics/h1-n12-triple-case-reference-staging]
+  pull_request:
+    branches: [numerics/h1-n11-reviewed-regressions]
+    paths:
+      - qualification/h1_n12/**
+      - .github/workflows/h1-n12-triple-stage-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n12-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-three-case-stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install Python checking dependencies ONLY - no Modelica compiler
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Freeze reviewed N11 successor, exact four N12 additions and physical source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          e="$RUNNER_TEMP/h1_n12"
+          mkdir -p "$e"
+          git rev-parse HEAD > "$e/checkout-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$e/checkout-tree.txt"
+          base=ca5654a789f2291d6f0ceb7fd798b15d4310a122
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git cat-file -e "${base}^{commit}"
+          git diff --name-status "$base" HEAD > "$e/changed-paths.txt"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          e=Path(os.environ["RUNNER_TEMP"])/"h1_n12"
+          expected={
+            "A\t.github/workflows/h1-n12-triple-stage-ci.yml",
+            "A\tqualification/h1_n12/README.md",
+            "A\tqualification/h1_n12/stage_reference.py",
+            "A\tqualification/h1_n12/tests/test_stage_reference.py",
+          }
+          assert set((e/"changed-paths.txt").read_text().splitlines())==expected
+          folder=Path("qualification/h1_n1")
+          for p,pin in {
+            "reference-facts.json":"39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf",
+            "inputs/T/model.mo":"2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+            "inputs/T/study.json":"12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a",
+          }.items():
+            assert sha256((folder/p).read_bytes()).hexdigest()==pin
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments docs viewer qualification/h1_c1 qualification/h1_n1 qualification/h1_n2 qualification/h1_n3 qualification/h1_n4 qualification/h1_n5 qualification/h1_n6 qualification/h1_n7 qualification/h1_n8 qualification/h1_n9 qualification/h1_n10 qualification/h1_n11
+          git archive --format=tar HEAD > "$e/source.tar"
+          python -m pip freeze > "$e/python-package-lock.txt"
+      - name: New N12 source/companion/refusal tests and inherited N1-N11-H1 suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          e="$RUNNER_TEMP/h1_n12"
+          python -B -m unittest qualification.h1_n12.tests.test_stage_reference -v 2>&1 | tee "$e/n12-tests.log"
+          python -B -m unittest qualification.h1_n11.tests.test_rational_dynamic_proof -v 2>&1 | tee "$e/n11-tests.log"
+          python -B -m unittest qualification.h1_n10.tests.test_dynamic_crosscheck -v 2>&1 | tee "$e/n10-tests.log"
+          python -B -m unittest qualification.h1_n9.tests.test_static_trace_crosscheck -v 2>&1 | tee "$e/n9-tests.log"
+          python -B -m unittest qualification.h1_n8.tests.test_corner_replay -v 2>&1 | tee "$e/n8-tests.log"
+          python -B -m unittest qualification.h1_n7.tests.test_verified_junctions -v 2>&1 | tee "$e/n7-tests.log"
+          python -B -m unittest qualification.h1_n6.tests.test_exact_junctions -v 2>&1 | tee "$e/n6-tests.log"
+          python -B -m unittest qualification.h1_n5.tests.test_thermal_graph -v 2>&1 | tee "$e/n5-tests.log"
+          python -B -m unittest qualification.h1_n4.tests.test_static_physical -v 2>&1 | tee "$e/n4-tests.log"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$e/n3-tests.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$e/n2-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$e/n1-reference-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$e/n1-plan-tests.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$e/h1-tests.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$e/docs-parity.log"
+      - name: Original legacy reference failures and all eight native blockers remain enforced
+        shell: bash
+        run: |
+          set -euo pipefail
+          e="$RUNNER_TEMP/h1_n12"
+          python -B qualification/h1_n1/check_plan.py --out "$e/original-native-hold.json" > "$e/original-native-hold.stdout.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"h1_n12"/"original-native-hold.json").read_text())
+          assert d["nativeCallsThisCheck"]==0 and not d["nativeExecutionReady"]
+          assert not d["referenceAccuracyCertified"] and len(d["executionBlockers"])==8
+          assert d["constantArithmetic"]["physical100xFailures"]==[
+            "T02.G","T06.A","T06.G","T07.G","T08.G","T10.G","T_Plug.C"]
+          PY
+      - name: Real N11 mathematical verification and source-only N1 triple preparation — TWO independent scratch roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          e="$RUNNER_TEMP/h1_n12"
+          python -B -m qualification.h1_n12.stage_reference --out "$e/prep-A" 2>&1 | tee "$e/prep-A.stdout.json"
+          python -B -m qualification.h1_n12.stage_reference --out "$e/prep-B" 2>&1 | tee "$e/prep-B.stdout.json"
+          python - <<'PY'
+          import os,json
+          from hashlib import sha256
+          from pathlib import Path
+          e=Path(os.environ["RUNNER_TEMP"])/"h1_n12"
+          a,b=e/"prep-A",e/"prep-B"
+          names_a={f.relative_to(a) for f in a.rglob("*") if f.is_file()}
+          names_b={f.relative_to(b) for f in b.rglob("*") if f.is_file()}
+          assert names_a==names_b
+          assert len(names_a)==10,sorted(str(x) for x in names_a)
+          for n in names_a:
+            x,y=(a/n).read_bytes(),(b/n).read_bytes()
+            assert x==y,(str(n),sha256(x).hexdigest(),sha256(y).hexdigest())
+          s=json.loads((a/"stage-receipt.json").read_text())
+          assert [c["role"] for c in s["cases"]]==["primary","tight","dense"]
+          assert [c["samples"] for c in s["cases"]]==[2401,2401,4801]
+          assert len({c["derivedStudySha256"] for c in s["cases"]})==3
+          assert s["n11MathematicalSelfCheckRerun"] and s["referencesSourceOnly"]
+          assert not s["nativeExecutionReady"] and not s["referenceAccuracyCertified"]
+          assert not s["referenceBundleWritten"] and not s["nativeExecuted"]
+          assert not s["nativeQualified"] and not s["runPermissionGranted"]
+          assert s["originalNativeBlockersStillOpen"]==8
+          assert len(s["legacySevenReferenceFailuresStillOpen"])==7
+          for role in ("primary","tight","dense"):
+            c=json.loads((a/(role+".candidate.json")).read_text())
+            assert c["schema"]=="sim_heat.h1_n12.source_only_three_case_reference_stage/1"
+            assert len(c["columns"])==77 and len(c["requests"])==8
+            assert len(c["flowIntegrals"])==5 and len(c["grid"])==(4801 if role=="dense" else 2401)
+            assert not c["referenceBundleWritten"] and not c["nativeQualified"]
+            assert not c["runnerConsumable"] and not c["externalOwnerApprovalVerified"]
+            assert "seal" not in c and "semanticSeal" not in c
+          assert (a/"cases/primary/study.json").read_bytes()==Path("qualification/h1_n1/inputs/T/study.json").read_bytes()
+          PY
+      - name: Preserve all source and refused/offline-replay artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-n12-source-only-triple-${{ github.sha }}
+          path: ${{ runner.temp }}/h1_n12/
+          retention-days: 90
+          if-no-files-found: error
