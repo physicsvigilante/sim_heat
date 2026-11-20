@@ -1,6 +1,6 @@
 # H1-N11 — independent outward-rational T1-T dynamic verification candidate
 
-**Offline checking candidate; NOT an independently reviewed or adopted reference.**
+**Checking-only mathematical candidate — independent [PR78 R2 SCOPED PASS](https://github.com/physicsvigilante/review_sandbox/blob/main/projects/sim_heat/pr-78/reviews/review-01-chat-b.md) at original SHA `c96f4e1381d5eeb6c91ac075202a35633388bd8e`; NOT an adopted reference or runner authorization.**
 Parent reviewed-but-unmerged N10 PR77 `1caea6afae55b3529c9818405d2ae669ea00be5c`.
 No Modelica, legacy H1 production, native runner, old archive, original author,
 N1–N10 calculation or frozen reference bytes change.
@@ -56,9 +56,13 @@ convention. At each time, the true zero junction flux balance, each
 the outward residual enclosure; these conditions cannot be fulfilled by
 substituting N1/native expected values.
 
-A proposed original N1 `float64` centre is accepted only when its *exact
-rational bit-representation* is within the outward **physical source**
-interval by at most the original conservative **1/100 reference allowance**:
+For each original N1 `float64` centre, N11's narrow outward Box
+encloses the **ideal real source-physical answer**, not necessarily the
+rounded binary64 centre itself. The exact rational binary64 centre may lie
+slightly OUTSIDE that Box due to normal rounding. Acceptance requires
+`max(|centre - physicalLower|, |centre - physicalUpper|)` to be no more
+than the original conservative **1/100 reference allowance**, separately
+at every sample:
 `1.1e-7 K`, `1e-8 W`, `1e-5 J`, and
 `(64 ULP)/100` for C/G/A. No source-dependent allowance fitting or
 post-output threshold increase is performed. There are exactly
@@ -122,3 +126,32 @@ One focused independent **R2 mathematical/evidence** review is mandatory before
 accepting the narrow claim. Any numerical refusal or reviewer-discovered
 counterexample is a preserved outcome, not a request to loosen the original
 physical accuracy obligation.
+
+## Post-PR78 review terminology and test coverage (successor only)
+
+The independent reviewer independently reran the source-only complete-grid
+rational calculation and found no mathematical defect within its frozen T1-T
+scope. Two **nonblocking** recommendations were F1 (avoid equating a
+candidate-centre budget check with literal containment of the centre inside
+the physical Box) and F2 (persist reviewer scratch attacks as tests).
+In this tests-and-docs-only follow-up we use the precise description:
+**648,180 candidate-centre-versus-rigorous-physical-enclosure error-budget
+comparisons**, including repeated and correlated fields. The original JSON
+receipt field `individualPhysicallyEnclosedSamples` remains unchanged for
+source-byte compatibility; it counts such budget comparisons, NOT independent
+physical measurements or centre-inside-Box claims.
+
+Permanent adversarial tests now cover a reversed original rod orientation,
+a one-ULP alteration at the **last original primary sample**, a missing
+export, wrong SI unit, a forged `nativeExecuted` flag in the original SHA-gated
+N1 candidate, and a nonzero-time ownerless junction perturbation. The
+tests use a disposable verified original N1 primary candidate generated
+once, then scratch copies. NO modifications to N11's proof, original N1
+trace SHA, native/100× tolerances, source Modelica/study/facts, legacy
+reference or historical CI/reviewer results are made.
+
+The seven legacy `reference.prepare` physical-100× refusals, all eight
+native blockers, unsealed author key and missing external owner/runner
+approval remain OPEN. Separate full reference bundle and native validation
+are future work. A reviewer passing a source-only mathematical claim is
+not a signed authority for native execution.

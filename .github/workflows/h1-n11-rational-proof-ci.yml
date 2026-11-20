@@ -1,9 +1,9 @@
 name: H1-N11 independent outward rational dynamic proof candidate - OFFLINE only
 on:
   push:
-    branches: [numerics/h1-n11-independent-rational-dynamics]
+    branches: [numerics/h1-n11-independent-rational-dynamics, numerics/h1-n11-reviewed-regressions]
   pull_request:
-    branches: [numerics/h1-n10-dynamic-replay]
+    branches: [numerics/h1-n10-dynamic-replay, numerics/h1-n11-independent-rational-dynamics]
     paths:
       - qualification/h1_n11/**
       - .github/workflows/h1-n11-rational-proof-ci.yml
@@ -37,7 +37,10 @@ jobs:
           git rev-parse 'HEAD^{tree}' > "$e/checkout-tree.txt"
           base=1caea6afae55b3529c9818405d2ae669ea00be5c
           if [ "${{ github.event_name }}" = pull_request ]; then
-            test "$(git rev-parse HEAD^1)" = "$base"
+            # PR78 targets reviewed PR77, while tests-only PR79 targets PR78.
+            # The original N10 source fence below is unchanged and still
+            # refuses ANY new fifth leaf path or modifications to N1-N10.
+            test "$(git rev-parse HEAD^1)" = "${{ github.event.pull_request.base.sha }}"
             test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
           fi
           git cat-file -e "${base}^{commit}"
