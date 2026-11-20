@@ -1,0 +1,223 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "TEACH_DUAL_NETWORK",
+  "model": {
+    "path": "model.mo",
+    "sha256": "aad202adb2fa7cd4f308fd602b37ece83b26ef2c1d652db49d49c97e92cab6a4"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "plate_temperature",
+      "op": "temperature",
+      "target": "plate.port"
+    },
+    {
+      "id": "left_temperature",
+      "op": "temperature",
+      "target": "left.port"
+    },
+    {
+      "id": "right_temperature",
+      "op": "temperature",
+      "target": "right.port"
+    },
+    {
+      "id": "bypass_flow",
+      "op": "heatFlow",
+      "target": "bypass"
+    },
+    {
+      "id": "pair_link_flow",
+      "op": "heatFlow",
+      "target": "pairLink"
+    },
+    {
+      "id": "plate_energy",
+      "op": "energyChange",
+      "target": "plate"
+    },
+    {
+      "id": "left_energy",
+      "op": "energyChange",
+      "target": "left"
+    },
+    {
+      "id": "isolated_difference",
+      "op": "temperatureDifference",
+      "a": "left.port",
+      "b": "right.port"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 6000,
+    "intervals": 1200,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "provenance": [
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "experiments/teacher_dual_network/TASK.md | Classroom question",
+      "note": "Adopt lumped uniform body temperatures, constant material properties, storage-free rods, ideal ownerless junction and no ambient losses or mechanical effects; two disconnected thermal networks are intentionally shown in one schematic."
+    },
+    {
+      "target": "bathHot.T",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "bathCold.T",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "plate.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "plate.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "plate.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "left.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "left.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "left.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "right.m",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "right.c",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "right.T_initial",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "hotFeed.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "hotFeed.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "hotFeed.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesOne.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesOne.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesOne.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesTwo.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesTwo.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "seriesTwo.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "bypass.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "bypass.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "bypass.A",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "pairLink.k",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "pairLink.L",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    },
+    {
+      "target": "pairLink.d",
+      "kind": "illustrative",
+      "locator": "experiments/teacher_dual_network/TASK.md | Explicit physical inputs (SI)",
+      "note": "Developer-chosen illustrative SI input, not textbook-given material or measurement; preserved verbatim in authored model.mo."
+    }
+  ]
+}
