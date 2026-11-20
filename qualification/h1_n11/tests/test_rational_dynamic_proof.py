@@ -40,14 +40,19 @@ class RationalDynamicProofTests(TestCase):
         pi=n11.pi_bounds()
         self.assertLess(F(3),F(pi.low,n11.SCALE))
         self.assertGreater(F(4),F(pi.high,n11.SCALE))
-        self.assertTrue(pi.contains(F("3.14159265358979323846264338327950288419716939937510582097494459")))
+        # A separate high-precision decimal evaluation is only a sanity
+        # check; the actual proof uses the alternating-series rational tail.
+        from mpmath import mp
+        with mp.workdps(105):
+            self.assertTrue(pi.contains(F(str(mp.pi))))
         p=self.physical
         self.assertEqual((len(p["bnames"]),len(p["fnames"]),len(p["junctions"])),(3,2,2))
         self.assertEqual(set(p["areas"]),{"T06"})
         self.assertTrue(p["G"]["T10"].contains(F(247,8000)))
         self.assertTrue(p["capacities"]["T_Plug"].contains(F(1599,10)))
-        self.assertTrue(p["areas"]["T06"].contains(
-            F("3.14159265358979323846264338327950288419716939937510582097494459")*F(16,1000)**2/4))
+        with mp.workdps(105):
+            self.assertTrue(p["areas"]["T06"].contains(
+                F(str(mp.pi))*F(16,1000)**2/4))
 
     def test_original_initial_signed_flow_and_thermal_balance(self):
         values,req,integrals=n11.sample_physics(
@@ -87,7 +92,9 @@ class RationalDynamicProofTests(TestCase):
             n11.verified_exponential_step([[n11.Box.exact(0)]],2400)
 
     def test_later_sample_one_ulp_and_nonfinite_or_bool_values_refuse(self):
-        val=0.5
+        # Avoid the power-of-two binade crossing, where nextafter's new
+        # ULP doubles; 0.625 has the same ULP on either neighboring value.
+        val=0.625
         exact=n11.Box.exact(F.from_float(val))
         ratio,width=n11.compare_float(val,exact,"W/K","T10.G",2400)
         self.assertEqual(ratio,0)
