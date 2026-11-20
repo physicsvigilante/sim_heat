@@ -47,7 +47,51 @@ def run(out: Path) -> None:
                     assert 'nativeExecuted=false' in page.locator('#state').inner_text()
                     assert admitted['source']['modelSha256'] in page.locator('#identity').inner_text()
                     assert 'two disconnected thermal networks' in page.locator('#model-assumptions').inner_text()
-                    assert page.locator('#graph g').count() > 0
+                    # PR74 independent reviewer F-02: inspect ACTUALLY drawn SVG
+                    # connectivity, not merely the admitted source JSON.
+                    assert page.locator('#graph line.rod').count() == 5
+                    assert page.locator('#graph circle.component-node').count() == 6
+                    assert page.locator('#graph circle.component-node.junction').count() == 1
+                    rendered = page.evaluate("""() => {
+                      const circles=[...document.querySelectorAll('#graph circle.component-node')];
+                      const lines=[...document.querySelectorAll('#graph line.rod')];
+                      const key=(x,y)=>x+','+y;
+                      const map=new Map(circles.map((c,i)=>
+                        [key(c.getAttribute('cx'),c.getAttribute('cy')),i]));
+                      if(map.size!==circles.length)return {error:'coincident SVG nodes'};
+                      const parent=circles.map((_,i)=>i);
+                      const root=(i)=>{while(parent[i]!==i)i=parent[i];return i;};
+                      const edges=[];
+                      for(const line of lines){
+                        const a=map.get(key(line.getAttribute('x1'),line.getAttribute('y1')));
+                        const b=map.get(key(line.getAttribute('x2'),line.getAttribute('y2')));
+                        if(a===undefined||b===undefined||a===b)
+                          return {error:'line not between two distinct rendered nodes'};
+                        parent[root(a)]=root(b);
+                        edges.push([line.getAttribute('data-rod'),a,b]);
+                      }
+                      const groups=new Map();
+                      circles.forEach((_,i)=>{const r=root(i);groups.set(r,(groups.get(r)||0)+1);});
+                      const rodRoot=Object.fromEntries(edges.map(([id,a])=>[id,root(a)]));
+                      return {nodeGroups:[...groups.values()].sort((a,b)=>a-b),
+                              samePairAndBypass:rodRoot.pairLink===rodRoot.bypass,
+                              rodNames:Object.keys(rodRoot).sort()};
+                    }""")
+                    assert 'error' not in rendered, rendered
+                    assert rendered['nodeGroups'] == [2, 4], rendered
+                    assert rendered['samePairAndBypass'] is False, rendered
+                    assert rendered['rodNames'] == ['bypass', 'hotFeed', 'pairLink',
+                                                    'seriesOne', 'seriesTwo'], rendered
+                    assert page.locator('#graph g[aria-label="Inspect authored rod pairLink"]').count() == 1
+                    page.locator('#graph g[aria-label="Inspect authored rod pairLink"]').click()
+                    assert 'RodCircular' in page.locator('#details').inner_text()
+                    node = page.locator('#graph g[aria-label^="Inspect source node Ideal junction"]')
+                    assert node.count() == 1
+                    node.click()
+                    junction_details=page.locator('#details').inner_text()
+                    assert 'Ownerless ideal junction' in junction_details
+                    assert 'seriesOne.port_b' in junction_details
+                    assert 'seriesTwo.port_a' in junction_details
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     assert page.locator('#open-recorded-diagnostic').count() == 0
                     assert page.locator('#no-published-diagnostic').count() == 0
