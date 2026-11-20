@@ -34,3 +34,17 @@ See the [current H1 authoring guide](AUTHORING.md) for a tested scratch-only adm
 A teacher or independent reviewer should be able to (1) author a previously unlisted combination of supported components **without modifying the H1 engine or source viewer**, (2) inspect the component identities, typed source inputs, original attribution and `@model` assumptions, (3) read the logical connections without mistaking the schematic for geometry or heat-flow direction, (4) see every requested physical result as **`not_computed`**, and (5) observe useful refusal for a stale hash, invalid request or missing provenance. This is a reproducible offline acceptance exercise, **not evidence that a blind LLM or classroom has succeeded**.
 
 It does not simulate temperatures, powers, equilibrium, heat flow, latent heat, radiation, fluid flow or mechanics. The six published historical native diagnostics remain `diagnostic_only/nativeQualified=false`. New native work requires a separately reviewed, bounded plan and **explicit owner authorization**; the workbench offers no native action or fallback. Historical C1 failures and frozen evidence are unchanged.
+
+## Already published historical diagnostic link (T1-V2 candidate)
+
+When using `--compare h1/cases/D2_K2/study.json` with the original D2 study
+and root, the source-only inspector can display an *additional*, separately
+labeled link to its original published D2→D2_K2 native **diagnostic-only**
+comparison. This is a read-only window on original saved result samples,
+not a numerical preview, new OpenModelica run, qualified reference, automatic
+LLM-authored simulation, or authenticated uploaded model. Any other source
+pair, including reversed/unpublished inputs, keeps a **source-only** interface
+without arbitrary native outputs. Only the two originally published normalized
+JSON cases and strictly required static comparison UI files are allowlisted;
+raw Modelica/MAT/CSV artifacts and all writer routes remain inaccessible.
+See [the T1-V2 archived handoff scope](TEACHER_ARCHIVED_DIAGNOSTIC_HANDOFF.md).
