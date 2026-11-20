@@ -1,9 +1,9 @@
 name: Teacher admitted-source to original archived diagnostic - OFFLINE only
 on:
   push:
-    branches: [teaching/t2-source-archived-diagnostic-handoff]
+    branches: [teaching/t2-source-archived-diagnostic-handoff, teaching/t3-archived-diagnostic-hardening]
   pull_request:
-    branches: [teaching/t1-source-whatif-compare]
+    branches: [teaching/t1-source-whatif-compare, teaching/t2-source-archived-diagnostic-handoff]
     paths:
       - tools/published_diagnostic_bridge.py
       - docs/TEACHER_ARCHIVED_DIAGNOSTIC_HANDOFF.md
@@ -49,7 +49,9 @@ jobs:
           git rev-parse 'HEAD^{tree}' > "$evidence/head-tree.txt"
           base=ae044ccad6bf58c171c9cc834b427b34cb892101
           if [ "${{ github.event_name }}" = pull_request ]; then
-            test "$(git rev-parse HEAD^1)" = "$base"
+            # GitHub synthetic PR checkouts have both the exact targeted base
+            # and candidate head; PR72 targets PR71 and PR73 targets PR72.
+            test "$(git rev-parse HEAD^1)" = "${{ github.event.pull_request.base.sha }}"
             test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
           fi
           git cat-file -e "${base}^{commit}"

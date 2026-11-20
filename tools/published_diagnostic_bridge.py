@@ -35,12 +35,11 @@ def published_diagnostic_pair(baseline: dict, successor: dict):
     if successor is None:
         return {}, None
     try:
-        # This original fixed source manifest is independently reconstructed
-        # through the existing reviewed H1 direct-revision and archived-case
-        # tests, then matched byte-for-byte to its published comparison index.
+        # Rebuild the fixed source-linked pair; refuse even a semantically
+        # identical but byte-different reserialization of the published index.
+        # Source-relative byte integrity is NOT external owner authentication.
         generated = compile_pair_index(ROOT, SOURCE_MANIFEST, CASE_INDEX)
-        published = strict_json(safe_file(PAIR_INDEX, ROOT).decode('utf-8'))
-        if generated != published:
+        if stable_json(generated) != safe_file(PAIR_INDEX, ROOT):
             return {}, None
         matching = [p for p in generated['pairs']
                     if p['baseline'] == baseline['studyId']

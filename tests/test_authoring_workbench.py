@@ -135,6 +135,34 @@ class LocalAuthoringWorkbenchTests(unittest.TestCase):
                     self.assertNotIn(b'published-diagnostic-link',
                                      request(server.server_port,path='/viewer/source_preview/')[2])
 
+    def test_reserialized_published_index_refuses_historical_diagnostic(self):
+        # Parsed equality must NOT be enough to open an original-results link.
+        from h1.study import load_study
+        from h1.source_preview import build_source_preview
+        from tools import published_diagnostic_bridge as bridge
+        baseline = build_source_preview(load_study(CASES/'D2/study.json', CASES))
+        successor = build_source_preview(load_study(CASES/'D2_K2/study.json', CASES))
+        original = bridge.PAIR_INDEX.read_bytes()
+        self.assertEqual(original, bridge.stable_json(json.loads(original)))
+        changed = b' ' + original  # Valid, structurally identical JSON; different bytes.
+        self.assertNotEqual(changed, original)
+        self.assertEqual(json.loads(changed), json.loads(original))
+        # Intercept ONLY the in-root index read: patching PAIR_INDEX to an
+        # external temporary path would test path containment, not bytes.
+        real_read = bridge.safe_file
+        def reserialized_index(path, root):
+            if path == bridge.PAIR_INDEX:
+                return changed
+            return real_read(path, root)
+        with patch.object(bridge, 'safe_file', side_effect=reserialized_index):
+            self.assertEqual(published_diagnostic_pair(baseline, successor), ({}, None))
+            with listening('D2', 'D2_K2') as (server, admitted):
+                self.assertEqual(admitted['studyId'], 'H1_D2')
+                self.assertEqual(request(server.server_port, path=COMPARE_ROUTE)[0], 404)
+                html = request(server.server_port, path='/viewer/source_preview/')[2]
+                self.assertIn(b'no-published-diagnostic', html)
+                self.assertNotIn(b'published-diagnostic-link', html)
+
     def test_real_h1_compositions_load_without_special_case_code(self):
         for name, expected_mode, count in (('D1', 'transient', 3),
                                            ('S1', 'steady', 4),
