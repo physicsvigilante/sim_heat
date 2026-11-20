@@ -129,10 +129,14 @@ def run(out: Path) -> None:
                         before=recorded.locator('#baseline-value').inner_text()
                         recorded.locator('#time-slider').focus()
                         recorded.locator('#time-slider').press('ArrowRight')
+                        # Reviewer PR72 N-02: exact NEXT SAVED COMMON instant,
+                        # and the independently pinned original cold.T values
+                        # rendered to the viewer's four-decimal precision.
+                        assert recorded.locator('#time-label').inner_text()=='468.75 s'
                         assert recorded.locator('#baseline-value').inner_text()!=before
-                        recorded.locator('#quantity-select').select_option('hot.T')
-                        assert 'K' in recorded.locator('#baseline-value').inner_text()
-                        assert 'K' in recorded.locator('#successor-value').inner_text()
+                        recorded.locator('#quantity-select').select_option('cold.T')
+                        assert recorded.locator('#baseline-value').inner_text()=='296.468 K'
+                        assert recorded.locator('#successor-value').inner_text()=='299.052 K'
                         recorded.screenshot(path=str(out/'source-to-original-recorded-diagnostic.png'),full_page=True)
                         assert recorded.request.get(origin+'/h1/cases/D2/model.mo').status==404
                         assert recorded.request.get(origin+'/viewer/network/data/D1.json').status==404
