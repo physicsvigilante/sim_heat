@@ -7,10 +7,12 @@ let baseline=null;
 let scenario=null;
 let loadVersion=0;
 let scenarioVersion=0;
+let baselineLoading=true;
+let queuedScenario=null;
 const element=$('element-select');
 function svg(tag,attrs={},txt){const e=document.createElementNS(SVG,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));if(txt!==undefined)e.textContent=String(txt);return e;}
 function empty(){preview=null;$('graph').replaceChildren();$('requests').replaceChildren();$('identity').replaceChildren();$('model-assumptions').replaceChildren();$('details').replaceChildren();element.replaceChildren(new Option('Source not loaded',''));element.disabled=true;$('graph-title').textContent='Authored connection graph';$('state').textContent='No admitted source loaded';}
-function error(message){baseline=null;scenario=null;clearComparison();empty();$('error').textContent='Refused source preview: '+message;$('error').classList.remove('hidden')}
+function error(message){baselineLoading=false;queuedScenario=null;baseline=null;scenario=null;clearComparison();empty();$('error').textContent='Refused source preview: '+message;$('error').classList.remove('hidden')}
 function fields(el,pairs){el.replaceChildren();for(const [k,v] of pairs){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=String(v);el.append(dt,dd)}}
 function choose(value){
   if(!preview)return;
@@ -80,13 +82,13 @@ function showComparison(){
   }
 }
 function compareError(message){
-  scenario=null;clearComparison();
+  queuedScenario=null;scenario=null;clearComparison();
   // The rendered graph can belong to a PREVIOUS scenario, not just the
   // candidate most recently accepted. A refusal always removes that stale
   // selection, identity, inputs, graph and public request inventory.
   if(baseline){
     if(preview!==baseline)render(baseline);
-  }else empty();
+  }else{empty();if(baselineLoading)$('state').textContent='Checking baseline source before comparison…';}
   $('comparison-error').textContent='Refused source comparison: '+message;
   $('comparison-error').classList.remove('hidden');
   $('comparison-state').textContent='Scenario refused · no comparison shown';
@@ -99,6 +101,20 @@ function setScenario(value,showIfViewingScenario=false){
   // with the displayed scenario identity. No old variant remains rendered.
   if(showIfViewingScenario)render(candidate);
 }
+function finishQueuedScenario(){
+  if(!queuedScenario)return;
+  const saved=queuedScenario;
+  queuedScenario=null;
+  if(saved.baselineVersion!==loadVersion||saved.scenarioVersion!==scenarioVersion)return;
+  try{setScenario(saved.value,saved.showIfViewingScenario)}
+  catch(err){compareError(err.message)}
+}
+function admitBaseline(value){
+  const admitted=admitPreview(value);
+  baseline=admitted;render(admitted);
+  baselineLoading=false;
+  finishQueuedScenario();
+}
 $('view-baseline').addEventListener('click',()=>{if(baseline)render(baseline)});
 $('view-variant').addEventListener('click',()=>{if(scenario)render(scenario)});
 $('variant-import').addEventListener('change',async e=>{
@@ -109,14 +125,24 @@ $('variant-import').addEventListener('change',async e=>{
   const expectedScenario=++scenarioVersion;
   const expectedBaseline=loadVersion;
   const wasViewingScenario=scenario!==null && preview===scenario;
+  queuedScenario=null;
   scenario=null;clearComparison();
   if(baseline&&preview!==baseline)render(baseline);
   $('comparison-state').textContent='Checking newly selected source-only scenario…';
   try{
     if(file.size>524288)throw Error('file exceeds 512 KiB source-only display limit');
     const raw=await file.text();
-    if(expectedScenario===scenarioVersion&&expectedBaseline===loadVersion&&baseline)
-      setScenario(JSON.parse(raw),wasViewingScenario);
+    if(expectedScenario===scenarioVersion&&expectedBaseline===loadVersion){
+      const incoming=admitPreview(JSON.parse(raw));
+      if(baseline)setScenario(incoming,wasViewingScenario);
+      else if(baselineLoading){
+        // Resolve the latest user-selected scenario ONLY after this particular
+        // baseline generation has been admitted. Never drop it silently.
+        queuedScenario={value:incoming,baselineVersion:expectedBaseline,
+          scenarioVersion:expectedScenario,showIfViewingScenario:wasViewingScenario};
+        $('comparison-state').textContent='Source-only scenario ready · waiting for baseline admission…';
+      }else compareError('No admitted baseline source; admit a valid baseline before comparing');
+    }
   }catch(err){
     if(expectedScenario===scenarioVersion&&expectedBaseline===loadVersion)
       compareError(err.message);
@@ -129,34 +155,41 @@ $('import').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;
   const current=++loadVersion;
   ++scenarioVersion; // invalidate pending scenario file reads from old baseline
+  queuedScenario=null;baselineLoading=true;
   scenario=null;clearComparison();baseline=null;empty();$('error').classList.add('hidden');$('state').textContent='Checking selected source-only file…';
   try{
     if(f.size>524288)throw Error('file exceeds the 512 KiB preview limit');
     const raw=await f.text();
-    if(current===loadVersion){const value=admitPreview(JSON.parse(raw));baseline=value;render(value);}
+    if(current===loadVersion)admitBaseline(JSON.parse(raw));
   }catch(err){if(current===loadVersion)error(err.message)}
   finally{e.target.value=''}
 });
 const initial=++loadVersion;
-let initialScenarioGeneration=scenarioVersion;
+// Capture BEFORE initial baseline fetch. A user choice during that fetch
+// must suppress the server-default scenario, even if the baseline arrives later.
+const initialScenarioGeneration=scenarioVersion;
 try{
   const response=await fetch('./data/TEACH_SPLIT3.json',{cache:'no-store'});
   if(!response.ok)throw Error('default demonstration unavailable');
   const payload=await response.json();
   if(initial===loadVersion){
-    baseline=admitPreview(payload);render(baseline);
-    // Only a local H1 workbench with --compare serves this additional route.
-    // Static preview hosting returns 404; that is not a comparison error.
-    initialScenarioGeneration=scenarioVersion;
-    const response2=await fetch('./data/VARIANT.json',{cache:'no-store'});
-    if(response2.ok){
-      const candidate=await response2.json();
-      if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion)
-        setScenario(candidate);
-    }else if(response2.status!==404 && initial===loadVersion &&
-             initialScenarioGeneration===scenarioVersion)
-      throw Error('scenario source route unavailable');
+    admitBaseline(payload);
+    // The optional server-preloaded scenario is only a default; a scenario
+    // selected while the baseline was pending ALWAYS supersedes that default.
+    if(initialScenarioGeneration===scenarioVersion){
+      try{
+        const response2=await fetch('./data/VARIANT.json',{cache:'no-store'});
+        if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion){
+          if(response2.ok){
+            const candidate=await response2.json();
+            if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion)
+              setScenario(candidate);
+          }else if(response2.status!==404)throw Error('scenario source route unavailable');
+        }
+      }catch(err){
+        if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion)
+          compareError(err.message);
+      }
+    }
   }
-}catch(err){if(initial===loadVersion&&initialScenarioGeneration===scenarioVersion){
-  if(baseline)compareError(err.message);else error(err.message)
-}}
+ }catch(err){if(initial===loadVersion)error(err.message)}
