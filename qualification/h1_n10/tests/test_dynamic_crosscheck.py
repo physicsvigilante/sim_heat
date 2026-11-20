@@ -94,8 +94,7 @@ class DynamicCrosscheckTests(unittest.TestCase):
             exports,_,_=snapshot(system,advanced,mp.mpf(120),[])
             net_energy=exports["A.dU"]+exports["B.dU"]
             self.assertLess(abs(net_energy),mp.mpf("1e-60"))
-            self.assertGreater(exports["A.dU"],0) if False else self.assertLess(
-                exports["A.dU"],0)
+            self.assertLess(exports["A.dU"],0)
             self.assertGreater(exports["B.dU"],0)
 
     def test_dynamic_error_outside_one_hundredth_allowance_refuses(self):
