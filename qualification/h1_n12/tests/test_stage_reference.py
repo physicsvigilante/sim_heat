@@ -87,19 +87,84 @@ class TripleSourceStageTests(TestCase):
                                             "original author/model/facts identity"):
                     n12.original_snapshots()
 
-    def test_tampered_or_foreign_trace_cannot_enter_stage(self):
-        rawtrace=b'{"schema":"not-original"}'
-        fake={"report":{"schema":"sim_heat.h1_n1.interval_reference_candidate/1",
-                        "gridIntervals":2400,"samples":2401}}
-        badproof={"schema":n12.n11.SCHEMA,
-                  "nativeExecuted":True,
-                  "individualPhysicallyEnclosedSamples":648180}
-        with self.assertRaisesRegex(n12.StageRefusal,"original complete N1"):
-            n12.stage_packet("primary",self.source_bytes,fake,rawtrace,
-                             badproof,n12.digest(n12.canonical(badproof)))
-        with self.assertRaisesRegex(n12.StageRefusal,"unknown case role"):
-            n12.stage_packet("legacy",self.source_bytes,fake,rawtrace,
-                             badproof,"x"*64)
+    def incomplete_proof(self):
+        return dict(schema=n12.n11.SCHEMA, sourceFactsSha256=n12.SOURCE_FACTS_SHA,
+                     originalModelSha256=n12.SOURCE_MODEL_SHA, originalStudySha256=n12.SOURCE_STUDY_SHA,
+                     individualPhysicallyEnclosedSamples=648180, sourceMathematicalEnclosureSelfChecked=True,
+                     nativeExecuted=False, nativeQualified=False, referenceAccuracyCertified=False,
+                     referenceBundleWritten=False)
+
+    def test_caller_cannot_stage_divergent_data_with_authentic_trace(self):
+        # F-01 combined a real blob, altered data, a self-hashed proof and
+        # the wrong study role to emit the normal source-verified schema.
+        with TemporaryDirectory() as scratch:
+            target = Path(scratch) / "trace"
+            n1.certify(n1.read_facts(), 2400, output=target)
+            blob = (target / "N1_T1T_reference_grid2400.json").read_bytes()
+            self.assertEqual(n12.digest(blob), n12.ORIGINAL_GRID_HASHES[2400])
+            trace = json.loads(blob)
+            trace["columns"]["T06.Q_flow"][0] = 987654321.0
+            trace["units"]["T06.Q_flow"] = "J"
+            trace["requests"]["t_collar_to_plug"][0] = -987654321.0
+            trace["integrals"]["T_Collar.Q_in"][0] = 123.0
+            proof = self.incomplete_proof()
+            proof_sha = n12.digest(n12.canonical(proof))
+            with self.assertRaises((AttributeError, n12.StageRefusal)):
+                n12.stage_packet("tight", self.source_bytes, trace, blob, proof, proof_sha)
+            with self.assertRaisesRegex(n12.StageRefusal, "original complete N1"):
+                n12._read_original_trace(n12.canonical(trace), 2400)
+            out = Path(scratch) / "stage"
+            with self.assertRaises(TypeError):
+                n12.prepare(out, role="tight", study=self.source_bytes,
+                            trace=trace, trace_blob=blob, proof=proof, proof_sha=proof_sha)
+            self.assertFalse(out.exists())
+
+    def test_incomplete_or_promoted_audit_refused_before_output(self):
+        proof = self.incomplete_proof()
+        grids = [dict(intervals=n, originalN1TraceSha256=h)
+                 for n, h in n12.ORIGINAL_GRID_HASHES.items()]
+        for change in ({}, {"grids": []}, {"grids": grids, "nativeQualified": True},
+                       {"grids": grids, "schema": "sim_heat.reference_bundle/2"}):
+            with self.subTest(change=change), TemporaryDirectory() as scratch:
+                out = Path(scratch) / "stage"
+                with patch.object(n12.n11, "audit", return_value={**proof, **change}) as audit:
+                    with self.assertRaisesRegex(n12.StageRefusal, "reviewed N11"):
+                        n12.prepare(out)
+                    audit.assert_called_once_with()
+                self.assertFalse(out.exists())
+
+    def test_case_admission_binds_study_bytes_to_role(self):
+        studies = n12.three_studies(self.source_bytes, self.study, self.plan)
+        for field in ("role", "model", "provenance"):
+            with self.subTest(field=field), TemporaryDirectory() as scratch:
+                tight = json.loads(studies["tight"])
+                if field == "role":
+                    bad = studies["primary"]
+                else:
+                    tight[field] = {}
+                    bad = n12.canonical(tight)
+                with self.assertRaisesRegex(n12.StageRefusal, "study identity differs for tight"):
+                    n12.admit_cases({**studies, "tight": bad}, self.model, Path(scratch))
+
+    def test_original_changed_during_preparation_refused_before_first_write(self):
+        with TemporaryDirectory() as scratch:
+            original = Path(scratch) / "original"
+            original.mkdir()
+            (original / "model.mo").write_bytes(self.model)
+            (original / "study.json").write_bytes(self.source_bytes)
+            out = Path(scratch) / "stage"
+
+            def change_original(root, facts):
+                (original / "model.mo").write_bytes(self.model + b"// changed")
+                trace = dict(grid=[], columns={}, units={}, requests={}, integrals={})
+                return {2400: trace, 4800: trace}
+
+            with (patch.object(n12, "ORIGINAL", original),
+                  patch.object(n12, "_audited_proof_sha", return_value="unused"),
+                  patch.object(n12, "_verified_traces", side_effect=change_original)):
+                with self.assertRaisesRegex(n12.StageRefusal, "original author/model/facts identity"):
+                    n12.prepare(out)
+            self.assertFalse(out.exists())
 
     def test_reject_existing_or_in_repo_output_before_running_any_proof(self):
         with self.assertRaisesRegex(n12.StageRefusal,"outside-repository"):

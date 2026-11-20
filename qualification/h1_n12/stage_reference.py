@@ -34,6 +34,12 @@ EXPECTED_N11_BLOB = "c136e77d4cea69a1c1d0fa1157f80e3a5013bf9e"
 SOURCE_MODEL_SHA = "2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae"
 SOURCE_STUDY_SHA = "12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a"
 SOURCE_FACTS_SHA = "39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf"
+# Descriptor identities independently checked against the reviewed N12 artifacts.
+CASE_STUDY_SHA = {
+    "primary": SOURCE_STUDY_SHA,
+    "tight": "e7effca1fcd6e858fdeb19ba8e623780ffb5ef52aed669751f74e9d78c8e9758",
+    "dense": "5f4b4bdc335a5a876de3d9d642f06c85ffe5b8499af9f892437c5be6ca3ce350",
+}
 ROLES = ("primary","tight","dense")
 EXPECTED_RUNS = (
     ("primary","H1T1TFirstAttemptV1",2400,1e-8),
@@ -135,11 +141,12 @@ def admit_cases(studies: dict[str,bytes], model: bytes, temp: Path):
          and digest(model)==SOURCE_MODEL_SHA, "case source drift")
     admitted={}
     for role in ROLES:
+        need(digest(studies[role]) == CASE_STUDY_SHA[role], "study identity differs for "+role)
         folder=temp/"cases"/role
         folder.mkdir(parents=True,exist_ok=False)
         (folder/"model.mo").write_bytes(model)
         (folder/"study.json").write_bytes(studies[role])
-        loaded=load_study(folder/"study.json",temp/"cases")
+        loaded=load_study(folder/"study.json",folder)
         need(loaded.request_report["admitted"] is True
              and len(loaded.request_report["requests"])==8
              and all(v["status"]=="not_computed"
@@ -151,15 +158,11 @@ def admit_cases(studies: dict[str,bytes], model: bytes, temp: Path):
     return admitted
 
 
-def stage_packet(role: str, study: bytes, trace: dict, trace_blob: bytes,
-                 proof: dict, proof_sha: str) -> dict:
-    """Compose source-only bytes. No caller-selected reference seal is valid."""
-    need(role in ROLES and type(study) is bytes and type(trace) is dict
-         and type(trace_blob) is bytes and type(proof) is dict,
-         "unknown case role or invalid stage inputs")
-    count=4800 if role=="dense" else 2400
-    need(digest(trace_blob)==ORIGINAL_GRID_HASHES[count]
-         and trace.get("report",{}).get("schema")=="sim_heat.h1_n1.interval_reference_candidate/1"
+def _read_original_trace(blob: bytes, count: int) -> dict:
+    need(digest(blob) == ORIGINAL_GRID_HASHES[count],
+         "not the original complete N1 source-only reference trace")
+    trace = json.loads(blob)
+    need(trace.get("report",{}).get("schema")=="sim_heat.h1_n1.interval_reference_candidate/1"
          and trace["report"].get("refModelSha256")==SOURCE_MODEL_SHA
          and trace["report"].get("refStudySha256")==SOURCE_STUDY_SHA
          and trace["report"].get("gridIntervals")==count
@@ -171,6 +174,16 @@ def stage_packet(role: str, study: bytes, trace: dict, trace_blob: bytes,
     for name in ("nativeExecuted","nativeQualified","runtimeReady",
                  "independentlyCertifiedReference"):
         need(trace["report"].get(name) is False, "N1 tries to claim qualified data")
+    need(len(trace.get("grid",[]))==count+1
+         and len(trace.get("columns",{}))==77
+         and len(trace.get("requests",{}))==8
+         and len(trace.get("integrals",{}))==5,
+         "missing full source-only physical request/reference inventory")
+    return trace
+
+
+def _audited_proof_sha() -> str:
+    proof = n11.audit()
     need(proof.get("schema")==n11.SCHEMA
          and proof.get("sourceFactsSha256")==SOURCE_FACTS_SHA
          and proof.get("originalModelSha256")==SOURCE_MODEL_SHA
@@ -181,48 +194,25 @@ def stage_packet(role: str, study: bytes, trace: dict, trace_blob: bytes,
          and proof.get("nativeExecuted") is False
          and proof.get("nativeQualified") is False
          and proof.get("referenceBundleWritten") is False
-         and digest(canonical(proof))==proof_sha,
+         and type(proof.get("grids")) is list
+         and [(row.get("intervals"), row.get("originalN1TraceSha256"))
+              for row in proof["grids"]] == list(ORIGINAL_GRID_HASHES.items()),
          "reviewed N11 candidate cannot be represented as adopted proof")
-    need(len(trace.get("grid",[]))==count+1
-         and len(trace.get("columns",{}))==77
-         and len(trace.get("requests",{}))==8
-         and len(trace.get("integrals",{}))==5,
-         "missing full source-only physical request/reference inventory")
-    # Neither the original H1 verifier nor the future N3 dispatcher recognizes
-    # this schema. Deliberately omit legacy 'seal', future 'semanticSeal',
-    # per-output native allowances and release approval fields.
-    return {
-        "schema":STAGE_SCHEMA,"stage":"candidate_data_preparation_offline_only",
-        "role":role,
-        "caseStudySha256":digest(study),
-        "originalFirstAuthorStudySha256":SOURCE_STUDY_SHA,
-        "originalFirstAuthorModelSha256":SOURCE_MODEL_SHA,
-        "originalPhysicalFactsSha256":SOURCE_FACTS_SHA,
-        "originalPhysicalTraceStudySha256":SOURCE_STUDY_SHA,
-        "originalTraceSha256":digest(trace_blob),
-        "originalN11ProofReceiptSha256":proof_sha,
-        "mode":"transient",
-        "analysis":json.loads(study)["analysis"],
-        "studyId":json.loads(study)["id"],
-        "grid":trace["grid"],
-        "columns":trace["columns"],
-        "units":trace["units"],
-        "requests":trace["requests"],
-        "flowIntegrals":trace["integrals"],
-        "referenceAccuracyCertified":False,
-        "independentlyCertifiedReference":False,
-        "nativeExecuted":False,
-        "nativeQualified":False,
-        "runtimeReady":False,
-        "referenceBundleWritten":False,
-        "runnerConsumable":False,
-        "referenceVersionAdopted":False,
-        "externalOwnerApprovalVerified":False,
-        "nativeAttemptAuthorized":False,
-        "physicalInputOrLawChangedForCompanion":False,
-        "origin":"SHA_VERIFIED_ORIGINAL_SOURCE_ONLY_N1_WITH_SEPARATELY_REVIEWED_N11_MATH",
-        "restriction":"source-only physical target reused across solver-tolerance changes; no runtime bundle, independent owner seal, actual OMC output, or execution authority",
-    }
+    return digest(canonical(proof))
+
+
+def _verified_traces(root: Path, facts: bytes) -> dict:
+    physical=create_static_candidate(facts,expected_sha256=SOURCE_FACTS_SHA)
+    traces={}
+    for count in ORIGINAL_GRID_HASHES:
+        target=root/("n1-"+str(count))
+        report=n1.certify(n1.read_facts(),count,output=target)
+        blob=(target/("N1_T1T_reference_grid"+str(count)+".json")).read_bytes()
+        need(digest(blob)==report["fullTraceSha256"],
+             "source-only N1 trace report/bytes disagree")
+        verify_historical_grid(blob,count,physical)
+        traces[count]=_read_original_trace(blob,count)
+    return traces
 
 
 def prepare(out: Path):
@@ -233,30 +223,51 @@ def prepare(out: Path):
     studies=three_studies(source_study,source,plan)
     # Full N11 source-rational proof is personally rerun, NOT inferred from a
     # prior 'review passed' string, and no caller-provided receipt can pass.
-    proof=n11.audit()
-    proof_sha=digest(canonical(proof))
-    physical=create_static_candidate(facts,expected_sha256=SOURCE_FACTS_SHA)
+    proof_sha = _audited_proof_sha()
     with TemporaryDirectory(prefix="simheat-n12-") as scratch:
         root=Path(scratch)
         admitted=admit_cases(studies,model,root)
-        traces={}
-        for count in ORIGINAL_GRID_HASHES:
-            target=root/("n1-"+str(count))
-            report=n1.certify(n1.read_facts(),count,output=target)
-            blob=(target/("N1_T1T_reference_grid"+str(count)+".json")).read_bytes()
-            need(digest(blob)==report["fullTraceSha256"],
-                 "source-only N1 trace report/bytes disagree")
-            verify_historical_grid(blob,count,physical)
-            traces[count]=(blob,json.loads(blob))
+        traces = _verified_traces(root, facts)
         packets={}
         for role in ROLES:
             grid=4800 if role=="dense" else 2400
-            blob,trace=traces[grid]
-            payload=stage_packet(role,studies[role],trace,blob,proof,proof_sha)
-            need(payload["studyId"]==admitted[role].data["id"]
-                 and payload["caseStudySha256"]==admitted[role].sha256
-                 and payload["originalTraceSha256"]==ORIGINAL_GRID_HASHES[grid],
-                 "derived study/physical trace mismatch")
+            case = admitted[role]
+            trace = traces[grid]
+            # Neither the original H1 verifier nor the future N3 dispatcher recognizes
+            # this schema. Deliberately omit legacy 'seal', future 'semanticSeal',
+            # per-output native allowances and release approval fields.
+            payload={
+                "schema":STAGE_SCHEMA,"stage":"candidate_data_preparation_offline_only",
+                "role":role,
+                "caseStudySha256":case.sha256,
+                "originalFirstAuthorStudySha256":SOURCE_STUDY_SHA,
+                "originalFirstAuthorModelSha256":SOURCE_MODEL_SHA,
+                "originalPhysicalFactsSha256":SOURCE_FACTS_SHA,
+                "originalPhysicalTraceStudySha256":SOURCE_STUDY_SHA,
+                "originalTraceSha256":ORIGINAL_GRID_HASHES[grid],
+                "originalN11ProofReceiptSha256":proof_sha,
+                "mode":"transient",
+                "analysis":case.data["analysis"],
+                "studyId":case.data["id"],
+                "grid":trace["grid"],
+                "columns":trace["columns"],
+                "units":trace["units"],
+                "requests":trace["requests"],
+                "flowIntegrals":trace["integrals"],
+                "referenceAccuracyCertified":False,
+                "independentlyCertifiedReference":False,
+                "nativeExecuted":False,
+                "nativeQualified":False,
+                "runtimeReady":False,
+                "referenceBundleWritten":False,
+                "runnerConsumable":False,
+                "referenceVersionAdopted":False,
+                "externalOwnerApprovalVerified":False,
+                "nativeAttemptAuthorized":False,
+                "physicalInputOrLawChangedForCompanion":False,
+                "origin":"SHA_VERIFIED_ORIGINAL_SOURCE_ONLY_N1_WITH_SEPARATELY_REVIEWED_N11_MATH",
+                "restriction":"source-only physical target reused across solver-tolerance changes; no runtime bundle, independent owner seal, actual OMC output, or execution authority",
+            }
             packets[role]=canonical(payload)+b"\n"
         # Re-read protected original sources before staging any output. A
         # changed first author/model/facts never inherits the old source pins.
