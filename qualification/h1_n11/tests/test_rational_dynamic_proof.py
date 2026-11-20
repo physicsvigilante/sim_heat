@@ -15,6 +15,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from qualification.h1_n11 import rational_dynamic_proof as n11
+from qualification.h1_n9.static_trace_crosscheck import CrosscheckRefusal
 
 
 class RationalDynamicProofTests(TestCase):
@@ -203,7 +204,7 @@ class OriginalN11ReviewerTamperTests(TestCase):
         mutated=json.dumps(changed,sort_keys=True,separators=(",",":"),
                            allow_nan=False).encode("utf-8")
         self.assertNotEqual(mutated,canonical)
-        with self.assertRaisesRegex(n11.CrosscheckRefusal,r"originally reviewed"):
+        with self.assertRaisesRegex(CrosscheckRefusal,r"originally reviewed"):
             n11.verify_historical_grid(mutated,2400,self.static)
 
     def test_nonzero_time_junction_perturbation_refuses_conservation(self):
