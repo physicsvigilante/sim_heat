@@ -32,7 +32,11 @@ class DynamicCrosscheckTests(unittest.TestCase):
             self.assertEqual(set(system["areas"]), {"T06"})
             self.assertEqual(system["capacities"]["T_Ridge"],mp.mpf("147.2"))
             self.assertEqual(system["capacities"]["T_Collar"],mp.mpf("199.2"))
-            self.assertEqual(system["capacities"]["T_Plug"],mp.mpf("159.9"))
+            # mpmath separately rounds input and product at current decimal
+            # precision. Compare 90-dps *numerical* values at a much tighter
+            # tolerance than any physical reference acceptance threshold.
+            self.assertTrue(mp.almosteq(system["capacities"]["T_Plug"],
+                                        mp.mpf("159.9"), abs_eps=mp.mpf("1e-80")))
             self.assertTrue(mp.almosteq(system["areas"]["T06"],
                                        mp.pi*mp.mpf("0.016")**2/4))
 
