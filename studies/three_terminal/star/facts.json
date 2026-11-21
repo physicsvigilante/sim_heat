@@ -1,0 +1,56 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "ThreeTerminalstar",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "79f475d64c9c99ecd675cd92bf8e36c44a5dd32e8da0c80480d907d7a742fb3d",
+  "studySha256": "839022d63ef1570f412d7d27a1ee1ca456bdbf5ea4a3abb641c45b1265200834",
+  "nodes": [
+    "warm",
+    "middle",
+    "cool",
+    "joint"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "warm": {
+      "node": "warm",
+      "T": 380
+    },
+    "middle": {
+      "node": "middle",
+      "T": 330
+    },
+    "cool": {
+      "node": "cool",
+      "T": 280
+    }
+  },
+  "rods": {
+    "first": {
+      "kind": "RodArea",
+      "a": "warm",
+      "b": "joint",
+      "k": 20,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "second": {
+      "kind": "RodArea",
+      "a": "middle",
+      "b": "joint",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "third": {
+      "kind": "RodArea",
+      "a": "cool",
+      "b": "joint",
+      "k": 50,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author SI checking facts for the three-terminal star study."
+}
