@@ -1,3 +1,6 @@
 h1/cases/S1/model.mo text eol=lf
 h1/cases/S1/study.json text eol=lf
 h1/reference_cases/S1.json text eol=lf
+h1/cases/D1/model.mo text eol=lf
+h1/cases/D1/study.json text eol=lf
+h1/reference_cases/D1.json text eol=lf
