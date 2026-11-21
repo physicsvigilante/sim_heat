@@ -30,7 +30,7 @@ jobs:
           git diff --exit-code 954cf65e1dffd04c706654418f30d891d1ccba57 HEAD -- qualification/h1_n13/heldout
           git diff --exit-code 892e9e47e138b5ffd040e952d1ffa6598d2a052d HEAD -- qualification/h1_n13/heldout/{model.mo,study.json,facts.json,oracle.py,GIVENS.md}
       - name: Run offline development regressions
-        run: python -B -m unittest -v qualification.h1_n13.test_conduction
+        run: python -B -m unittest -v qualification.h1_n13.test_conduction tests.test_twinbridge_ratios
       - name: Generate and independently check fresh TwinBridge output
         shell: bash
         run: |
@@ -42,7 +42,7 @@ jobs:
           python -B -m qualification.h1_n13.conduction --root "$case_dir" --study "$case_dir/study.json" \
             --facts "$case_dir/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 \
             | gzip -n > "$evidence/fresh-output.json.gz"
-          python -B "$case_dir/oracle.py" "$evidence/fresh-output.json.gz" > "$evidence/oracle-results.json"
+          python -B -m tools.verify_twinbridge "$evidence/fresh-output.json.gz" > "$evidence/oracle-results.json"
           python -B -m qualification.h1_n13.heldout.controls > "$evidence/control-results.json"
           python - "$case_dir" "$evidence" <<'PY'
           import gzip, json, sys
