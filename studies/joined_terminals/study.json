@@ -1,0 +1,157 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "JoinedRods",
+  "model": {
+    "path": "model.mo",
+    "sha256": "e27a7428db9303ed7530b9c06c6eacbc8dd63e512068dbf8a7066c5910b4c404"
+  },
+  "mode": "steady",
+  "analysis": {},
+  "requests": [
+    {
+      "id": "contactT",
+      "op": "temperature",
+      "target": "legB.port_a"
+    }
+  ],
+  "provenance": [
+    {
+      "target": "warmL.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "coolL.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "middleR.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "coolR.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Steady, constant properties, ideal contacts, insulated lateral surfaces."
+    }
+  ]
+}
