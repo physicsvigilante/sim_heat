@@ -61,13 +61,18 @@ def surface_balance(open_bounds, resistance_bounds, environment, coefficient):
     return (low,high), flux
 
 
-def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma):
+def exterior_parameters(enclosure_k, area_m2, emissivity, sigma):
     environment = decimal_input(enclosure_k, "enclosure temperature")
     area = decimal_input(area_m2, "surface area")
     eps = decimal_input(emissivity, "emissivity")
     constant = decimal_input(sigma, "Stefan-Boltzmann constant")
     if area <= 0 or eps > 1 or constant <= 0:
         raise ValueError("positive area and sigma and emissivity in [0,1] required")
+    return environment, area, eps, constant
+
+
+def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma):
+    environment, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
     law = terminal_response(study, root, facts, facts_sha256)
     (open_low, open_high), (rlo, rhi) = physical_port(law, port)
     (low,high), flux = surface_balance((open_low,open_high), (rlo,rhi), environment, eps*constant*area)
