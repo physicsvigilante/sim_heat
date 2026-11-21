@@ -4,6 +4,8 @@ import hashlib
 from http.client import HTTPConnection
 import json
 import socket
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
@@ -40,6 +42,15 @@ def request(port, method='GET', path=DEFAULT_ROUTE, headers=None, data=None):
 
 
 class LocalAuthoringWorkbenchTests(unittest.TestCase):
+    def test_direct_script_launch_from_an_unrelated_directory(self):
+        with TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, '-I', '-B', str(ROOT / 'tools/authoring_workbench.py'), '--help'],
+                cwd=directory, capture_output=True, text=True, timeout=15,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--root', result.stdout)
+
     def test_real_h1_compositions_load_without_special_case_code(self):
         for name, expected_mode, count in (('D1', 'transient', 3),
                                            ('S1', 'steady', 4),
