@@ -32,3 +32,14 @@ class ThreeThermometers(TestCase):
         for middle in [("0.5","364","366"), ("1","375","375")]:
             with self.subTest(middle=middle), self.assertRaises(ValueError):
                 investigate(LINK, "facing", [("0","380","380"), middle, ("1","350","350")])
+
+    def test_fourth_reading_against_exact_and_banded_profiles(self):
+        # At x=1/4 the three Lagrange weights are 3/8, 3/4 and -1/8.
+        points = [("0","379","381"), ("0.5","374","376"), ("1","349","351")]
+        for value, matches in [("378.75", True), ("381.25", True), ("381.3", False)]:
+            result = investigate(LINK, "facing", points, check=("0.25",value,value))
+            report = result["checkThermometer"]
+            self.assertEqual(list(map(F, report["predictedBoundsK"])), [F("378.75"), F("381.25")])
+            self.assertIs(report["consistentWithLocalQuadratic"], matches)
+        with self.assertRaisesRegex(ValueError, "distinct"):
+            investigate(LINK, "facing", points, check=("0.5","375","375"))

@@ -41,3 +41,13 @@ The two_heater_calorimetry CLI takes two measured bath supply intervals and two 
 In the three-terminal star, the warm bath supplies 22 W and the middle bath absorbs 57 W. These two measurements identify 160 W generated in the first rod and 120 W in the second. Use `--predict` to infer the cold bath's supply and each rod's maximum temperature from the same pinned network.
 
 The junction receives half of each heater's output, so it rises by 140/10 = 14 K to 329 K. The cold bath absorbs 245 W. Along the second rod the maximum is 334.5125 K between its 330 K and 329 K ends. For measurement bands the engine propagates both ends of the inferred power intervals. Bounds can widen because the interval calculation drops correlations between the fitted powers.
+
+## Can four readings come from one uniformly heated rod?
+
+At steady state, a uniform rod with constant conductivity and uniform internal heating has a quadratic temperature profile. Three thermometer readings determine its curvature. For probes at the ends and midpoint, the midpoint's excess above the average end temperature is P/(8G). With conductance 4 W/K, temperatures of 380 K, 375 K and 350 K imply 320 W of total heating.
+
+A fourth reading checks the shape independently. At one quarter of the length, the quadratic predicts (3T₀ + 6Tₘ − T₁)/8, where Tₘ is the midpoint reading. With ±1 K uncertainty at each of the three probes, the quarter-point temperature spans 378.75–381.25 K. A 382 K reading conflicts with the uniform-generation profile under these assumptions. A reading inside the band is compatible with at least one local quadratic. The experiment does not identify the cause of a discrepancy.
+
+Run this from the project root with the pinned Python environment.
+
+    python -B -m tools.three_thermometer_rod --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --rod facing --probe 0 379 381 --probe 0.5 374 376 --probe 1 349 351 --check 0.25 382 382
