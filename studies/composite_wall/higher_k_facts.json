@@ -1,0 +1,51 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "CompositeWallHigherK",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "70e1f1263afad389243ec5e551397711d181093ec8e1dd814c8f4f9b6ed1c9c2",
+  "studySha256": "a9f2b55ef8de862689dce67a6b359b98e0f51b1ee2854e1309ed53faf76d2379",
+  "provenance": "Same-author checking data for the baseline wall and the hypothetical 70 W/(m.K) insert specified in CONDUCTIVITY.md.",
+  "nodes": [
+    "inside",
+    "interface",
+    "outside"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "hot": {
+      "node": "inside",
+      "T": 380
+    },
+    "cold": {
+      "node": "outside",
+      "T": 280
+    }
+  },
+  "rods": {
+    "facing": {
+      "kind": "RodArea",
+      "a": "inside",
+      "b": "interface",
+      "k": 20,
+      "A": 0.02,
+      "L": 0.1
+    },
+    "strip": {
+      "kind": "RodArea",
+      "a": "interface",
+      "b": "outside",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "insert": {
+      "kind": "RodArea",
+      "a": "outside",
+      "b": "interface",
+      "k": 70,
+      "A": 0.01,
+      "L": 0.1
+    }
+  }
+}
