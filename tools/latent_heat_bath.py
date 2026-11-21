@@ -9,6 +9,11 @@ from tools.terminal_response import investigate as terminal_response
 
 
 def investigate(inputs, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s):
+    return plateau(terminal_response(*inputs),port,transition_k,latent_heat_j_per_kg,
+                   solid_kg,liquid_kg,duration_s)
+
+
+def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s):
     transition = decimal_input(transition_k, "transition temperature")
     latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
     solid = decimal_input(solid_kg, "initial solid mass")
@@ -16,7 +21,6 @@ def investigate(inputs, port, transition_k, latent_heat_j_per_kg, solid_kg, liqu
     horizon = decimal_input(duration_s, "duration")
     if min(transition,latent,solid,liquid) <= 0:
         raise ValueError("positive transition temperature, latent heat and both initial masses required")
-    law = terminal_response(*inputs)
     if port not in law["terminals"]:
         raise ValueError("unknown phase bath port")
     # The terminal law gives supply into the conductor. Shift all temperatures
