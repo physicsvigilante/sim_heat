@@ -29,3 +29,9 @@ The powered_wall_surface CLI combines the source-pinned terminal response, the d
 Keep the same surface conditions and measure 400 K. The surface loses 40 W net to air and radiation, while a passive surface held at that temperature would send another 40 W into the wall. At fixed surface temperature the buried sources must therefore contribute 80 W toward that surface.
 
 Only one quarter of heat generated in the facing goes to this port. With no other heater, its power is 80/(1/4) = 320 W. If the insert is independently known to generate 80 W, it already contributes 60 W toward the port. The inferred facing power drops to **80 W**. The infer_rod_power CLI can take a lower and upper thermometer reading and bounds the resulting power. It refuses an inference when the measured port has no resolved sensitivity to the chosen rod.
+
+## Distinguishing two heaters by bath calorimetry
+
+With both bath temperatures maintained, measure the signed heat supplied by each bath. Relative to the unheated wall, each watt generated in the facing reduces the hot bath's supply by 3/4 W and the cold bath's supply by 1/4 W. For the insert those fractions reverse. If the hot bath supplies zero and the cold bath absorbs 320 W, the two balances give 240 W generated in the facing and 80 W in the insert.
+
+The two_heater_calorimetry CLI takes two measured bath supply intervals and two candidate heater names. Independently known heaters can be supplied as background. The archived example includes a known 40 W strip and ±1 W uncertainty on each bath. It bounds the facing at 238–242 W and the insert at 78–82 W. If both candidates have identical heat partitions, these observations cannot distinguish their individual powers.
