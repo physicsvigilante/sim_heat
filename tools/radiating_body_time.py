@@ -9,20 +9,18 @@ from tools.radiating_surface import decimal_input, exterior_parameters
 from tools.terminal_response import investigate as terminal_response
 
 
-def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
-                capacity_j_per_k, initial_k, target_k, *, track_energy=False):
-    capacity = decimal_input(capacity_j_per_k, "heat capacity")
-    start = decimal_input(initial_k, "initial temperature")
-    target = decimal_input(target_k, "target temperature")
-    if capacity <= 0:
-        raise ValueError("positive heat capacity required")
+def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma, start, target=None):
     env, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
     law = terminal_response(*inputs)
     if port not in law["terminals"]:
         raise ValueError("unknown body terminal")
     baths = {p: Fraction(t) for p, t in law["imposedTemperaturesK"].items() if p != port}
     # Radiation acts directly on the body. Only the rods need positive conductivity.
-    domain = [start, target, *baths.values()]
+    domain = [start, *baths.values()]
+    if target is not None:
+        domain.append(target)
+    elif eps:
+        domain.append(env)
     material = Material(reference_k, slope_per_k, min(domain), max(domain))
     row = law["supplyResponseBoundsWPerK"][port]
     couplings = []
@@ -35,7 +33,7 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     def radiation(t):
         return area*eps*constant*(env-t)*(env+t)*(env*env+t*t)
 
-    def directed_power(t):
+    def power(t):
         # Response rows sum to zero. Temperature differences also preserve exact equilibrium.
         value = material.potential(t)
         low = high = radiation(t)
@@ -43,15 +41,34 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
             endpoints = (gmin*(bath-value), gmax*(bath-value))
             low += min(endpoints)
             high += max(endpoints)
-        return (low, high) if target >= start else (-high, -low)
+        return low, high
 
-    data = {"schema": "sim_heat.offline_radiating_body_target/1", "bodyPort": port,
+    data = {"bodyPort": port,
             "referenceTemperatureK": str(material.reference), "relativeSlopePerK": str(material.slope),
             "exterior": {"enclosureTemperatureK": str(env), "areaM2": str(area), "emissivity": str(eps),
-                         "sigmaWPerM2K4": str(constant)}, "capacityJPerK": str(capacity),
-            "initialTemperatureK": str(start), "targetTemperatureK": str(target),
+                         "sigmaWPerM2K4": str(constant)},
+            "initialTemperatureK": str(start),
             **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
                                    "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    return data, power, radiation, (min(domain), max(domain))
+
+
+def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
+                capacity_j_per_k, initial_k, target_k, *, track_energy=False):
+    capacity = decimal_input(capacity_j_per_k, "heat capacity")
+    start = decimal_input(initial_k, "initial temperature")
+    target = decimal_input(target_k, "target temperature")
+    if capacity <= 0:
+        raise ValueError("positive heat capacity required")
+    data, power, radiation, _ = prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k,
+                                             area_m2, emissivity, sigma, start, target)
+    data.update(schema="sim_heat.offline_radiating_body_target/1", capacityJPerK=str(capacity),
+                targetTemperatureK=str(target))
+
+    def directed_power(t):
+        low, high = power(t)
+        return (low, high) if target >= start else (-high, -low)
+
     if track_energy:
         data["energyToBodyBoundsJ"] = None
     if target == start:
