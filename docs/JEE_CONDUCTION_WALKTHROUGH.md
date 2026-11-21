@@ -63,3 +63,5 @@ python -B -m tools.isolated_pair_exchange --root h1/cases/D2 --study h1/cases/D2
 Read `fromBody` and `toBody` before interpreting the sign. The command reports cold-to-hot transfer, so its initial rate is −12 W and its limiting transfer is −22,500 J. The equal endpoints in `differenceTimeConstantBoundsSeconds` give 1,875 s. [Two-body model](../h1/cases/D2/model.mo)
 
 For a temperature-dependent material, work through [reversing two joined composite walls](JEE_WALL_REVERSAL.md).
+
+Use a measured warming time to [infer a sample's specific heat](JEE_TIMED_SPECIFIC_HEAT.md).
