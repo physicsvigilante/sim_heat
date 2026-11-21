@@ -25,6 +25,8 @@ jobs:
           python -B -m unittest discover -s tests -v 2>&1 | tee evidence/regression.log
       - name: Replay three-bath calorimetry
         run: python -B -m tools.two_heater_calorimetry --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --heaters first second --bath warm 21 23 --bath middle -58 -56 --predict > evidence/prediction.json
+      - name: Replay interior rod probe
+        run: python -B -m tools.rod_generation --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --generate facing 320 --probe facing 0.125 > evidence/probe.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: calorimeter-${{ github.event.pull_request.head.sha }}

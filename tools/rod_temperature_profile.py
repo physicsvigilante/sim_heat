@@ -44,14 +44,25 @@ def peak(a, b, curvature):
     return (1-x)*a + x*b + curvature*x*(1-x)
 
 
-def rod_peaks(net, powers, *, fixed_temperatures=None):
+def rod_peaks(net, powers, *, fixed_temperatures=None, probe=None):
     temperatures = loaded_temperatures(net, powers, fixed_temperatures)
     records = {}
+    observation = {}
     for rod, first, last, conductance in net.edges:
         a, b = temperatures[first], temperatures[last]
         power = powers.get(rod, F(0))
         gl, gh = conductance.span()
         curve = (power/(2*gh), power/(2*gl))
+        if probe is not None and rod == probe[0]:
+            x = probe[1]
+            # T(x) is quadratic for uniform generation. Fourier's law gives
+            # Q(x) = -G dT/dx for the dimensionless coordinate from a to b.
+            temp = a*(1-x) + b*x + Box.bounds(*curve)*(x*(1-x))
+            current = conductance*(a-b) + Box.exact(power*(x-F(1,2)))
+            observation = {"probe": {"rod": rod, "fromNode": first, "toNode": last,
+                                     "positionFractionFromA": str(x),
+                                     "temperatureBoundsK": list(map(str, temp.span())),
+                                     "heatCurrentTowardBBoundsW": list(map(str, current.span()))}}
         al, ah = a.span()
         bl, bh = b.span()
         # Every point of the profile increases with both endpoint temperatures
@@ -71,4 +82,4 @@ def rod_peaks(net, powers, *, fixed_temperatures=None):
                         "peakTemperatureBoundsK": list(map(str, hottest)),
                         "peakPositionFractionFromABounds": list(map(str, positions))}
     return {"nodeTemperatureBoundsK": {n: list(map(str, box.span())) for n, box in temperatures.items()},
-            "rodPeaks": records}
+            "rodPeaks": records, **observation}
