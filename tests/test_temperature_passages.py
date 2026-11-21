@@ -1,4 +1,7 @@
+import json
 import math
+from hashlib import sha256
+from tempfile import TemporaryDirectory
 from fractions import Fraction
 from pathlib import Path
 from unittest import TestCase
@@ -42,3 +45,26 @@ class PassageTests(TestCase):
         self.assertEqual(overlaps, 2)
         self.assertEqual(events, [{"direction": "warming", "sampleIndices": [0, 3],
                                    "timeBoundsSeconds": ["0", "1"]}])
+
+    def test_single_body_cooling_into_colder_bath(self):
+        with TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            model = (D1/"model.mo").read_bytes().replace(b"T=353.15", b"T=233.15")
+            (root/"model.mo").write_bytes(model)
+            study = json.loads((D1/"study.json").read_bytes())
+            study["model"]["sha256"] = sha256(model).hexdigest()
+            descriptor = json.dumps(study).encode()
+            (root/"study.json").write_bytes(descriptor)
+            facts = json.loads((ROOT/"h1/reference_cases/D1.json").read_bytes())
+            facts["boundaries"]["reservoir"]["T"] = 233.15
+            facts.update(modelSha256=sha256(model).hexdigest(), studySha256=sha256(descriptor).hexdigest())
+            raw = json.dumps(facts).encode()
+            (root/"facts.json").write_bytes(raw)
+            result = investigate(root/"study.json", root, root/"facts.json", sha256(raw).hexdigest(),
+                                 "body", "263.15")
+        event, = result["passages"]
+        self.assertEqual(event["direction"], "cooling")
+        lo, hi = map(Fraction, event["timeBoundsSeconds"])
+        self.assertLess(lo, 2500 * math.log(2))
+        self.assertGreater(hi, 2500 * math.log(2))
+        self.assertEqual(hi-lo, Fraction(25, 2))
