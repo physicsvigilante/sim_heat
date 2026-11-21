@@ -42,3 +42,9 @@ For the same 380 K backing, 280 K enclosure, and a single spherical layer of con
 ~~~sh
 python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.12 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --radius-sensitivity
 ~~~
+
+### Bracket the radius of maximum heat loss
+
+Starting with the last example's 0.12 m outer radius, replace `--radius-sensitivity` with `--bracket-to-radius-m 1.4`. The two proposed radii must have resolved opposite slopes for heat-rate magnitude. For these materials and bath temperatures, the calculation encloses an interior maximum near **0.979483 m**. This is the outside radius. Subtract the 0.10 m inner radius to get the insulation thickness.
+
+The output retains both endpoint studies, their signed derivative bounds and the original search interval. Continuity and the opposite slopes guarantee an interior extremum. Bisection keeps endpoints whose signs are resolved. It stops at the input resolution, after 64 iterations, or when the midpoint's slope enclosure cannot resolve its sign. Read the returned bracket width for the achieved precision. A bracket with same-sign endpoints is refused; such endpoint data alone cannot locate a turn. The result applies within the bracket and does not establish uniqueness across all radii.
