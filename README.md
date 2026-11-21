@@ -4,6 +4,8 @@ A compositional **heat-transfer teaching sandbox**, with a read-only thermal-net
 
 ## Start exploring
 
+Work through three [JEE-style conduction problems](docs/JEE_CONDUCTION_WALKTHROUGH.md) with predictions, hand calculations and runnable offline checks for a composite wall, a thermal bridge and two insulated bodies.
+
 From the repository root:
 
 ```bash
