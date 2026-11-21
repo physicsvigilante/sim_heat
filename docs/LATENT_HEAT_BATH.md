@@ -1,0 +1,15 @@
+# How long does ice keep a wall face at the melting point?
+
+An isothermal mixture of 0.500 kg of ice and 0.100 kg of water touches the cold face of the composite wall. Its melting point at the specified constant pressure is 273.15 K. Take the specific latent heat as 334,000 J/kg. The opposite face is maintained at 380 K. The wall has negligible heat capacity and resistance 0.5 K/W. All heat from the wall goes into the mixture, which is initially at phase equilibrium.
+
+**Predict.** How much ice remains after ten minutes? How long can the mixture keep the wall face at the melting point?
+
+During coexistence the wall supplies (380 − 273.15)/0.5 = **213.7 W**. After 600 s it has delivered 128,220 J, melting about 0.384 kg and leaving about **0.116 kg of ice**. The plateau ends after 0.500 × 334,000 / 213.7 ≈ **781.47 s**. A 1,000 s request therefore reports only the first 781.47 s and the inventory at exhaustion. Computing the subsequent liquid temperature would require its heat capacity and a different boundary law.
+
+~~~sh
+python -B -m tools.latent_heat_bath --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --duration-s 600
+~~~
+
+The offline observer replaces the selected maintained terminal with the hypothetical phase bath. All other maintained temperatures and the conductor network come from the pinned study. Positive heat into the bath melts solid. Negative heat freezes liquid until it runs out. At exactly zero inflow the phases coexist indefinitely in this model. Both initial phase masses and the latent heat must be positive. A rate interval spanning both signs produces a refusal. A requested time inside the exhaustion-time interval is reported as uncertain, with conservative bounds on the inventory and modeled duration.
+
+This is a lumped, perfectly mixed, constant-pressure phase-equilibrium example. Wall properties, geometry and contact resistance stay fixed, and there is no heat loss to any other system. It assumes the wall is already in its steady conduction regime. The model ends at depletion of the first phase.
