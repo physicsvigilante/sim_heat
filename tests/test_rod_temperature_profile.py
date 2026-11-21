@@ -46,3 +46,20 @@ class HeatedProfiles(TestCase):
         self.check(link["peakTemperatureBoundsK"], 334 + F(32, 7))
         flat = investigate(*inputs, [("link", "0")], profiles=True)["rodPeaks"]["link"]
         self.assertEqual(flat["peakPositionFractionFromABounds"], ["0", "1"])
+
+    def test_probe_quadratic_temperature_and_signed_current(self):
+        # Facing rod T=380+10x-40x² and Q=-40+320x, positive toward port b.
+        for x in ("0", "0.125", "0.5", "1"):
+            probe = investigate(*LINK, [("facing", "320")], probe=("facing", x))["probe"]
+            f = F(x)
+            self.check(probe["temperatureBoundsK"], 380+10*f-40*f*f)
+            self.check(probe["heatCurrentTowardBBoundsW"], -40+320*f)
+        # The unheated insert runs from the cold bath toward the shared joint.
+        probe = investigate(*LINK, [("facing", "320")], probe=("insert", "0.5"))["probe"]
+        self.check(probe["temperatureBoundsK"], 315)
+        self.check(probe["heatCurrentTowardBBoundsW"], -210)
+
+    def test_probe_refuses_unknown_rod_and_outside_positions(self):
+        for probe in (("missing", "0"), ("facing", "-0.1"), ("facing", "1.001")):
+            with self.subTest(probe=probe), self.assertRaises(ValueError):
+                investigate(*LINK, [("facing", "320")], probe=probe)

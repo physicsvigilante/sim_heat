@@ -13,12 +13,12 @@ def bounds(box):
     return list(map(str, box.span()))
 
 
-def investigate(study, root, facts_path, facts_sha256, rod_powers, *, profiles=False):
+def investigate(study, root, facts_path, facts_sha256, rod_powers, *, profiles=False, probe=None):
     facts, candidate, net = prepare_steady_network(study, root, facts_path, facts_sha256)
-    return generation_from_network(facts, candidate, net, rod_powers, profiles=profiles)
+    return generation_from_network(facts, candidate, net, rod_powers, profiles=profiles, probe=probe)
 
 
-def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False):
+def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False, probe=None):
     sources = {}
     for name, watts in rod_powers:
         if name not in facts["rods"] or name in sources:
@@ -64,9 +64,15 @@ def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False
                                       "nativeExecuted", "nativeQualified",
                                       "independentlyCertifiedReference", "runnerConsumable")},
     }
-    if profiles:
+    if probe is not None:
+        name, position = probe
+        fraction = decimal_input(position, "position fraction from port a")
+        if name not in facts["rods"] or fraction > 1:
+            raise ValueError("probe requires a known rod and a position fraction in [0,1]")
+        probe = (name, fraction)
+    if profiles or probe is not None:
         result["schema"] = "sim_heat.offline_heated_rod_profiles/1"
-        result.update(rod_peaks(net, sources))
+        result.update(rod_peaks(net, sources, probe=probe))
     return result
 
 
@@ -76,5 +82,6 @@ if __name__ == "__main__":
         parser.add_argument("--" + field, required=True)
     parser.add_argument("--generate", nargs=2, action="append", required=True, metavar=("ROD", "TOTAL_W"))
     parser.add_argument('--profiles', action='store_true')
+    parser.add_argument("--probe", nargs=2, metavar=("ROD", "FRACTION_FROM_A"))
     args = parser.parse_args()
-    print(json.dumps(investigate(args.study, args.root, args.facts, args.facts_sha256, args.generate, profiles=args.profiles), indent=2))
+    print(json.dumps(investigate(args.study, args.root, args.facts, args.facts_sha256, args.generate, profiles=args.profiles, probe=args.probe), indent=2))
