@@ -21,3 +21,14 @@ The worked example gives 6.881 W from left to right, with plate temperatures 376
 For general conductor networks the two open-port temperatures and resistances come from the pinned conduction studies. Between zero heat flow and direct-contact heat flow both surfaces stay between the two open temperatures. Over this interval the residual Q minus the radiation rate increases strictly, so bisection encloses the unique solution. The root increases with left open temperature and decreases with right open temperature. At fixed open temperatures, increasing either resistance moves the root toward zero. Evaluating the interval corners therefore bounds signed flow for either ordering. The output propagates this interval back through both conduction laws.
 
 This is a steady offline boundary calculation. The conductive studies and explicit gap inputs are identified separately in the output.
+
+## Insert a floating shield
+
+Place a thin, opaque, isothermal sheet between the walls, with no conductive support leaking heat. Its two faces may have different coatings. Both gaps have the same area, each pair has mutual view factor one, and the sheet is in steady energy balance. Append `--shield-emissivities 0.6 0.3` to the example command. The first emissivity belongs to the face looking left.
+
+The shield reduces the heat rate from **6.881 W to 2.596 W** and reaches **356.655 K**. To derive this result, write the left gap rate as KL (TL⁴ − TS⁴) and the right gap rate as KR (TS⁴ − TR⁴), using the two facing emissivities for each coefficient. Equal rates give
+
+    TS⁴ = (KL TL⁴ + KR TR⁴)/(KL + KR)
+    Q = [KL KR/(KL + KR)] (TL⁴ − TR⁴).
+
+The wall surfaces still change temperature under load. The familiar factor of two for one black shield assumes fixed outer surface temperatures and identical gap coefficients. With a reflecting face on one side, the corresponding gap carries zero net heat. The shield then comes to the opposite plate temperature if that gap exchanges radiation. If both gaps are blocked, the model determines zero flow but leaves the shield temperature undetermined.
