@@ -122,8 +122,12 @@ def compare_revision(parent: Study, child: Study, target: str) -> None:
 def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     """Validate offline only; this function never writes or invokes a compiler."""
     root = root.resolve(strict=True)
+    native_path = path.absolute()
+    require(not any(p.is_symlink() for p in (native_path, *native_path.parents)), 'path', 'symlink refused')
     try:
-        relative = str(path.absolute().relative_to(root))
+        relative = native_path.resolve(strict=True).relative_to(root).as_posix()
+    except (OSError, RuntimeError) as exc:
+        raise Refusal('path', 'unreadable path') from exc
     except ValueError as exc:
         raise Refusal('path', 'study outside case root') from exc
     path = checked_path(root, relative, root, '.json')

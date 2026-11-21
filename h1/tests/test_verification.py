@@ -252,7 +252,8 @@ class VerificationTests(unittest.TestCase):
         s=self.studies['ISO'];b=self.bundles['ISO'];text=csv_text(b['grid'],analytic('ISO',b['grid']))
         with tempfile.TemporaryDirectory() as d:
             paths=[Path(d)/n for n in ('bundle.json','data.csv','receipt.json')]
-            for p, value in zip(paths,[json.dumps(b),text,json.dumps(candidate_receipt(s,b,text))]):p.write_text(value)
+            for p, value in zip(paths,[json.dumps(b),text,json.dumps(candidate_receipt(s,b,text))]):
+                p.write_bytes(value.encode("utf-8"))
             before=[p.read_bytes() for p in paths]
             args=['check','--study',str(s.path),'--root',str(CASES),'--bundle',str(paths[0]),'--csv',str(paths[1]),
                   '--receipt',str(paths[2]),'--seal',b['seal']]

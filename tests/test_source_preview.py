@@ -205,7 +205,7 @@ class SourcePreviewTests(unittest.TestCase):
             model=model.replace('model H1_D1\n',
                 'model H1_D1\n  parameter Modelica.Units.SI.Mass effectiveMass = 1.0;\n')
             model=model.replace('body(m=1.0','body(m=effectiveMass')
-            (draft/'model.mo').write_text(model)
+            (draft/'model.mo').write_bytes(model.encode('utf-8'))
             study=json.loads((source/'study.json').read_bytes())
             study['id']='H1_D1_PARAM'
             study['model']['sha256']=digest(model.encode())
