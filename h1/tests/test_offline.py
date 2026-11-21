@@ -237,13 +237,7 @@ class StudyTests(Base):
         self.refuses(load_study,self.root.parent/'not-in-root.json',self.root,code='path')
 
     def test_symlink_refused(self):
-        p = self.root/'D2/link.mo'
-        try:
-            p.symlink_to(self.root/'D2/model.mo')
-        except OSError as exc:
-            if getattr(exc, 'winerror', None) == 1314:
-                self.skipTest('Windows account lacks symbolic-link creation privilege')
-            raise
+        p=self.root/'D2/link.mo';p.symlink_to(self.root/'D2/model.mo')
         self.change(lambda d:d['model'].update(path='link.mo'))
         self.refuses(self.load,code='path')
 
