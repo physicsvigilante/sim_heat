@@ -35,3 +35,9 @@ Only one quarter of heat generated in the facing goes to this port. With no othe
 With both bath temperatures maintained, measure the signed heat supplied by each bath. Relative to the unheated wall, each watt generated in the facing reduces the hot bath's supply by 3/4 W and the cold bath's supply by 1/4 W. For the insert those fractions reverse. If the hot bath supplies zero and the cold bath absorbs 320 W, the two balances give 240 W generated in the facing and 80 W in the insert.
 
 The two_heater_calorimetry CLI takes two measured bath supply intervals and two candidate heater names. Independently known heaters can be supplied as background. The archived example includes a known 40 W strip and ±1 W uncertainty on each bath. It bounds the facing at 238–242 W and the insert at 78–82 W. If both candidates have identical heat partitions, these observations cannot distinguish their individual powers.
+
+### Predicting a third bath and an interior temperature
+
+In the three-terminal star, the warm bath supplies 22 W and the middle bath absorbs 57 W. These two measurements identify 160 W generated in the first rod and 120 W in the second. Use `--predict` to infer the cold bath's supply and each rod's maximum temperature from the same pinned network.
+
+The junction receives half of each heater's output, so it rises by 140/10 = 14 K to 329 K. The cold bath absorbs 245 W. Along the second rod the maximum is 334.5125 K between its 330 K and 329 K ends. For measurement bands the engine propagates both ends of the inferred power intervals. Bounds can widen because the interval calculation drops correlations between the fitted powers.
