@@ -12,8 +12,8 @@ import os
 from pathlib import Path
 import tempfile
 
-from .model import Refusal, SLOTS, require
-from .study import Study, load_study
+from .model import Refusal, SLOTS, parse_model, requests as check_requests, require, topology as build_topology
+from .study import Study, checked_path, load_study, sha256, strict_json
 
 UNITS = {
     'Mass': 'kg', 'SpecificHeatCapacity': 'J/(kg K)', 'Temperature': 'K',
@@ -28,12 +28,30 @@ DISCLAIMERS = (
 )
 
 
+def _pinned_bytes(path: Path, limit: int, expected: str) -> bytes:
+    """Hash the same bounded buffer used to derive the preview."""
+    with path.open('rb') as stream:
+        raw = stream.read(limit + 1)
+    require(len(raw) <= limit, 'resource_limit', 'source exceeds admission size limit')
+    require(sha256(raw) == expected, 'identity', 'source changed since admission')
+    return raw
+
+
 def build_source_preview(study: Study) -> dict:
     """Build a shape-independent source payload solely from admitted H1 objects."""
-    require(study.request_report['admitted'], 'request', 'refused requests cannot be previewed')
-    require(all(r['status'] == 'not_computed' for r in study.request_report['requests']),
+    # Nested Study facts are caller-mutable. Derive every displayed fact from
+    # the descriptor and model buffers authenticated by the admission digests.
+    case = study.path.parent
+    descriptor = checked_path(case, study.path.name, case, '.json')
+    data = strict_json(_pinned_bytes(descriptor, 262144, study.sha256).decode('utf-8'))
+    require(data['model']['sha256'] == study.model_sha256, 'identity', 'model pin drift')
+    path = checked_path(case, data['model']['path'], case, '.mo')
+    model = parse_model(_pinned_bytes(path, 65536, study.model_sha256).decode('utf-8'))
+    topology = build_topology(model, data['mode'])
+    report = check_requests(model, data['requests'])
+    require(report['admitted'], 'request', 'refused requests cannot be previewed')
+    require(all(r['status'] == 'not_computed' for r in report['requests']),
             'request', 'source preview requires uncomputed requests')
-    model, topology = study.model, study.topology
     node_of = {i: f'node_{i}' for i in range(len(topology.nodes))}
     nodes = []
     for i, ports in enumerate(topology.nodes):
@@ -51,7 +69,7 @@ def build_source_preview(study: Study) -> dict:
                    'siUnit': UNITS[SLOTS[comp.kind][key]], 'sourceValue': comp.fields[key].value}
                   for key in sorted(comp.fields)]
         citations = []
-        for record in study.data['provenance']:
+        for record in data['provenance']:
             # H1 also admits attribution through a bound scalar parameter.
             # Retain its ORIGINAL target and the effective fields it supports;
             # never substitute the parameter record with a fabricated slot fact.
@@ -63,7 +81,7 @@ def build_source_preview(study: Study) -> dict:
         # Component-wide assumptions are legal H1 provenance targets, but are
         # not evidence for any individual scalar slot. Preserve their original
         # records separately, including repeated records and original order.
-        component_citations = [dict(record) for record in study.data['provenance']
+        component_citations = [dict(record) for record in data['provenance']
                                if record['target'] == name]
         components.append({'id': name, 'kind': comp.kind, 'inputs': inputs,
                            'sourceProvenance': citations,
@@ -73,8 +91,8 @@ def build_source_preview(study: Study) -> dict:
         rods.append({'id': name, 'from': node_of[a], 'to': node_of[b],
                      'portA': name + '.port_a', 'portB': name + '.port_b'})
     requests = []
-    authored = {r['id']: r for r in study.data['requests']}
-    for result in study.request_report['requests']:
+    authored = {r['id']: r for r in data['requests']}
+    for result in report['requests']:
         request = authored[result['id']]
         endpoints = ([request['a'], request['b']] if request['op'] == 'temperatureDifference'
                      else [request['target']])
@@ -82,8 +100,8 @@ def build_source_preview(study: Study) -> dict:
                          'targets': endpoints, 'unit': result['unit'], 'status': 'not_computed'})
     return {
         'schema': 'sim_heat.viewer.admitted_source/1',
-        'status': 'admitted_source_only', 'studyId': study.data['id'],
-        'modelName': model.name, 'mode': study.data['mode'],
+        'status': 'admitted_source_only', 'studyId': data['id'],
+        'modelName': model.name, 'mode': data['mode'],
         'source': {
             'studySha256': study.sha256, 'modelSha256': study.model_sha256,
             'evidenceKind': 'authored_source_only', 'nativeExecuted': False,
@@ -91,7 +109,7 @@ def build_source_preview(study: Study) -> dict:
             'publicRequestStatus': 'not_computed',
         },
         'components': components, 'nodes': nodes, 'rods': rods, 'requests': requests,
-        'modelProvenance': [dict(r) for r in study.data['provenance'] if r['target'] == '@model'],
+        'modelProvenance': [dict(r) for r in data['provenance'] if r['target'] == '@model'],
         'disclaimers': list(DISCLAIMERS),
     }
 
