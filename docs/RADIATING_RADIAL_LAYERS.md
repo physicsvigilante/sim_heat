@@ -48,3 +48,9 @@ python -B -m tools.radiating_radial_layers --root studies/composite_wall --study
 Starting with the last example's 0.12 m outer radius, replace `--radius-sensitivity` with `--bracket-to-radius-m 1.4`. The two proposed radii must have resolved opposite slopes for heat-rate magnitude. For these materials and bath temperatures, the calculation encloses an interior maximum near **0.979483 m**. This is the outside radius. Subtract the 0.10 m inner radius to get the insulation thickness.
 
 The output retains both endpoint studies, their signed derivative bounds and the original search interval. Continuity and the opposite slopes guarantee an interior extremum. Bisection keeps endpoints whose signs are resolved. It stops at the input resolution, after 64 iterations, or when the midpoint's slope enclosure cannot resolve its sign. Read the returned bracket width for the achieved precision. A bracket with same-sign endpoints is refused; such endpoint data alone cannot locate a turn. The result applies within the bracket and does not establish uniqueness across all radii.
+
+## An outer surface in air
+
+Pass both `--air-k` and `--h-w-per-m2-k` to add a uniform convective film around the outer shell. Air and enclosure temperatures may differ. Positive heat flow to the air or enclosure means that medium receives heat. Warm air can supply heat while a surface radiates to a colder enclosure. The sum of the two external rates equals the outward conduction rate at steady state.
+
+For pure convection, the critical outer radius is k/h for a long cylinder and 2k/h for a sphere. When radiation also acts, the local surface slope becomes h + 4εσT³. Use the calculated outer temperature in kelvin to evaluate that slope; changing the insulation thickness changes the temperature as well as the exposed area.

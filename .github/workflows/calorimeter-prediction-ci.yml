@@ -1,7 +1,7 @@
 name: Offline calorimeter predictions
 on:
   pull_request:
-    branches: [codex/portable-workbench-launch, codex/correlated-bath-prediction, codex/interior-rod-probe, codex/three-thermometer-rod, codex/radiating-wall-probe]
+    branches: [codex/portable-workbench-launch, codex/correlated-bath-prediction, codex/interior-rod-probe, codex/three-thermometer-rod, codex/radiating-wall-probe, codex/frozen-reference-checkout]
 permissions:
   contents: read
 jobs:
@@ -33,6 +33,8 @@ jobs:
         run: python -B -m tools.powered_wall_surface --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --generate facing 320 --enclosure-k 300 --area-m2 0.2 --emissivity 1 --sigma 0.00000005 --air-k 450 --h-w-per-m2-k 13.5 --probe facing 0.5 > evidence/radiating-wall-probe.json
       - name: Cross-check a fourth thermometer
         run: python -B -m tools.three_thermometer_rod --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --rod facing --probe 0 379 381 --probe 0.5 374 376 --probe 1 349 351 --check 0.25 382 382 > evidence/fourth-thermometer.json
+      - name: Balance radial conduction with opposing external heat exchanges
+        run: python -B -m tools.radiating_radial_layers --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --enclosure-k 280 --emissivity 0.8 --sigma 0.0000000567 --air-k 450 --h-w-per-m2-k 12 --radius-sensitivity > evidence/radial-air-film.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: calorimeter-${{ github.event.pull_request.head.sha }}
