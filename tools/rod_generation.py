@@ -5,6 +5,7 @@ import json
 
 from qualification.h1_n13.conduction import Box, ZERO
 from tools.radiating_surface import decimal_input
+from tools.rod_temperature_profile import rod_peaks
 from tools.terminal_response import prepare_steady_network
 
 
@@ -12,7 +13,7 @@ def bounds(box):
     return list(map(str, box.span()))
 
 
-def investigate(study, root, facts_path, facts_sha256, rod_powers):
+def investigate(study, root, facts_path, facts_sha256, rod_powers, *, profiles=False):
     facts, candidate, net = prepare_steady_network(study, root, facts_path, facts_sha256)
     sources = {}
     for name, watts in rod_powers:
@@ -48,7 +49,7 @@ def investigate(study, root, facts_path, facts_sha256, rod_powers):
     supply = {net.owner[n]: -incoming[n] - absorbed[net.owner[n]] for n in net.fixed}
     if not (sum(supply.values(), ZERO) + total).contains_zero():
         raise ValueError("bath supply and generated power failed steady energy balance")
-    return {
+    result = {
         "schema": "sim_heat.offline_uniform_rod_generation/1",
         "rodsWithGeneration": records, "totalGeneratedPowerW": str(total),
         "imposedTemperaturesK": {net.owner[n]: str(net.initial[n]) for n in net.fixed},
@@ -59,6 +60,10 @@ def investigate(study, root, facts_path, facts_sha256, rod_powers):
                                       "nativeExecuted", "nativeQualified",
                                       "independentlyCertifiedReference", "runnerConsumable")},
     }
+    if profiles:
+        result["schema"] = "sim_heat.offline_heated_rod_profiles/1"
+        result.update(rod_peaks(net, sources))
+    return result
 
 
 if __name__ == "__main__":
@@ -66,5 +71,6 @@ if __name__ == "__main__":
     for field in ("study", "root", "facts", "facts-sha256"):
         parser.add_argument("--" + field, required=True)
     parser.add_argument("--generate", nargs=2, action="append", required=True, metavar=("ROD", "TOTAL_W"))
+    parser.add_argument('--profiles', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(investigate(args.study, args.root, args.facts, args.facts_sha256, args.generate), indent=2))
+    print(json.dumps(investigate(args.study, args.root, args.facts, args.facts_sha256, args.generate, profiles=args.profiles), indent=2))
