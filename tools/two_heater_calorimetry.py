@@ -71,10 +71,17 @@ def investigate(inputs, heaters, measurements, known_powers=(), *, predict=False
         for bath, supply in background.items():
             if bath in records:
                 continue
-            q = Box.bounds(*map(F, supply))
-            for p, unit in zip(powers, units, strict=True):
-                q -= p * Box.bounds(*map(F, unit["generatedPowerToBathBoundsW"][bath]))
-            unmeasured[bath] = bounds(q)
+            baseline = Box.bounds(*map(F, supply))
+            first, second = (Box.bounds(*map(F, unit["generatedPowerToBathBoundsW"][bath]))
+                             for unit in units)
+            independent = baseline - first*powers[0] - second*powers[1]
+            # Eliminate the unknown powers before applying the measurement
+            # bands. Each measured deficit then occurs only once.
+            gain_u = (first*d - second*c)/det
+            gain_v = (second*a - first*b)/det
+            correlated = baseline - gain_u*u - gain_v*v
+            unmeasured[bath] = bounds(Box(max(independent.low, correlated.low),
+                                          min(independent.high, correlated.high)))
         result.update(schema="sim_heat.offline_two_heater_predictions/1",
                       unmeasuredBathSupplyBoundsW=unmeasured, rodPeakTemperatureBoundsK=peaks)
     return result
