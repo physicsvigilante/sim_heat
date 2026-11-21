@@ -121,12 +121,18 @@ def compare_revision(parent: Study, child: Study, target: str) -> None:
 
 def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     """Validate offline only; this function never writes or invokes a compiler."""
+    # The caller can use a short Windows name for the root while a recursive
+    # parent lookup uses its resolved spelling. Retain the supplied path for
+    # checked_path to inspect every component, including intermediate symlinks.
+    supplied_root = root.absolute()
     root = root.resolve(strict=True)
+    path = path.absolute()
+    base = supplied_root if path.is_relative_to(supplied_root) else root
     try:
-        relative = path.absolute().relative_to(root).as_posix()
+        relative = path.relative_to(base).as_posix()
     except ValueError as exc:
         raise Refusal('path', 'study outside case root') from exc
-    path = checked_path(root, relative, root, '.json')
+    path = checked_path(base, relative, root, '.json')
     require(path not in seen and len(seen) < 16, 'revision', 'cyclic/too deep parent chain')
     require(path.stat().st_size <= 262144, 'resource_limit', 'study exceeds 256 KiB')
     raw = path.read_bytes()
