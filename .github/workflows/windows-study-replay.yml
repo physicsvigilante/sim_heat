@@ -23,7 +23,8 @@ jobs:
           set -euo pipefail
           base=b16004ff5f84a6d67b24e8681071d969cf83921e
           git diff --exit-code f05f6a8fbdfd5ac177a5441d22b40dda6bf8e0d4 "$base" -- h1 qualification ':!qualification/h1_n13/heldout'
-          git diff --exit-code "$base" HEAD -- h1 qualification studies viewer docs ':!h1/study.py' ':!h1/tests/test_verification.py'
+          git diff --exit-code "$base" HEAD -- h1 qualification studies viewer docs ':!h1/study.py' ':!h1/tests/test_verification.py' ':!h1/tests/test_resolution_campaign.py'
+          test "$(git rev-parse HEAD:h1/tests/test_resolution_campaign.py)" = 334435daa6d893b05d3755d522e70caa146b3315
           test "$(git rev-parse HEAD:h1/tests/test_verification.py)" = dd69244a8b8a8fd109bc9289ea5e8d2f1bfb4ae1
           test "$(git rev-parse HEAD:h1/study.py)" = 8835bf20ad50f791592a94f9d6b124dcaf44a8fe
           git diff --exit-code 954cf65e1dffd04c706654418f30d891d1ccba57 HEAD -- qualification/h1_n13/heldout

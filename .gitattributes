@@ -11,3 +11,12 @@ h1/reference_cases/S1.json text eol=lf
 h1/reference_cases/D1.json text eol=lf
 h1/reference_cases/D2.json text eol=lf
 h1/reference_cases/D2_K2.json text eol=lf
+
+# Offline campaign preparation checks source and plan hashes before generating a scratch successor.
+experiments/h1_spike/SimHeat.mo text eol=lf
+h1/**/*.py text eol=lf
+tools/h1_compare_companions.py text eol=lf
+tools/h1_d1d2_plan.json text eol=lf
+tools/h1_native_batch.py text eol=lf
+tools/h1_resolution_campaign.json text eol=lf
+tools/h1_resolution_campaign.py text eol=lf

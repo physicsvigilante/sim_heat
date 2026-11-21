@@ -32,7 +32,7 @@ class ResolutionCampaignTests(unittest.TestCase):
         # against new code. Tests use an explicitly repinned, TEMPORARY
         # successor plan, never a rewritten historical execution artifact.
         for path in ('h1/matv4.py','h1/tests/test_matv4.py','h1/study.py',
-                     'h1/tests/test_resolution_campaign.py'):
+                     'h1/tests/test_resolution_campaign.py','h1/tests/test_verification.py'):
             pin=sha(root/path)
             if path in b['pins']:
                 b['pins'][path]=pin
