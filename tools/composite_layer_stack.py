@@ -51,21 +51,7 @@ def temperature(material, value, hot, upper):
     return max(cold, min(hot, Fraction(rounded, scale)))
 
 
-def investigate(layers, contacts, left_k, right_k, *, radiation=None):
-    left = decimal_input(left_k, "left bath temperature")
-    right = decimal_input(right_k, "right bath temperature")
-    exterior = None
-    if radiation is not None:
-        area, eps, sigma = radiative_properties(*radiation)
-        coefficient = area*eps*sigma
-        exterior = {"enclosureTemperatureK": str(right), "areaM2": str(area),
-                    "emissivity": str(eps), "sigmaWPerM2K4": str(sigma)}
-        if not coefficient:
-            right = left
-    cold, hot = sorted((left, right))
-    if not layers or len(contacts) != len(layers)-1:
-        raise ValueError("one contact resistance between each adjacent pair of layers required")
-    gaps = [decimal_input(r, "contact resistance") for r in contacts]
+def prepare_layers(layers, cold, hot):
     prepared = []
     records = []
     for inputs, inlet, ref, slope in layers:
@@ -81,6 +67,26 @@ def investigate(layers, contacts, left_k, right_k, *, radiation=None):
         records.append({"leftTerminal": inlet, "rightTerminal": outlet,
                         "referenceTemperatureK": str(material.reference), "relativeSlopePerK": str(material.slope),
                         **{k: law[k] for k in ("studySha256", "factsSha256", "modelSha256")}})
+
+    return prepared, records
+
+
+def investigate(layers, contacts, left_k, right_k, *, radiation=None):
+    left = decimal_input(left_k, "left bath temperature")
+    right = decimal_input(right_k, "right bath temperature")
+    exterior = None
+    if radiation is not None:
+        area, eps, sigma = radiative_properties(*radiation)
+        coefficient = area*eps*sigma
+        exterior = {"enclosureTemperatureK": str(right), "areaM2": str(area),
+                    "emissivity": str(eps), "sigmaWPerM2K4": str(sigma)}
+        if not coefficient:
+            right = left
+    cold, hot = sorted((left, right))
+    if not layers or len(contacts) != len(layers)-1:
+        raise ValueError("one contact resistance between each adjacent pair of layers required")
+    gaps = [decimal_input(r, "contact resistance") for r in contacts]
+    prepared, records = prepare_layers(layers, cold, hot)
 
     # March from the cold boundary. Each contact adds qR and each layer adds
     # q/G in its own conductivity potential. Every step is increasing in q.
