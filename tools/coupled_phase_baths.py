@@ -22,7 +22,7 @@ def bath(spec):
     return port, temperature, latent, solid, liquid
 
 
-def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, transfer_target_j=None):
+def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, transfer_target_j=None, track_duration=False):
     left, right = bath(left_bath), bath(right_bath)
     horizon = decimal_input(duration_s,"duration")
     law = terminal_response(*inputs)
@@ -74,11 +74,19 @@ def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, 
         if equilibrium_cp is None:
             raise ValueError("specific heats required for transfer passage")
         result["transferPassage"] = transfer_passage(left,right,g,result["equilibrium"],transfer_target_j)
+    if track_duration:
+        if equilibrium_cp is None:
+            raise ValueError("specific heats required for elapsed-time bath state")
+        result["stateAtDuration"] = state_at_time(left, right, g, result["equilibrium"], horizon)
     return result
 
 
 def transfer_passage(left,right,conductance,final,target_j):
     target = decimal_input(target_j,"transferred energy")
+    return passage_at_energy(left, right, conductance, final, target)
+
+
+def passage_at_energy(left, right, conductance, final, target):
     hot,cold = sorted((left,right),key=lambda x:x[1],reverse=True)
     limit = -Fraction(final["baths"][hot[0]]["energyIntoBathJ"])
     if target > 0 and target >= limit:
@@ -110,6 +118,51 @@ def transfer_passage(left,right,conductance,final,target_j):
     th,tc = temperatures(target)
     return {"transferredEnergyMagnitudeJ":str(target),"durationBoundsS":bounds(elapsed),
             "segments":segments,"terminalTemperaturesK":{hot[0]:str(th),cold[0]:str(tc)}}
+
+
+def state_at_time(left, right, conductance, final, horizon):
+    hot, cold = sorted((left, right), key=lambda row: row[1], reverse=True)
+    maximum = -Fraction(final["baths"][hot[0]]["energyIntoBathJ"])
+    low = Fraction(0)
+    high = maximum
+    rate = conductance * (hot[1] - cold[1])
+    rate_low, rate_high = rate.span()
+    plateau_budget = min(hot[2] * hot[4], cold[2] * cold[3])
+    if horizon * rate_high <= plateau_budget:
+        low, high = horizon * rate_low, horizon * rate_high
+    else:
+        # Monotone passage time brackets the energy even near asymptotic equilibrium.
+        for _ in range(64):
+            trial = (low + high) / 2
+            passage = passage_at_energy(hot, cold, conductance, final, trial)
+            earliest, latest = map(Fraction, passage["durationBoundsS"])
+            if horizon < earliest:
+                high = trial
+            elif horizon > latest:
+                low = trial
+            else:
+                # The rate cannot exceed its initial value as the baths approach.
+                low = max(low, trial - rate_high * (latest - horizon))
+                high = min(high, trial + rate_high * (horizon - earliest))
+                break
+
+    states = {}
+    for row, sign, cp_field in ((hot, -1, "hotSolidSpecificHeatJPerKgK"),
+                                (cold, 1, "coldLiquidSpecificHeatJPerKgK")):
+        port, temperature, latent, solid, liquid = row
+        capacity = Fraction(final[cp_field]) * (solid + liquid)
+        inventory = liquid if sign < 0 else solid
+        endpoints = []
+        for energy in (low, high):
+            transferred_mass = sign * min(energy / latent, inventory)
+            sensible = sign * energy - transferred_mass * latent
+            endpoints.append((temperature + sensible / capacity, solid - transferred_mass,
+                              liquid + transferred_mass, sign * energy))
+        fields = ("temperatureBoundsK", "solidMassBoundsKg", "liquidMassBoundsKg", "energyIntoBathBoundsJ")
+        states[port] = {field: list(map(str, sorted(pair)))
+                        for field, pair in zip(fields, zip(*endpoints), strict=True)}
+    return {"elapsedS": str(horizon), "transferredEnergyMagnitudeBoundsJ": [str(low), str(high)],
+            "baths": states}
 
 
 def equilibrium(left,right,specific_heats):
@@ -154,6 +207,7 @@ if __name__ == "__main__":
                             metavar=("PORT","TRANSITION_K","LATENT_J_PER_KG","SOLID_KG","LIQUID_KG"))
     parser.add_argument("--equilibrium-cp",nargs=2,metavar=("HOT_SOLID_CP","COLD_LIQUID_CP"))
     parser.add_argument("--transfer-target-j")
+    parser.add_argument("--track-duration", action="store_true")
     args = parser.parse_args()
     print(json.dumps(investigate((args.study,args.root,args.facts,args.facts_sha256),
-                                 args.left_bath,args.right_bath,args.duration_s,args.equilibrium_cp,args.transfer_target_j),indent=2))
+                                 args.left_bath,args.right_bath,args.duration_s,args.equilibrium_cp,args.transfer_target_j,args.track_duration),indent=2))
