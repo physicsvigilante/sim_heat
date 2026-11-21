@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough]
 permissions:
   contents: read
 jobs:
@@ -21,7 +21,8 @@ jobs:
       (github.base_ref == 'codex/finite-conductivity-bounds' && github.head_ref == 'codex/isolated-pair-exchange') ||
       (github.base_ref == 'codex/isolated-pair-exchange' && github.head_ref == 'codex/two-contact-join') ||
       (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports') ||
-      (github.base_ref == 'codex/loaded-thermal-ports' && github.head_ref == 'codex/conduction-walkthrough')
+      (github.base_ref == 'codex/loaded-thermal-ports' && github.head_ref == 'codex/conduction-walkthrough') ||
+      (github.base_ref == 'codex/conduction-walkthrough' && github.head_ref == 'codex/radiating-surface')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -201,6 +202,17 @@ jobs:
           f=studies/loaded_thermal_ports
           python -B -m tools.loaded_thermal_ports --left-study "$l/study.json" --left-root "$l" --left-facts "$l/facts.json" --left-facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --link-study "$w/study.json" --link-root "$w" --link-facts "$w/facts.json" --link-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-study "$r/study.json" --right-root "$r" --right-facts "$r/facts.json" --right-facts-sha256 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924 --left-port middle --right-port warm > loaded-ports/reduced.json
           python -B -m qualification.h1_n13.conduction --study "$f/study.json" --root "$f" --facts "$f/facts.json" --facts-sha256 137e707179de334e72df970facb62c5eb29c46e49a8462985f0660c6d7d2c476 > loaded-ports/direct.json
+      - name: Verify and replay steady surface radiation
+        if: github.head_ref == 'codex/radiating-surface'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_radiating_surface tests.test_loaded_thermal_ports
+          mkdir radiation
+          w=studies/composite_wall
+          for temp in 280 450; do
+            python -B -m tools.radiating_surface --root "$w" --study "$w/study.json" --facts "$w/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --enclosure-k "$temp" --area-m2 0.020 --emissivity 0.8 --sigma 0.0000000567 > "radiation/wall-$temp.json"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -220,3 +232,4 @@ jobs:
             pair/*.json
             two-contacts/*.json
             loaded-ports/*.json
+            radiation/*.json
