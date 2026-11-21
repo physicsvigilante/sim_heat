@@ -32,3 +32,16 @@ class CalorimetryPredictions(TestCase):
                         lo, hi = map(F, r[key][name])
                         a, b = map(F, bounds)
                         self.assertTrue(lo <= a <= b <= hi)
+
+    def test_cold_bath_band_preserves_shared_measurements(self):
+        # At the common joint, eliminate the two heater powers from the end
+        # fluxes. With G=(2,3,5) W/K the cold supply changes by one third of
+        # the sum of the changes in the two measured bath supplies.
+        for warm, middle in [(("21","23"), ("-58","-56")),
+                             (("20","23"), ("-57","-57"))]:
+            result = self.predict(warm, middle)
+            lo, hi = map(F, result["unmeasuredBathSupplyBoundsW"]["cool"])
+            for i, limit in enumerate((lo, hi)):
+                expected = -245 + (F(warm[i])-22 + F(middle[i])+57)/3
+                self.assertTrue(lo <= expected <= hi)
+                self.assertLess(abs(limit-expected), F(1, 10**12))
