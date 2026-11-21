@@ -19,3 +19,9 @@ python -B -m tools.spherical_conduction --inner-root studies/composite_wall --in
 ~~~
 
 Exchanging the backing baths reverses the heat rate. Splitting a layer into two pieces of identical material preserves its resistance because the shared reciprocal-radius terms cancel. This study concerns a complete sphere in radial symmetry. The output is an offline calculation.
+
+## The same coatings around a long pipe
+
+Keep the two materials and radii, and form a cylindrical pipe segment of length 1 m with insulated ends. The inner and outer surfaces are isothermal and heat travels radially. Append `--cylinder-length-m 1` to the command above. A cylinder of radius r carries the heat through lateral area 2πrL, so integrating Fourier's law gives a layer resistance ln(b/a)/(2πkL). The temperature within each layer is linear in ln(r).
+
+The two coatings now have resistances ln(2)/(4π) and ln(2)/(2π) K/W. The calculated rate is **85.802 W** with both backing networks included. Doubling radius halves the flux here. For the sphere, doubling radius divides it by four. The logarithm enclosure uses powers of two for range reduction and a positive series with a bounded tail. All temperatures, heat rates and fluxes use the same units as the spherical example.
