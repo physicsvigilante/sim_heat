@@ -96,12 +96,21 @@ def exterior_balance(law, port, opens, resistances, environment, area, eps, cons
         h = decimal_input(h_w_per_m2_k, "convective heat transfer coefficient")
         ha = h*area
         exterior.update(airTemperatureK=str(air), convectionCoefficientWPerM2K=str(h))
-        # Wall and air each have a linear conductance into the shared surface.
-        # Reduce the parallel pair before applying the radiative boundary law.
-        values = [(t + r*ha*air)/(1 + r*ha) for t in opens for r in resistances]
-        effective_open = min(values), max(values)
-        effective_r = tuple(r/(1 + r*ha) for r in resistances)
-    (low, high), radiation = surface_balance(effective_open, effective_r, environment, eps*constant*area)
+        if opens[0] == opens[1] and h*(opens[0]-air) + eps*constant*(opens[0]**4-environment**4) == 0:
+            # Exact rational cancellation at the zero-throughflow temperature:
+            # strict monotonicity of the exterior loss makes opens[0] the unique root.
+            low = high = opens[0]
+            rad = area*eps*constant*(low**4 - environment**4)
+            radiation = [rad, rad]
+        else:
+            # Wall and air each have a linear conductance into the shared surface.
+            # Reduce the parallel pair before applying the radiative boundary law.
+            values = [(t + r*ha*air)/(1 + r*ha) for t in opens for r in resistances]
+            effective_open = min(values), max(values)
+            effective_r = tuple(r/(1 + r*ha) for r in resistances)
+            (low, high), radiation = surface_balance(effective_open, effective_r, environment, eps*constant*area)
+    else:
+        (low, high), radiation = surface_balance(effective_open, effective_r, environment, eps*constant*area)
     result = {"schema": "sim_heat.offline_radiating_surface/1", "releasedPort": port,
               "exterior": exterior, "surfaceTemperatureBoundsK": [str(low), str(high)],
               "netHeatToEnclosureBoundsW": list(map(str, radiation)),
