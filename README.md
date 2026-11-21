@@ -6,6 +6,8 @@ A compositional **heat-transfer teaching sandbox**, with a read-only thermal-net
 
 Work through three [JEE-style conduction problems](docs/JEE_CONDUCTION_WALKTHROUGH.md) with predictions, hand calculations and runnable offline checks for a composite wall, a thermal bridge and two insulated bodies.
 
+Investigate [when a composite wall stops carrying 120 W](docs/JEE_PHASE_WALL.md) as a finite hot bath freezes and ice melts. Follow the heat through each rod, then change the ice mass to reverse the order of phase depletion.
+
 From the repository root:
 
 ```bash
