@@ -1,0 +1,75 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "TwinBridge",
+  "mode": "transient",
+  "modelSha256": "61a2cbbd8662c7bc579bbfcee59c8b4634e0231b12d1dd1f6539f5eb9c02a6a5",
+  "studySha256": "35d68d3c7f9898114e23fc6b6e40e826420e5126253f9761f478c5aa1d8595a4",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 120,
+    "intervals": 1200,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "provenance": "Entered separately from the exercise givens by local independent case selector Chat B. Model and descriptor digests identify authored files.",
+  "nodes": [
+    "A",
+    "B",
+    "S",
+    "J"
+  ],
+  "bodies": {
+    "amber": {
+      "node": "A",
+      "m": 0.2,
+      "c": 300,
+      "T_initial": 355
+    },
+    "blue": {
+      "node": "B",
+      "m": 0.15,
+      "c": 400,
+      "T_initial": 275
+    }
+  },
+  "boundaries": {
+    "bath": {
+      "node": "S",
+      "T": 305
+    }
+  },
+  "rods": {
+    "upper": {
+      "kind": "RodArea",
+      "a": "A",
+      "b": "J",
+      "k": 100,
+      "L": 0.1,
+      "A": 0.002
+    },
+    "lower": {
+      "kind": "RodArea",
+      "a": "J",
+      "b": "B",
+      "k": 200,
+      "L": 0.12,
+      "A": 0.0012
+    },
+    "feed": {
+      "kind": "RodArea",
+      "a": "S",
+      "b": "J",
+      "k": 80,
+      "L": 0.1,
+      "A": 0.005
+    },
+    "link": {
+      "kind": "RodArea",
+      "a": "B",
+      "b": "A",
+      "k": 50,
+      "L": 0.1,
+      "A": 0.002
+    }
+  }
+}

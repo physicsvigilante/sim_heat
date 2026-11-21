@@ -1,0 +1,161 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "TwinBridge",
+  "model": {
+    "path": "model.mo",
+    "sha256": "61a2cbbd8662c7bc579bbfcee59c8b4634e0231b12d1dd1f6539f5eb9c02a6a5"
+  },
+  "mode": "transient",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 120,
+    "intervals": 1200,
+    "solver": "dassl",
+    "tolerance": 1e-8
+  },
+  "requests": [
+    {
+      "id": "joint",
+      "op": "temperature",
+      "target": "lower.port_a"
+    },
+    {
+      "id": "lowerFlow",
+      "op": "heatFlow",
+      "target": "lower"
+    },
+    {
+      "id": "separation",
+      "op": "temperatureDifference",
+      "a": "blue.port",
+      "b": "amber.port"
+    },
+    {
+      "id": "blueGain",
+      "op": "energyChange",
+      "target": "blue"
+    }
+  ],
+  "provenance": [
+    {
+      "target": "amber.m",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "amber.c",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "amber.T_initial",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "blue.m",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "blue.c",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "blue.T_initial",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "bath.T",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "upper.k",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "upper.L",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "upper.A",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "lower.k",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "lower.L",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "lower.A",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "feed.k",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "feed.L",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "feed.A",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "link.k",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "link.L",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "link.A",
+      "kind": "illustrative",
+      "locator": "GIVENS.md",
+      "note": "Original exercise value."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "GIVENS.md",
+      "note": "Ideal contacts, constant properties and no ambient exchange."
+    }
+  ]
+}
