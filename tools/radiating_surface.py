@@ -80,6 +80,11 @@ def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, em
     environment, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
     law = terminal_response(study, root, facts, facts_sha256)
     opens, resistances = physical_port(law, port)
+    return exterior_balance(law, port, opens, resistances, environment, area, eps, constant,
+                            air_k=air_k, h_w_per_m2_k=h_w_per_m2_k)
+
+
+def exterior_balance(law, port, opens, resistances, environment, area, eps, constant, *, air_k, h_w_per_m2_k):
     exterior = {"enclosureTemperatureK": str(environment), "areaM2": str(area),
                 "emissivity": str(eps), "sigmaWPerM2K4": str(constant)}
     if (air_k is None) != (h_w_per_m2_k is None):
