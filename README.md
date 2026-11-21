@@ -10,6 +10,8 @@ Investigate [when a composite wall stops carrying 120 W](docs/JEE_PHASE_WALL.md)
 
 Solve [whether a bath can freeze inside a warmer enclosure](docs/JEE_SUPPORTED_RADIATING_WALL.md) by balancing radiation at a face and conduction into a cold support.
 
+Find the contact temperature jump and radiating surface temperature in a [worked furnace-wall problem](docs/JEE_FURNACE_WALL.md).
+
 From the repository root:
 
 ```bash
