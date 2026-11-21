@@ -1,4 +1,5 @@
 from fractions import Fraction as F
+import json
 from unittest import TestCase
 
 from tests.test_loaded_thermal_ports import LINK
@@ -29,3 +30,20 @@ class ShellEnvironments(TestCase):
         for cases in ([], iter(()), [calm,calm]):
             with self.assertRaises(ValueError):
                 self.solve(cases)
+
+    def test_environment_names_survive_json_round_trip(self):
+        active = ("1","483","5","483")
+        calm = ("01","280","0","280")
+        result = self.solve([active,calm])
+        self.assertEqual(json.loads(json.dumps(result)), result)
+        self.assertEqual(set(result["environments"]), {"1","01"})
+        for row in result["sizes"]:
+            self.assertEqual(set(row["environments"]), {"1","01"})
+            self.assertEqual(row["status"], row["environments"]["1"]["status"])
+        with self.assertRaisesRegex(ValueError, "name"):
+            self.solve([(1,*active[1:]), ("1",*calm[1:])])
+
+    def test_each_environment_requires_explicit_air_and_film(self):
+        for air, film in [(None,None), (None,"0"), ("280",None)]:
+            with self.subTest(air=air, film=film), self.assertRaises(ValueError):
+                self.solve([("case",air,film,"270")])

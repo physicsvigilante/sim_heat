@@ -17,8 +17,10 @@ def investigate(inputs, port, inner_radius_m, layers, coating_k, radii, limit_w,
     layers, radii = tuple(layers), tuple(radii)
     runs = {}
     for name, air, h, enclosure in environments:
-        if not name or name in runs:
-            raise ValueError("unique nonempty environmental condition names required")
+        if type(name) is not str or not name or name in runs:
+            raise ValueError("unique nonempty string condition names required")
+        if air is None or h is None:
+            raise ValueError('each environment requires air temperature and film coefficient')
         runs[name] = select_from_law(law, port, inner_radius_m, layers, coating_k, radii, limit_w,
                                      enclosure, emissivity, sigma, cylinder_length_m,
                                      air_k=air, h_w_per_m2_k=h)
