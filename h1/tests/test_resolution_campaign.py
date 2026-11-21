@@ -24,7 +24,7 @@ class ResolutionCampaignTests(unittest.TestCase):
         return s,r
 
     def scratch(self):
-        t=tempfile.TemporaryDirectory();root=Path(t.name)
+        t=tempfile.TemporaryDirectory();root=Path(t.name).resolve()
         c=json.loads(CONFIG.read_text());b=json.loads((ROOT/c['basePlan']).read_text())
         for path in set(b['pins']) | set(c['extraPins']) | {c['basePlan'],'tools/h1_resolution_campaign.json'}:
             p=root/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((ROOT/path).read_bytes())
