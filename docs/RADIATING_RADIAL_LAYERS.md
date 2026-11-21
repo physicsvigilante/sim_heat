@@ -62,3 +62,9 @@ A thermometer on the outer shell can also be used to estimate the film coefficie
 A single surface reading supplies one heat balance. To infer both h and emissivity, change the air or enclosure temperature and repeat the experiment with the same shell, maintained baths and surface properties. In a controlled example both runs have a 360 K outer surface. A 360 K air supply and 300 K enclosure isolate radiation in the first run. A 350 K air supply and 360 K enclosure isolate convection in the second. The wall supplies the same outward heat rate in both trials.
 
 The two_environment_calibration CLI accepts two `--trial LOW_K HIGH_K AIR_K ENCLOSURE_K` groups. Each group can have both exchanges active. The two heat balances must distinguish the coefficients across the measurement bands; repeated identical trials provide no second independent equation.
+
+## Choosing from available insulation sizes
+
+For a 1 m long cylinder with inner radius 0.1 m, coating conductivity 1 W/(m K) and an outside film coefficient of 5 W/(m² K), the convection-only critical radius is 0.2 m. With a 380 K open port, 0.5 K/W port resistance and 280 K air, compare outer radii 0.12, 0.20 and 0.50 m against a 127 W heat-transfer budget. The smallest and largest sizes meet the budget while the middle size exceeds it.
+
+The shell_size_selection command evaluates every supplied `--radius-m` with the same inner layers and outer coating material. It reports the smallest available size established to meet the budget. A smaller unresolved candidate leaves the minimum undecided. The budget applies to the magnitude of the rate, so the same comparison works for inward heat leaks.
