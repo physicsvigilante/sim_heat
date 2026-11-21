@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure, codex/three-reading-cooling]
 permissions:
   contents: read
 jobs:
@@ -79,7 +79,8 @@ jobs:
       (github.base_ref == 'codex/rod-generation-hotspots' && github.head_ref == 'codex/convecting-radiating-surface') ||
       (github.base_ref == 'codex/convecting-radiating-surface' && github.head_ref == 'codex/newton-cooling-energy') ||
       (github.base_ref == 'codex/newton-cooling-energy' && github.head_ref == 'codex/air-film-exposure') ||
-      (github.base_ref == 'codex/air-film-exposure' && github.head_ref == 'codex/three-reading-cooling')
+      (github.base_ref == 'codex/air-film-exposure' && github.head_ref == 'codex/three-reading-cooling') ||
+      (github.base_ref == 'codex/three-reading-cooling' && github.head_ref == 'codex/calibrated-wall-cooling')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -550,6 +551,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_three_reading_cooling tests.test_newton_cooling
           python -B -m tools.three_reading_cooling --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --capacity-j-per-k 100 --area-m2 0.5 --spacing-s 20 --readings-k 430 410 400 > three-reading-cooling.json
+      - name: Predict a changed wall experiment from the fitted air film
+        if: github.head_ref == 'codex/calibrated-wall-cooling'
+        run: |
+          python -B -m unittest -v tests.test_calibrated_wall_cooling tests.test_three_reading_cooling
+          python -B -m tools.calibrated_wall_cooling --original studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --original-port cold --original-capacity 100 --original-area 0.5 --spacing-s 20 --readings-k 430 410 400 --new studies/three_terminal/star/study.json studies/three_terminal/star studies/three_terminal/star/facts.json 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --new-port middle --new-capacity 150 --new-area 1 --initial-k 430 --duration-s 60 > calibrated-wall-cooling.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -628,6 +634,7 @@ jobs:
             mixed-body-energy.json
             air-film-exposure.json
             three-reading-cooling.json
+            calibrated-wall-cooling.json
 
   windows-replay:
     if: github.base_ref == 'codex/radiation-shield-stack' && github.head_ref == 'codex/windows-offline-replay'
