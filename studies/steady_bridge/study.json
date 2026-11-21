@@ -1,0 +1,137 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "BalancedBridge",
+  "model": {
+    "path": "model.mo",
+    "sha256": "d4247833efe8ec1cec468c996a090c06151e186499cf530f155583980db01b7f"
+  },
+  "mode": "steady",
+  "analysis": {},
+  "requests": [
+    {
+      "id": "upperT",
+      "op": "temperature",
+      "target": "link.port_a"
+    },
+    {
+      "id": "lowerT",
+      "op": "temperature",
+      "target": "link.port_b"
+    },
+    {
+      "id": "crossFlow",
+      "op": "heatFlow",
+      "target": "link"
+    }
+  ],
+  "provenance": [
+    {
+      "target": "hot.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "cold.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "feed.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "feed.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "feed.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "drain.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "drain.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "drain.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "inlet.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "inlet.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "inlet.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "outlet.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "outlet.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "outlet.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "link.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "link.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "link.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative bridge given in SI units."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Steady conduction, ideal junctions and insulated lateral surfaces."
+    }
+  ]
+}

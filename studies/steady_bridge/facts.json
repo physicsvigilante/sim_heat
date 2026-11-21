@@ -1,0 +1,68 @@
+{
+  "schema": "sim_heat.reference/1",
+  "mode": "steady",
+  "id": "BalancedBridge",
+  "analysis": {},
+  "modelSha256": "d4247833efe8ec1cec468c996a090c06151e186499cf530f155583980db01b7f",
+  "studySha256": "0ab24d5f36f04386957813c65ea11ff174e0182b5c2a65c25ccc5ea6dff8197a",
+  "provenance": "Same-author SI checking transcription of the illustrative thermal bridge.",
+  "nodes": [
+    "left",
+    "right",
+    "upper",
+    "lower"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "hot": {
+      "node": "left",
+      "T": 380
+    },
+    "cold": {
+      "node": "right",
+      "T": 280
+    }
+  },
+  "rods": {
+    "feed": {
+      "kind": "RodArea",
+      "a": "left",
+      "b": "upper",
+      "k": 20,
+      "L": 0.1,
+      "A": 0.01
+    },
+    "drain": {
+      "kind": "RodArea",
+      "a": "upper",
+      "b": "right",
+      "k": 20,
+      "L": 0.1,
+      "A": 0.01
+    },
+    "inlet": {
+      "kind": "RodArea",
+      "a": "left",
+      "b": "lower",
+      "k": 10,
+      "L": 0.1,
+      "A": 0.01
+    },
+    "outlet": {
+      "kind": "RodArea",
+      "a": "lower",
+      "b": "right",
+      "k": 10,
+      "L": 0.1,
+      "A": 0.01
+    },
+    "link": {
+      "kind": "RodArea",
+      "a": "upper",
+      "b": "lower",
+      "k": 10,
+      "L": 0.1,
+      "A": 0.01
+    }
+  }
+}
