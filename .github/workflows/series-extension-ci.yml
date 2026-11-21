@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson]
 permissions:
   contents: read
 jobs:
@@ -53,7 +53,8 @@ jobs:
       (github.base_ref == 'codex/phase-entropy' && github.head_ref == 'codex/supported-wall-lesson') ||
       (github.base_ref == 'codex/supported-wall-lesson' && github.head_ref == 'codex/variable-conductivity') ||
       (github.base_ref == 'codex/variable-conductivity' && github.head_ref == 'codex/dissimilar-conductors') ||
-      (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson')
+      (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson') ||
+      (github.base_ref == 'codex/wall-reversal-lesson' && github.head_ref == 'codex/nonlinear-radiating-wall')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -396,6 +397,11 @@ jobs:
       - name: Replay the JEE composite-wall reversal exercise
         if: github.head_ref == 'codex/wall-reversal-lesson'
         run: python -B -m tools.wall_reversal_lesson > wall-reversal-lesson.json
+      - name: Replay conduction with a nonlinear radiating surface
+        if: github.head_ref == 'codex/nonlinear-radiating-wall'
+        run: |
+          python -B -m unittest -v tests.test_nonlinear_radiating_wall tests.test_radiating_surface tests.test_join_variable_conductors
+          python -B -m tools.nonlinear_radiating_wall --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 200 --slope-per-k 0.0025 --enclosure-k 0 --area-m2 5.5125 --emissivity 1 --sigma 0.00000005 > nonlinear-radiating-wall.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -451,3 +457,4 @@ jobs:
             variable-conductivity.json
             dissimilar-walls.json
             wall-reversal-lesson.json
+            nonlinear-radiating-wall.json
