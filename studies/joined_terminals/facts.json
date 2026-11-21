@@ -1,0 +1,86 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "JoinedRods",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "e27a7428db9303ed7530b9c06c6eacbc8dd63e512068dbf8a7066c5910b4c404",
+  "studySha256": "bca9e5e93ec9afd59db077e8ee63d895efdd2699aa151c95e8b60d9e73a248e0",
+  "nodes": [
+    "warmL",
+    "coolL",
+    "middleR",
+    "coolR",
+    "centre",
+    "contact"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "warmL": {
+      "node": "warmL",
+      "T": 380
+    },
+    "coolL": {
+      "node": "coolL",
+      "T": 280
+    },
+    "middleR": {
+      "node": "middleR",
+      "T": 330
+    },
+    "coolR": {
+      "node": "coolR",
+      "T": 280
+    }
+  },
+  "rods": {
+    "legA": {
+      "kind": "RodArea",
+      "a": "warmL",
+      "b": "centre",
+      "k": 20,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legB": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "centre",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legC": {
+      "kind": "RodArea",
+      "a": "coolL",
+      "b": "centre",
+      "k": 50,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideA": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "middleR",
+      "k": 6,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideB": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "coolR",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideC": {
+      "kind": "RodArea",
+      "a": "middleR",
+      "b": "coolR",
+      "k": 15,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author reference transcription for an explicit six-rod junction assembly."
+}

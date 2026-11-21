@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response]
 permissions:
   contents: read
 jobs:
@@ -13,7 +13,8 @@ jobs:
       (github.base_ref == 'codex/temperature-crossing' && github.head_ref == 'codex/heat-flow-reversal') ||
       (github.base_ref == 'codex/heat-flow-reversal' && github.head_ref == 'codex/network-calorimetry') ||
       (github.base_ref == 'codex/network-calorimetry' && github.head_ref == 'codex/study-observation-passages') ||
-      (github.base_ref == 'codex/study-observation-passages' && github.head_ref == 'codex/thermal-terminal-response')
+      (github.base_ref == 'codex/study-observation-passages' && github.head_ref == 'codex/thermal-terminal-response') ||
+      (github.base_ref == 'codex/thermal-terminal-response' && github.head_ref == 'codex/join-thermal-networks')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -36,7 +37,7 @@ jobs:
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/study.json" --facts "$dir/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b > wall-output.json
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/higher_k.json" --facts "$dir/higher_k_facts.json" --facts-sha256 7b266f98ac5952ddc385e1555b6238fa775ef453c2eac4c899ff2e4a283b9e79 > revised-wall-output.json
       - name: Verify steady bridge and replay both configurations
-        if: github.head_ref == 'codex/steady-bridge' || github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/steady-bridge' || github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         shell: bash
         run: |
           set -euo pipefail
@@ -52,7 +53,7 @@ jobs:
           replay balanced '' 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf
           replay revised changed_ 9e62ef107a7499beb80406ac8b54b35e084830eb17f8d370ce96888884ba9f1f
       - name: Run threshold regressions and archive observed passages
-        if: github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         run: |
           python -B -m unittest -v tests.test_temperature_passages
           mkdir passages
@@ -61,13 +62,13 @@ jobs:
           d=h1/cases/D1
           python -B -m tools.temperature_passages --study "$d/study.json" --root "$d" --facts h1/reference_cases/D1.json --facts-sha256 92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7 --body body --threshold-k 323.15 > passages/single.json
       - name: Exercise rod reversal observations
-        if: github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         run: |
           python -B -m unittest -v tests.test_heat_flow_reversals
           d=qualification/h1_n13/heldout
           python -B -m tools.heat_flow_reversals --root "$d" --study "$d/study.json" --facts "$d/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 --rod lower > passages/lower-reversal.json
       - name: Verify isolated equilibrium and compare the pinned conductivity revision
-        if: github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         run: |
           python -B -m unittest -v tests.test_network_calorimetry
           mkdir calorimetry
@@ -91,13 +92,13 @@ jobs:
               assert hi - lo < Fraction(1, 10**10)
           PY
       - name: Verify passages of authored observations
-        if: github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         run: |
           python -B -m unittest -v tests.test_observation_passages
           python -B -m tools.observation_passages --root h1/cases/D2 --study h1/cases/D2/study.json --facts h1/reference_cases/D2.json --facts-sha256 befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a --request-id difference --threshold 1 --unit K > passages/request-difference.json
           python -B -m tools.observation_passages --root h1/cases/D1 --study h1/cases/D1/study.json --facts h1/reference_cases/D1.json --facts-sha256 92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7 --request-id energy --threshold 15000 --unit J > passages/request-energy.json
       - name: Verify three-terminal response and archive both networks
-        if: github.head_ref == 'codex/thermal-terminal-response'
+        if: github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks'
         shell: bash
         run: |
           set -euo pipefail
@@ -111,6 +112,20 @@ jobs:
           }
           replay star 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0
           replay triangle 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924
+      - name: Compare joined laws to the explicitly connected six rods
+        if: github.head_ref == 'codex/join-thermal-networks'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_join_thermal_networks
+          mkdir joined
+          l=studies/three_terminal/star
+          r=studies/three_terminal/triangle
+          f=studies/joined_terminals
+          python -B -m tools.join_thermal_networks --left-study "$l/study.json" --left-root "$l" --left-facts "$l/facts.json" --left-facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --left-port middle --right-study "$r/study.json" --right-root "$r" --right-facts "$r/facts.json" --right-facts-sha256 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924 --right-port warm > joined/composition.json
+          args=(--root "$f" --study "$f/study.json" --facts "$f/facts.json" --facts-sha256 bf8bebb43189f2034ce3be32e3441f14c8b684eaf9e3a19876a2361a0f0482a9)
+          python -B -m qualification.h1_n13.conduction "${args[@]}" > joined/direct.json
+          python -B -m tools.terminal_response "${args[@]}" > joined/direct-response.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -123,3 +138,4 @@ jobs:
             passages/*.json
             calorimetry/*.json
             terminal-response/*.json
+            joined/*.json
