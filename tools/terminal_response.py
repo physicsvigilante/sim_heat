@@ -10,7 +10,7 @@ from qualification.h1_n5.thermal_graph import assemble
 from qualification.h1_n13.conduction import Box, Conduction, prepare
 
 
-def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
+def prepare_steady_network(study, root, facts_path, facts_sha256):
     path = Path(facts_path)
     if not path.is_file() or any(p.is_symlink() for p in (path, *path.parents)):
         raise ValueError("invalid source facts path")
@@ -25,6 +25,11 @@ def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
 
     candidate = prepare(study, root, path, facts_sha256)
     net = Conduction(assemble(raw, expected_sha256=facts_sha256), components)
+    return facts, candidate, net
+
+
+def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
+    facts, candidate, net = prepare_steady_network(study, root, facts_path, facts_sha256)
     terminals = sorted(facts["boundaries"])
     response = {name: {} for name in terminals}
     rods = {name: {} for name in facts["rods"]} if include_rods else {}
