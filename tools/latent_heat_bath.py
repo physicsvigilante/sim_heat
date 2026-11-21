@@ -14,14 +14,7 @@ def investigate(inputs, port, transition_k, latent_heat_j_per_kg, solid_kg, liqu
                    solid_kg,liquid_kg,duration_s,exterior,surface_port)
 
 
-def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
-    transition = decimal_input(transition_k, "transition temperature")
-    latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
-    solid = decimal_input(solid_kg, "initial solid mass")
-    liquid = decimal_input(liquid_kg, "initial liquid mass")
-    horizon = decimal_input(duration_s, "duration")
-    if min(transition,latent,solid,liquid) <= 0:
-        raise ValueError("positive transition temperature, latent heat and both initial masses required")
+def plateau_power(law, port, transition, exterior, surface_port):
     if port not in law["terminals"]:
         raise ValueError("unknown phase bath port")
     surface = {}
@@ -69,6 +62,18 @@ def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, 
             "netHeatToEnclosureBoundsW": list(map(str, outgoing)),
             "enclosureTemperatureK": str(environment), "areaM2": str(area),
             "emissivity": str(eps), "sigmaWPerM2K4": str(sigma)}
+    return qlo, qhi, surface
+
+
+def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
+    transition = decimal_input(transition_k, "transition temperature")
+    latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
+    solid = decimal_input(solid_kg, "initial solid mass")
+    liquid = decimal_input(liquid_kg, "initial liquid mass")
+    horizon = decimal_input(duration_s, "duration")
+    if min(transition,latent,solid,liquid) <= 0:
+        raise ValueError("positive transition temperature, latent heat and both initial masses required")
+    qlo, qhi, surface = plateau_power(law, port, transition, exterior, surface_port)
     if qlo > 0:
         mode = "melting"
         start, end = solid*latent/qhi, solid*latent/qlo
