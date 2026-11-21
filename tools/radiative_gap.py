@@ -31,6 +31,24 @@ def gap_coefficient(area_sigma, first, second):
     return area_sigma/(1/first+1/second-1) if first and second else Fraction(0)
 
 
+def shield_exchange(area_sigma, el, er, pairs):
+    shields = []
+    gaps = []
+    previous = el
+    for faces in pairs:
+        if not isinstance(faces, (tuple, list)) or len(faces) != 2:
+            raise ValueError("supply both shield face emissivities")
+        front, back = (decimal_input(e, "shield emissivity") for e in faces)
+        if max(front, back) > 1:
+            raise ValueError("shield emissivities must be in [0,1]")
+        shields.append((front, back))
+        gaps.append(gap_coefficient(area_sigma, previous, front))
+        previous = back
+    gaps.append(gap_coefficient(area_sigma, previous, er))
+    coefficient = 1/sum(1/k for k in gaps) if all(gaps) else Fraction(0)
+    return shields, gaps, coefficient
+
+
 def fourth_root_bounds(low, high):
     scale = 10**18
     lower = isqrt(isqrt(int(low*scale**4)))
@@ -57,20 +75,7 @@ def investigate(left_inputs, right_inputs, left_port, right_port, area_m2,
     if shield_stack is not None and (not isinstance(shield_stack, (tuple, list)) or not shield_stack):
         raise ValueError("a shield stack requires at least one shield")
     pairs = ([shield_emissivities] if shield_emissivities is not None else shield_stack) or []
-    shields = []
-    gaps = []
-    previous = el
-    for faces in pairs:
-        if not isinstance(faces, (tuple, list)) or len(faces) != 2:
-            raise ValueError("supply both shield face emissivities")
-        front, back = (decimal_input(e, "shield emissivity") for e in faces)
-        if max(front, back) > 1:
-            raise ValueError("shield emissivities must be in [0,1]")
-        shields.append((front, back))
-        gaps.append(gap_coefficient(area*constant, previous, front))
-        previous = back
-    gaps.append(gap_coefficient(area*constant, previous, er))
-    coefficient = 1/sum(1/k for k in gaps) if all(gaps) else Fraction(0)
+    shields, gaps, coefficient = shield_exchange(area*constant, el, er, pairs)
     qlo = qhi = Fraction(0)
     support_g = (Fraction(0),)
     if support_inputs is not None:

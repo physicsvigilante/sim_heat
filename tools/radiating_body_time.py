@@ -5,12 +5,21 @@ import json
 import math
 
 from tools.join_variable_conductors import Material
+from tools.radiative_gap import shield_exchange
 from tools.radiating_surface import decimal_input, exterior_parameters
 from tools.terminal_response import investigate as terminal_response
 
 
-def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma, start, target=None):
+def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma, start, target=None, *, shield_stack=None):
     env, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
+    coefficient = area*eps*constant
+    shields = []
+    if shield_stack is not None:
+        if not isinstance(shield_stack, (tuple, list)) or not shield_stack:
+            raise ValueError("one or more two-sided shields required")
+        # The far side is a black plane at the enclosure temperature. Thin
+        # shields equilibrate instantaneously and store no energy.
+        shields, _, coefficient = shield_exchange(area*constant, eps, Fraction(1), shield_stack)
     law = terminal_response(*inputs)
     if port not in law["terminals"]:
         raise ValueError("unknown body terminal")
@@ -19,7 +28,7 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
     domain = [start, *baths.values()]
     if target is not None:
         domain.append(target)
-    elif eps:
+    elif coefficient:
         domain.append(env)
     material = Material(reference_k, slope_per_k, min(domain), max(domain))
     row = law["supplyResponseBoundsWPerK"][port]
@@ -31,7 +40,7 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
         couplings.append((material.potential(bath), max(0, -high), -low))
 
     def radiation(t):
-        return area*eps*constant*(env-t)*(env+t)*(env*env+t*t)
+        return coefficient*(env-t)*(env+t)*(env*env+t*t)
 
     def power(t):
         # Response rows sum to zero. Temperature differences also preserve exact equilibrium.
@@ -50,20 +59,29 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
             "initialTemperatureK": str(start),
             **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
                                    "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    if shields:
+        data["exterior"].update(
+            shieldFacesBodyToEnclosure=[list(map(str, pair)) for pair in shields],
+            radiantExchangeCoefficientWPerK4=str(coefficient),
+            enclosureEmissivity="1", shieldHeatStorage="zero",
+        )
     return data, power, radiation, (min(domain), max(domain))
 
 
 def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
-                capacity_j_per_k, initial_k, target_k, *, track_energy=False):
+                capacity_j_per_k, initial_k, target_k, *, track_energy=False, shield_stack=None):
     capacity = decimal_input(capacity_j_per_k, "heat capacity")
     start = decimal_input(initial_k, "initial temperature")
     target = decimal_input(target_k, "target temperature")
     if capacity <= 0:
         raise ValueError("positive heat capacity required")
     data, power, radiation, _ = prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k,
-                                             area_m2, emissivity, sigma, start, target)
+                                             area_m2, emissivity, sigma, start, target, shield_stack=shield_stack)
     data.update(schema="sim_heat.offline_radiating_body_target/1", capacityJPerK=str(capacity),
                 targetTemperatureK=str(target))
+
+    if shield_stack is not None:
+        data["schema"] = "sim_heat.offline_shielded_body_target/1"
 
     def directed_power(t):
         low, high = power(t)
@@ -122,7 +140,8 @@ if __name__ == "__main__":
               "enclosure-k", "area-m2", "emissivity", "sigma", "capacity-j-per-k", "initial-k", "target-k")
     for field in fields:
         parser.add_argument("--"+field, required=True)
+    parser.add_argument('--shield', nargs=2, action='append', metavar=('BODY_SIDE', 'ENCLOSURE_SIDE'))
     parser.add_argument('--track-energy', action='store_true')
     args = vars(parser.parse_args())
     values = [args[field.replace("-", "_")] for field in fields]
-    print(json.dumps(investigate(values[:4], *values[4:], track_energy=args["track_energy"]), indent=2))
+    print(json.dumps(investigate(values[:4], *values[4:], track_energy=args["track_energy"], shield_stack=args["shield"]), indent=2))

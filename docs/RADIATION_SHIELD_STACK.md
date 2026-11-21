@@ -19,3 +19,9 @@ At the design current, the plates would be at 376.5 K and 283.5 K. Using σ = 5.
 For gray surfaces, write the dimensionless bare resistance as 1/ε_left + 1/ε_right − 1. Each identical shield adds 1/ε_front + 1/ε_back − 1. At the target current, subtract the heat conducted through any direct support from the available heat-leak allowance before sizing the shields. The integer calculation includes equality at the target. A perfectly reflecting face can remove the radiation term entirely.
 
 The offline shield_count_design tool returns the minimum count when the port bounds resolve it. If the bounds span more than one count, guaranteedSufficientCount is the conservative upper count. A null upper bound means the available information gives no finite guarantee. A no_finite_count status means every admissible parameter value fails for every finite count.
+
+## Cooling a body behind shields
+
+A lumped body and a black enclosure can exchange radiation through the same sequence of parallel plates. In this model each shield is thin, isothermal and has negligible heat capacity. Its two radiative heat rates balance throughout the slower body transient. The series coefficient therefore multiplies the difference between the enclosure and body fourth powers at each instant. A separate conducting network can connect the body to other baths.
+
+The radiating_body_time CLI accepts repeated `--shield BODY_SIDE ENCLOSURE_SIDE` pairs. With `--track-energy`, it bounds the signed heat supplied by the enclosure and by the conductors over the same temperature excursion. In the offline worked case a 100 J/K body cools from 450 K to 390 K while connected to a 380 K bath and facing a 400 K enclosure through two shields. The body loses 6,000 J overall. Radiation initially removes heat, crosses zero at 400 K, and then supplies heat while conduction continues to cool the body.
