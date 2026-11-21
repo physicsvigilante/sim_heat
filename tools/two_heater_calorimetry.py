@@ -5,6 +5,7 @@ import json
 
 from qualification.h1_n13.conduction import Box
 from tools.radiating_surface import decimal_input
+from tools.rod_temperature_profile import rod_peaks
 from tools.rod_generation import bounds, generation_from_network
 from tools.terminal_response import prepare_steady_network
 
@@ -15,7 +16,7 @@ def signed_power(value):
     return -magnitude if negative else magnitude
 
 
-def investigate(inputs, heaters, measurements, known_powers=()):
+def investigate(inputs, heaters, measurements, known_powers=(), *, predict=False):
     if len(heaters) != 2 or len(set(heaters)) != 2:
         raise ValueError("two distinct unknown rods required")
     if len(measurements) != 2 or len({m[0] for m in measurements}) != 2:
@@ -48,7 +49,7 @@ def investigate(inputs, heaters, measurements, known_powers=()):
     powers = ((u*d-b*v)/det, (a*v-u*c)/det)
     if any(p.low < 0 for p in powers):
         raise ValueError("observations cannot establish two nonnegative powers")
-    return {
+    result = {
         "schema": "sim_heat.offline_two_heater_calorimetry/1", "measuredBaths": records,
         "knownRodPowersW": {name: str(decimal_input(x, "known rod power")) for name, x in known},
         "inferredRodPowerBoundsW": {name: bounds(p) for name, p in zip(heaters, powers, strict=True)},
@@ -56,6 +57,27 @@ def investigate(inputs, heaters, measurements, known_powers=()):
         **{k: candidate[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
                                       "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")},
     }
+    if predict:
+        # At fixed bath temperatures all node and local rod temperatures are
+        # nondecreasing in every source power, including the quadratic rod term.
+        known_values = {name: F(value) for name, value in result["knownRodPowersW"].items()}
+        profiles = []
+        for endpoint in (0, 1):
+            source_values = {name: p.span()[endpoint] for name, p in zip(heaters, powers, strict=True)}
+            profiles.append(rod_peaks(net, {**known_values, **source_values}))
+        peaks = {rod: [profiles[i]["rodPeaks"][rod]["peakTemperatureBoundsK"][i] for i in (0, 1)]
+                 for rod in facts["rods"]}
+        unmeasured = {}
+        for bath, supply in background.items():
+            if bath in records:
+                continue
+            q = Box.bounds(*map(F, supply))
+            for p, unit in zip(powers, units, strict=True):
+                q -= p * Box.bounds(*map(F, unit["generatedPowerToBathBoundsW"][bath]))
+            unmeasured[bath] = bounds(q)
+        result.update(schema="sim_heat.offline_two_heater_predictions/1",
+                      unmeasuredBathSupplyBoundsW=unmeasured, rodPeakTemperatureBoundsK=peaks)
+    return result
 
 
 if __name__ == "__main__":
@@ -65,5 +87,6 @@ if __name__ == "__main__":
     parser.add_argument("--heaters", required=True, nargs=2)
     parser.add_argument("--bath", action="append", nargs=3, required=True, metavar=("BATH", "LOW_W", "HIGH_W"))
     parser.add_argument("--generate", action="append", nargs=2, default=[], metavar=("KNOWN_ROD", "TOTAL_W"))
+    parser.add_argument('--predict', action='store_true')
     a = parser.parse_args()
-    print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.heaters, a.bath, a.generate), indent=2))
+    print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.heaters, a.bath, a.generate, predict=a.predict), indent=2))

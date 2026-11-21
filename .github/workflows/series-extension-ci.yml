@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure, codex/three-reading-cooling, codex/calibrated-wall-cooling, codex/powered-wall-surface, codex/infer-rod-power]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure, codex/three-reading-cooling, codex/calibrated-wall-cooling, codex/powered-wall-surface, codex/infer-rod-power, codex/two-heater-calorimetry]
 permissions:
   contents: read
 jobs:
@@ -83,7 +83,8 @@ jobs:
       (github.base_ref == 'codex/three-reading-cooling' && github.head_ref == 'codex/calibrated-wall-cooling') ||
       (github.base_ref == 'codex/calibrated-wall-cooling' && github.head_ref == 'codex/powered-wall-surface') ||
       (github.base_ref == 'codex/powered-wall-surface' && github.head_ref == 'codex/infer-rod-power') ||
-      (github.base_ref == 'codex/infer-rod-power' && github.head_ref == 'codex/two-heater-calorimetry')
+      (github.base_ref == 'codex/infer-rod-power' && github.head_ref == 'codex/two-heater-calorimetry') ||
+      (github.base_ref == 'codex/two-heater-calorimetry' && github.head_ref == 'codex/calorimetry-predictions')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -574,6 +575,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_two_heater_calorimetry tests.test_rod_generation tests.test_infer_rod_power
           python -B -m tools.two_heater_calorimetry --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --heaters facing insert --generate strip 40 --bath hot -11 -9 --bath cold -351 -349 > two-heater-calorimetry.json
+      - name: Predict the unmeasured bath and rod peaks from two calorimeters
+        if: github.head_ref == 'codex/calorimetry-predictions'
+        run: |
+          python -B -m unittest -v tests.test_calorimetry_predictions tests.test_two_heater_calorimetry tests.test_rod_temperature_profile
+          python -B -m tools.two_heater_calorimetry --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --heaters first second --bath warm 22 22 --bath middle -57 -57 --predict > calorimetry-predictions.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -656,6 +662,7 @@ jobs:
             powered-wall-surface.json
             inferred-rod-power.json
             two-heater-calorimetry.json
+            calorimetry-predictions.json
 
   windows-replay:
     if: github.base_ref == 'codex/radiation-shield-stack' && github.head_ref == 'codex/windows-offline-replay'
