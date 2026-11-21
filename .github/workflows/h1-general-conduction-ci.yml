@@ -1,14 +1,16 @@
 name: H1 general conduction offline replay
 on:
   pull_request:
-    branches: [numerics/h1-n12-triple-case-reference-staging]
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance]
 
 permissions:
   contents: read
 
 jobs:
   twin-bridge:
-    if: github.head_ref == 'codex/general-h1-reference'
+    if: |
+      (github.base_ref == 'numerics/h1-n12-triple-case-reference-staging' && github.head_ref == 'codex/general-h1-reference') ||
+      (github.base_ref == 'codex/terminal-resistance' && github.head_ref == 'codex/series-equivalence')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

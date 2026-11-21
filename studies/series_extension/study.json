@@ -1,0 +1,129 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "ExtendedWall",
+  "model": {
+    "path": "model.mo",
+    "sha256": "8de95191fa6befc01a6c4de4ffd21714375463aa5f3d649aef62784a94f36b0e"
+  },
+  "mode": "steady",
+  "requests": [
+    {
+      "id": "interfaceT",
+      "op": "temperature",
+      "target": "facing.port_b"
+    },
+    {
+      "id": "facingRate",
+      "op": "heatFlow",
+      "target": "facing"
+    },
+    {
+      "id": "stripRate",
+      "op": "heatFlow",
+      "target": "strip"
+    },
+    {
+      "id": "insertRate",
+      "op": "heatFlow",
+      "target": "insert"
+    },
+    {
+      "id": "joinT",
+      "op": "temperature",
+      "target": "backing.port_b"
+    }
+  ],
+  "analysis": {},
+  "provenance": [
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "../composite_wall/README.md",
+      "note": "Ideal isothermal interface, constant properties, insulated sides and perfect contacts at steady state."
+    },
+    {
+      "target": "hot.T",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "cold.T",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.k",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.L",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.A",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.k",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.L",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.A",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.k",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.L",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.A",
+      "kind": "illustrative",
+      "locator": "../composite_wall/README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "backing.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Added full-area layer, SI givens."
+    },
+    {
+      "target": "backing.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Added full-area layer, SI givens."
+    },
+    {
+      "target": "backing.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Added full-area layer, SI givens."
+    }
+  ]
+}
