@@ -4,6 +4,7 @@ from itertools import product
 
 from qualification.h1_n7.verified_junctions import _enclosure_from_verified_barrier
 from qualification.h1_n13.conduction import Box, ZERO
+from tools.radiating_surface import decimal_input
 
 
 def loaded_temperatures(net, powers, fixed_temperatures=None):
@@ -45,6 +46,12 @@ def peak(a, b, curvature):
 
 
 def rod_peaks(net, powers, *, fixed_temperatures=None, probe=None):
+    if probe is not None:
+        name, position = probe
+        fraction = decimal_input(position, "position fraction from port a")
+        if not any(rod == name for rod, *_ in net.edges) or fraction > 1:
+            raise ValueError("probe requires a known rod and a position fraction in [0,1]")
+        probe = (name, fraction)
     temperatures = loaded_temperatures(net, powers, fixed_temperatures)
     records = {}
     observation = {}

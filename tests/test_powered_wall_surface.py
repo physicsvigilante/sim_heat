@@ -37,3 +37,18 @@ class PoweredSurfaceTests(TestCase):
         new = investigate(LINK, "cold", [("insert","0")], *args)
         self.assertEqual(new["surfaceTemperatureBoundsK"], old["surfaceTemperatureBoundsK"])
         self.assertEqual(new["netHeatToEnclosureBoundsW"], old["netHeatToEnclosureBoundsW"])
+
+    def test_interior_probe_tracks_released_surface_and_oriented_heat_current(self):
+        args = (LINK, "cold", [("facing","320")], "300", "0.2", "1", "0.00000005")
+        options = dict(air_k="450", h_w_per_m2_k="13.5")
+        # The 400 K surface rejects 175 W by radiation and receives 135 W
+        # from air. The common joint is at 410 K, so in the facing rod
+        # T(x)=380+70x-40x² and Q(x)=-280+320x.
+        for rod, x, temperature, current in (("facing","0.5",405,-120),
+                                             ("insert","0",400,-30),
+                                             ("strip","1",400,10)):
+            probe = investigate(*args, **options, probe=(rod, x))["probe"]
+            self.check(probe["temperatureBoundsK"], temperature)
+            self.check(probe["heatCurrentTowardBBoundsW"], current)
+        with self.assertRaisesRegex(ValueError, "known rod"):
+            investigate(*args, **options, probe=("absent", "0.2"))
