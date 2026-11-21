@@ -1,0 +1,106 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "CompositeWall",
+  "model": {
+    "path": "model.mo",
+    "sha256": "e6b0edff0f0274bad86736d07aa938be3e4ba8766b134776f8f9b8c2e74c6fe9"
+  },
+  "mode": "steady",
+  "requests": [
+    {
+      "id": "interfaceT",
+      "op": "temperature",
+      "target": "facing.port_b"
+    },
+    {
+      "id": "facingRate",
+      "op": "heatFlow",
+      "target": "facing"
+    },
+    {
+      "id": "stripRate",
+      "op": "heatFlow",
+      "target": "strip"
+    },
+    {
+      "id": "insertRate",
+      "op": "heatFlow",
+      "target": "insert"
+    }
+  ],
+  "analysis": {},
+  "provenance": [
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Ideal isothermal interface, constant properties, insulated sides and perfect contacts at steady state."
+    },
+    {
+      "target": "hot.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "cold.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    }
+  ]
+}
