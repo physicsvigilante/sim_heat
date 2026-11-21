@@ -5,16 +5,16 @@ import json
 
 from qualification.h1_n13.conduction import ZERO, interval
 from tools.loaded_thermal_ports import link_conductance
-from tools.radiating_surface import decimal_input, exterior_parameters, surface_balance
+from tools.radiating_surface import decimal_input, exterior_parameters, physical_port, surface_balance
 from tools.terminal_response import investigate as terminal_response
 
 
-def investigate(inputs, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None):
+def investigate(inputs, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
     return plateau(terminal_response(*inputs),port,transition_k,latent_heat_j_per_kg,
-                   solid_kg,liquid_kg,duration_s,exterior)
+                   solid_kg,liquid_kg,duration_s,exterior,surface_port)
 
 
-def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None):
+def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
     transition = decimal_input(transition_k, "transition temperature")
     latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
     solid = decimal_input(solid_kg, "initial solid mass")
@@ -26,6 +26,8 @@ def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, 
         raise ValueError("unknown phase bath port")
     surface = {}
     if exterior is None:
+        if surface_port is not None:
+            raise ValueError("a radiating surface port requires exterior parameters")
         row = law["supplyResponseBoundsWPerK"][port]
         power = -sum((interval(row[n])*(Fraction(t)-transition)
                       for n,t in law["imposedTemperaturesK"].items() if n != port), ZERO)
@@ -33,19 +35,40 @@ def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, 
     else:
         if not isinstance(exterior, (list, tuple)) or len(exterior) != 4:
             raise ValueError("exterior requires enclosure temperature, area, emissivity and sigma")
-        conductance = link_conductance(law)
         environment, area, eps, sigma = exterior_parameters(*exterior)
-        glo, ghi = conductance.span()
-        # The two-terminal wall has one bath and one free, radiating face.
-        temperature, outgoing = surface_balance((transition, transition), (1/ghi, 1/glo),
-                                                environment, eps*sigma*area)
-        qlo, qhi = -outgoing[1], -outgoing[0]
-        surface = {"radiatingSurface": {
-            "port": next(n for n in law["terminals"] if n != port),
+        if surface_port is not None and (surface_port == port or surface_port not in law["terminals"]):
+            raise ValueError("radiating face must occupy a distinct network terminal")
+        if len(law["terminals"]) == 2:
+            surface_port = next(n for n in law["terminals"] if n != port)
+            glo, ghi = link_conductance(law).span()
+            temperature, outgoing = surface_balance((transition, transition), (1/ghi, 1/glo),
+                                                    environment, eps*sigma*area)
+            qlo, qhi = -outgoing[1], -outgoing[0]
+        else:
+            if surface_port is None:
+                raise ValueError("select the radiating face for a multi-terminal network")
+            maintained = {**law["imposedTemperaturesK"], port: str(transition)}
+            open_temp, resistance = physical_port({**law, "imposedTemperaturesK": maintained}, surface_port)
+            temperature, outgoing = surface_balance(open_temp, resistance, environment, eps*sigma*area)
+            temperatures = {n: Fraction(t) for n, t in maintained.items()}
+            temperatures[surface_port] = interval(temperature)
+            inflows = {}
+            for terminal in law["terminals"]:
+                if terminal == surface_port:
+                    continue
+                row = law["supplyResponseBoundsWPerK"][terminal]
+                inflow = -sum((interval(row[n]) * (t - temperatures[terminal])
+                               for n, t in temperatures.items() if n != terminal), ZERO)
+                inflows[terminal] = inflow.span()
+            qlo, qhi = inflows.pop(port)
+            surface["maintainedReservoirInflowBoundsW"] = {
+                name: list(map(str, pair)) for name, pair in inflows.items()}
+        surface["radiatingSurface"] = {
+            "port": surface_port,
             "temperatureBoundsK": list(map(str, temperature)),
             "netHeatToEnclosureBoundsW": list(map(str, outgoing)),
             "enclosureTemperatureK": str(environment), "areaM2": str(area),
-            "emissivity": str(eps), "sigmaWPerM2K4": str(sigma)}}
+            "emissivity": str(eps), "sigmaWPerM2K4": str(sigma)}
     if qlo > 0:
         mode = "melting"
         start, end = solid*latent/qhi, solid*latent/qlo
@@ -94,7 +117,8 @@ if __name__ == "__main__":
     parser.add_argument("--radiating-exterior", nargs=4,
                         metavar=("ENCLOSURE_K", "AREA_M2", "EMISSIVITY", "SIGMA"),
                         help="release the opposite terminal to a large isothermal enclosure")
+    parser.add_argument("--surface-port", help="terminal exposed to the radiating enclosure")
     args = parser.parse_args()
     print(json.dumps(investigate((args.study,args.root,args.facts,args.facts_sha256),args.port,
                                  args.transition_k,args.latent_heat_j_per_kg,args.solid_kg,
-                                 args.liquid_kg,args.duration_s,args.radiating_exterior),indent=2))
+                                 args.liquid_kg,args.duration_s,args.radiating_exterior,args.surface_port),indent=2))
