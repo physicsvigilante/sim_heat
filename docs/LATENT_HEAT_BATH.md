@@ -37,3 +37,11 @@ python -B -m tools.coupled_phase_baths --root studies/composite_wall --study stu
 ~~~
 
 The output gives the first exhaustion time even for shorter observation windows. Inventories advance only to the earlier of the requested duration and that event. Equal energy budgets exhaust both participating phases simultaneously; equal transition temperatures leave both mixtures unchanged. Only two-terminal steady networks are admitted in this experiment.
+
+### What remains at thermal equilibrium?
+
+For the closed pair above, append `--equilibrium-cp 2000 4200` to calculate the limiting state. These are the warmer material's specific heat as a solid and the colder material's specific heat as a liquid, in J/(kg K). Assume no other transitions across the temperature interval, constant specific heats and negligible heat capacity in the connecting rods. The optional equilibrium result is independent of the requested observation time. It does not supply a time of arrival.
+
+After the donor freezes, cooling its 0.55 kg of solid from 333.15 K to 273.15 K can release another 66,000 J. Together with its latent heat it can supply **156,000 J**. Melting every bit of ice would require 167,000 J, so the final temperature stays at **273.15 K** and about **0.033 kg of ice** remains. The connecting network sets the initial 120 W and the timing of the first event. The energy balance fixes the limiting temperature and inventories.
+
+If the receiver can melt and then reach the donor's transition temperature while the donor is still two-phase, the final state instead stays at the donor temperature. Otherwise both participating phases are exhausted and the common temperature lies between the two transition temperatures. For that case, with total final heat capacities Ch and Cc, equate the donor's freezing energy plus Ch(Th − T) to the receiver's melting energy plus Cc(T − Tc). The output records latent and sensible energy separately for each bath.
