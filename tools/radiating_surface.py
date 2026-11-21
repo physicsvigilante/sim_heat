@@ -75,18 +75,44 @@ def exterior_parameters(enclosure_k, area_m2, emissivity, sigma):
     return environment, *radiative_properties(area_m2, emissivity, sigma)
 
 
-def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma):
+def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma,
+                *, air_k=None, h_w_per_m2_k=None):
     environment, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
     law = terminal_response(study, root, facts, facts_sha256)
-    (open_low, open_high), (rlo, rhi) = physical_port(law, port)
-    (low,high), flux = surface_balance((open_low,open_high), (rlo,rhi), environment, eps*constant*area)
-    return {"schema": "sim_heat.offline_radiating_surface/1", "releasedPort": port,
-            "exterior": {"enclosureTemperatureK": str(environment), "areaM2": str(area),
-                         "emissivity": str(eps), "sigmaWPerM2K4": str(constant)},
-            "surfaceTemperatureBoundsK": [str(low), str(high)],
-            "netHeatToEnclosureBoundsW": list(map(str, flux)),
-            **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
-                                   "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    opens, resistances = physical_port(law, port)
+    exterior = {"enclosureTemperatureK": str(environment), "areaM2": str(area),
+                "emissivity": str(eps), "sigmaWPerM2K4": str(constant)}
+    if (air_k is None) != (h_w_per_m2_k is None):
+        raise ValueError("provide both air temperature and convective heat transfer coefficient")
+    mixed = air_k is not None
+    effective_open, effective_r = opens, resistances
+    if mixed:
+        air = decimal_input(air_k, "air temperature")
+        h = decimal_input(h_w_per_m2_k, "convective heat transfer coefficient")
+        ha = h*area
+        exterior.update(airTemperatureK=str(air), convectionCoefficientWPerM2K=str(h))
+        # Wall and air each have a linear conductance into the shared surface.
+        # Reduce the parallel pair before applying the radiative boundary law.
+        values = [(t + r*ha*air)/(1 + r*ha) for t in opens for r in resistances]
+        effective_open = min(values), max(values)
+        effective_r = tuple(r/(1 + r*ha) for r in resistances)
+    (low, high), radiation = surface_balance(effective_open, effective_r, environment, eps*constant*area)
+    result = {"schema": "sim_heat.offline_radiating_surface/1", "releasedPort": port,
+              "exterior": exterior, "surfaceTemperatureBoundsK": [str(low), str(high)],
+              "netHeatToEnclosureBoundsW": list(map(str, radiation)),
+              **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
+                                      "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    if mixed:
+        conv = ha*(low-air), ha*(high-air)
+        wall = [(t-u)/r for t in opens for u in (low, high) for r in resistances]
+        qlo = max(min(wall), conv[0]+radiation[0])
+        qhi = min(max(wall), conv[1]+radiation[1])
+        if qlo > qhi:
+            raise ValueError("surface energy balance unresolved")
+        result.update(schema="sim_heat.offline_convecting_radiating_surface/1",
+                      netHeatToAirBoundsW=list(map(str, conv)),
+                      conductorToSurfaceHeatBoundsW=list(map(str, (qlo, qhi))))
+    return result
 
 
 if __name__ == "__main__":
@@ -94,5 +120,7 @@ if __name__ == "__main__":
     for name in ("study", "root", "facts", "facts-sha256", "port", "enclosure-k",
                  "area-m2", "emissivity", "sigma"):
         parser.add_argument("--"+name, required=True)
+    parser.add_argument('--air-k')
+    parser.add_argument('--h-w-per-m2-k')
     args = vars(parser.parse_args())
     print(json.dumps(investigate(**args), indent=2))
