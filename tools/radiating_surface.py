@@ -49,7 +49,8 @@ def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, em
     if area <= 0 or eps > 1 or constant <= 0:
         raise ValueError("positive area and sigma and emissivity in [0,1] required")
     law = terminal_response(study, root, facts, facts_sha256)
-    (low, high), (rlo, rhi) = physical_port(law, port)
+    (open_low, open_high), (rlo, rhi) = physical_port(law, port)
+    low, high = open_low, open_high
     coefficient = eps*constant*area
     if coefficient:
         # The root grows with open temperature. At fixed open temperature it
@@ -58,6 +59,12 @@ def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, em
                     for t in (low, high) for r in (rlo, rhi)]
         low, high = min(x[0] for x in brackets), max(x[1] for x in brackets)
     flux = [coefficient*(t**4-environment**4) for t in (low, high)]
+    # Both powers describe the same steady energy transfer. At very high
+    # temperatures a narrow temperature bracket can span a wide range in T^4.
+    conductive = [drop/r for drop in (open_low-high, open_high-low) for r in (rlo,rhi)]
+    flux = [max(flux[0], min(conductive)), min(flux[1], max(conductive))]
+    if flux[0] > flux[1]:
+        raise ValueError("steady surface heat-rate enclosures are inconsistent")
     return {"schema": "sim_heat.offline_radiating_surface/1", "releasedPort": port,
             "exterior": {"enclosureTemperatureK": str(environment), "areaM2": str(area),
                          "emissivity": str(eps), "sigmaWPerM2K4": str(constant)},
