@@ -15,6 +15,12 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     duration = decimal_input(duration_s, "exposure duration")
     if capacity <= 0:
         raise ValueError("positive heat capacity required")
+    return exposure(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
+                    capacity, start, duration)
+
+
+def exposure(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
+             capacity, start, duration):
     data, power, _, (cold, hot) = prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k,
                                                area_m2, emissivity, sigma, start)
     initial_low, initial_high = power(start)
