@@ -22,10 +22,10 @@ def bath(spec):
     return port, temperature, latent, solid, liquid
 
 
-def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, transfer_target_j=None, track_duration=False):
+def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, transfer_target_j=None, track_duration=False, track_rods=False):
     left, right = bath(left_bath), bath(right_bath)
     horizon = decimal_input(duration_s,"duration")
-    law = terminal_response(*inputs)
+    law = terminal_response(*inputs, include_rods=track_rods)
     g = link_conductance(law)
     if set(law["terminals"]) != {left[0],right[0]}:
         raise ValueError("phase baths must occupy both distinct terminals")
@@ -74,10 +74,31 @@ def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None, 
         if equilibrium_cp is None:
             raise ValueError("specific heats required for transfer passage")
         result["transferPassage"] = transfer_passage(left,right,g,result["equilibrium"],transfer_target_j)
-    if track_duration:
+    if track_duration or track_rods:
         if equilibrium_cp is None:
             raise ValueError("specific heats required for elapsed-time bath state")
         result["stateAtDuration"] = state_at_time(left, right, g, result["equilibrium"], horizon)
+    if track_rods:
+        state = result["stateAtDuration"]
+        state["rods"] = rod_transfers(law, g, left, right, state)
+    return result
+
+
+def rod_transfers(law, conductance, left, right, state):
+    """Scale the donor unit-temperature field on the storage-free network."""
+    donor, receiver = sorted((left, right), key=lambda row: row[1], reverse=True)
+    def interval(pair):
+        return Box.bounds(*map(Fraction, pair))
+    baths = state["baths"]
+    drive = (interval(baths[donor[0]]["temperatureBoundsK"]) -
+             interval(baths[receiver[0]]["temperatureBoundsK"]))
+    energy = interval(state["transferredEnergyMagnitudeBoundsJ"])
+    result = {}
+    for rod, columns in law["rodResponseBoundsWPerK"].items():
+        response = interval(columns[donor[0]])
+        # For a fixed network the signed fraction of total heat is constant.
+        result[rod] = {"heatFlowBoundsW": bounds(response * drive),
+                       "transferredHeatBoundsJ": bounds((response / conductance) * energy)}
     return result
 
 
@@ -208,6 +229,8 @@ if __name__ == "__main__":
     parser.add_argument("--equilibrium-cp",nargs=2,metavar=("HOT_SOLID_CP","COLD_LIQUID_CP"))
     parser.add_argument("--transfer-target-j")
     parser.add_argument("--track-duration", action="store_true")
+    parser.add_argument("--track-rod-flows", action="store_true",
+                        help="include signed instantaneous rate and cumulative heat for each rod")
     args = parser.parse_args()
     print(json.dumps(investigate((args.study,args.root,args.facts,args.facts_sha256),
-                                 args.left_bath,args.right_bath,args.duration_s,args.equilibrium_cp,args.transfer_target_j,args.track_duration),indent=2))
+                                 args.left_bath,args.right_bath,args.duration_s,args.equilibrium_cp,args.transfer_target_j,args.track_duration,args.track_rod_flows),indent=2))
