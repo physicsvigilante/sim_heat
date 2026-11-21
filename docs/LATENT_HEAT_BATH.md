@@ -25,3 +25,15 @@ python -B -m tools.phase_bath_target --root studies/composite_wall --study studi
 ~~~
 
 The same calculation covers a liquid that finishes freezing and then cools, using the solid's specific heat. Targets must be beyond the transition in the direction of heat transfer and strictly before the open-port equilibrium. The hypothetical bath remains lumped and perfectly mixed, with constant properties and no further phase transitions on the chosen path.
+
+## Which of two phase baths is exhausted first?
+
+Replace both maintained terminal temperatures with initially coexisting solid and liquid phases. An illustrative phase-change material at 333.15 K contains 0.10 kg of solid and 0.45 kg of liquid. Its latent heat is 200,000 J/kg. The cold end has 0.50 kg of ice and 0.10 kg of liquid water at 273.15 K, with latent heat 334,000 J/kg. Assume constant pressure, insulated surroundings, ideal thermal contact, and a storage-free connecting network.
+
+The composite wall conducts (333.15 − 273.15)/0.5 = **120 W** toward the ice. The warmer material can supply 90,000 J by freezing. The ice can absorb 167,000 J before it fully melts. The common plateau therefore lasts **750 s**, when the donor has fully solidified and about **0.231 kg of ice** remains. Equal masses need not change phase on the two sides because the specific latent heats differ. The joules lost by one bath equal the joules gained by the other.
+
+~~~sh
+python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000
+~~~
+
+The output gives the first exhaustion time even for shorter observation windows. Inventories advance only to the earlier of the requested duration and that event. Equal energy budgets exhaust both participating phases simultaneously; equal transition temperatures leave both mixtures unchanged. Only two-terminal steady networks are admitted in this experiment.
