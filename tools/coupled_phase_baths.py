@@ -18,7 +18,7 @@ def bath(spec):
     return port, temperature, latent, solid, liquid
 
 
-def investigate(inputs, left_bath, right_bath, duration_s):
+def investigate(inputs, left_bath, right_bath, duration_s, equilibrium_cp=None):
     left, right = bath(left_bath), bath(right_bath)
     horizon = decimal_input(duration_s,"duration")
     law = terminal_response(*inputs)
@@ -55,13 +55,51 @@ def investigate(inputs, left_bath, right_bath, duration_s):
                              "latentEnergyIntoBathBoundsJ": [str(low),str(high)],
                              "remainingSolidBoundsKg": [str(solid-high/latent),str(solid-low/latent)],
                              "remainingLiquidBoundsKg": [str(liquid+low/latent),str(liquid+high/latent)]}
-    return {"schema":"sim_heat.offline_coupled_phase_baths/1","leftPort":left[0],"rightPort":right[0],
+    result = {"schema":"sim_heat.offline_coupled_phase_baths/1","leftPort":left[0],"rightPort":right[0],
             "leftToRightHeatRateDuringCoexistenceBoundsW":[str(qlo),str(qhi)],
             "firstExhaustionTimeBoundsS":event,"firstExhaustingPorts":limiting,
             "requestedDurationS":str(horizon),"modeledDurationBoundsS":modeled,
             "plateauStatus":status,"baths":inventories,
             **{key: law[key] for key in ("studySha256","modelSha256","factsSha256","nativeExecuted",
                                          "nativeQualified","independentlyCertifiedReference","runnerConsumable")}}
+
+
+    if equilibrium_cp is not None:
+        result["equilibrium"] = equilibrium(left,right,equilibrium_cp)
+    return result
+
+
+def equilibrium(left,right,specific_heats):
+    if not isinstance(specific_heats,(tuple,list)) or len(specific_heats) != 2:
+        raise ValueError("supply hot solid and cold liquid specific heats")
+    cs,cl = (decimal_input(value,"specific heat") for value in specific_heats)
+    if min(cs,cl) <= 0:
+        raise ValueError("positive specific heats required")
+    hot,cold = sorted((left,right),key=lambda x:x[1],reverse=True)
+    dt = hot[1]-cold[1]
+    freeze, melt = hot[2]*hot[4], cold[2]*cold[3]
+    ch,cc = cs*(hot[3]+hot[4]),cl*(cold[3]+cold[4])
+    if not dt:
+        temperature, transfer = hot[1], 0
+    elif freeze+ch*dt <= melt:
+        temperature, transfer = cold[1], freeze+ch*dt
+    elif melt+cc*dt <= freeze:
+        temperature, transfer = hot[1], melt+cc*dt
+    else:
+        # Equate heat lost by the fully solid donor to heat absorbed by
+        # the fully liquid receiver, including both completed transitions.
+        temperature = (freeze-melt+ch*hot[1]+cc*cold[1])/(ch+cc)
+        transfer = freeze+ch*(hot[1]-temperature)
+    frozen = min(transfer,freeze)/hot[2]
+    melted = min(transfer,melt)/cold[2]
+    final = {}
+    for row, change, energy in ((hot,-frozen,-transfer),(cold,melted,transfer)):
+        name,t,latent,solid,liquid = row
+        final[name] = {"solidKg":str(solid-change),"liquidKg":str(liquid+change),
+                       "energyIntoBathJ":str(energy),"latentEnergyIntoBathJ":str(change*latent),
+                       "sensibleEnergyIntoBathJ":str(energy-change*latent)}
+    return {"commonTemperatureK":str(temperature),"baths":final,
+            "hotSolidSpecificHeatJPerKgK":str(cs),"coldLiquidSpecificHeatJPerKgK":str(cl)}
 
 
 if __name__ == "__main__":
@@ -71,6 +109,7 @@ if __name__ == "__main__":
     for side in ("left","right"):
         parser.add_argument("--"+side+"-bath",nargs=5,required=True,
                             metavar=("PORT","TRANSITION_K","LATENT_J_PER_KG","SOLID_KG","LIQUID_KG"))
+    parser.add_argument("--equilibrium-cp",nargs=2,metavar=("HOT_SOLID_CP","COLD_LIQUID_CP"))
     args = parser.parse_args()
     print(json.dumps(investigate((args.study,args.root,args.facts,args.facts_sha256),
-                                 args.left_bath,args.right_bath,args.duration_s),indent=2))
+                                 args.left_bath,args.right_bath,args.duration_s,args.equilibrium_cp),indent=2))
