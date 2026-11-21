@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports]
 permissions:
   contents: read
 jobs:
@@ -20,7 +20,8 @@ jobs:
       (github.base_ref == 'codex/rod-resistance-sensitivity' && github.head_ref == 'codex/finite-conductivity-bounds') ||
       (github.base_ref == 'codex/finite-conductivity-bounds' && github.head_ref == 'codex/isolated-pair-exchange') ||
       (github.base_ref == 'codex/isolated-pair-exchange' && github.head_ref == 'codex/two-contact-join') ||
-      (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports')
+      (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports') ||
+      (github.base_ref == 'codex/loaded-thermal-ports' && github.head_ref == 'codex/conduction-walkthrough')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -43,7 +44,7 @@ jobs:
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/study.json" --facts "$dir/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b > wall-output.json
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/higher_k.json" --facts "$dir/higher_k_facts.json" --facts-sha256 7b266f98ac5952ddc385e1555b6238fa775ef453c2eac4c899ff2e4a283b9e79 > revised-wall-output.json
       - name: Verify steady bridge and replay both configurations
-        if: github.head_ref == 'codex/steady-bridge' || github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        if: github.head_ref == 'codex/steady-bridge' || github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports' || github.head_ref == 'codex/conduction-walkthrough'
         shell: bash
         run: |
           set -euo pipefail
@@ -166,7 +167,7 @@ jobs:
           f=studies/composite_wall
           python -B -m tools.conductivity_change_bounds --root "$f" --study "$f/study.json" --facts "$f/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --rod insert --conductivity-multiplier 7/3 > wall-change-bounds.json
       - name: Verify insulated two-body exchange and its transient history
-        if: github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        if: github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports' || github.head_ref == 'codex/conduction-walkthrough'
         shell: bash
         run: |
           set -euo pipefail
