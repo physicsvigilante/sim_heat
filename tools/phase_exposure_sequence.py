@@ -12,7 +12,35 @@ def pair(low, high):
     return [str(low), str(high)]
 
 
-def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_kg, properties, stages, recovery_k=None):
+def reservoir_energies(stages, recovery):
+    """Accumulate signed energy entering the exterior and each maintained support."""
+    exterior = [Fraction(0), Fraction(0)]
+    supports = {}
+    for row in [*stages, *recovery.values()]:
+        if "durationBoundsS" in row:
+            times = tuple(map(Fraction, row["durationBoundsS"]))
+        else:
+            start = Fraction(row["startS"])
+            times = tuple(Fraction(t) - start for t in row["endBoundsS"])
+
+        def accumulate(rates, total):
+            products = [Fraction(q) * t for q in rates for t in times]
+            low, high = min(products), max(products)
+            total[0] += low
+            total[1] += high
+            return pair(low, high)
+
+        row["energyIntoEnclosureBoundsJ"] = accumulate(row["radiatingSurface"]["netHeatToEnclosureBoundsW"],
+                                                       exterior)
+        row["energyIntoSupportsBoundsJ"] = {
+            name: accumulate(power, supports.setdefault(name, [Fraction(0), Fraction(0)]))
+            for name, power in row.get("maintainedReservoirInflowBoundsW", {}).items()}
+    return {"energyIntoEnclosuresBoundsJ": pair(*exterior),
+            "energyIntoSupportsBoundsJ": {name: pair(*total) for name, total in supports.items()}}
+
+
+def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_kg, properties, stages, recovery_k=None,
+                track_reservoir_energy=False):
     if not isinstance(stages, (list, tuple)) or not stages:
         raise ValueError("one or more enclosure exposures required")
     schedule = []
@@ -80,7 +108,11 @@ def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_
             "endBoundsS": pair(elapsed+first, elapsed+last), "bathInflowBoundsW": pair(qlo, qhi),
             "energyIntoBathBoundsJ": pair(-high, -low), "finalSolidKg": str(solid),
             "finalLiquidKg": str(liquid)}
-    return {**recovery, "schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
+    ledger = {}
+    if track_reservoir_energy:
+        ledger = reservoir_energies(history, recovery)
+        ledger["energyIntoBathBoundsJ"] = pair(0, 0) if recovery else pair(low, high)
+    return {**({"reservoirEnergy": ledger} if track_reservoir_energy else {}), **recovery, "schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
             "transitionTemperatureK": str(transition), "specificLatentHeatJPerKg": str(latent),
             "initialSolidKg": str(solid), "initialLiquidKg": str(liquid),
             "requestedStages": [{"enclosureK": t, "durationS": str(d)} for t, d in schedule],
@@ -96,7 +128,9 @@ if __name__ == "__main__":
         parser.add_argument("--"+field, required=True)
     parser.add_argument("--stage", action="append", nargs=2, required=True, metavar=("ENCLOSURE_K", "SECONDS"))
     parser.add_argument("--recover-at-k", help="enclosure temperature for return to the initial inventory")
+    parser.add_argument("--track-reservoir-energy", action="store_true",
+                        help="report heat entering the enclosures and maintained supports through the modeled stages")
     a = parser.parse_args()
     print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.bath_port, a.surface_port,
                                  a.transition_k, a.latent_j_kg, a.solid_kg, a.liquid_kg,
-                                 (a.area_m2, a.emissivity, a.sigma), a.stage, a.recover_at_k), indent=2))
+                                 (a.area_m2, a.emissivity, a.sigma), a.stage, a.recover_at_k, a.track_reservoir_energy), indent=2))
