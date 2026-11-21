@@ -1,0 +1,60 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "ExtendedWall",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "8de95191fa6befc01a6c4de4ffd21714375463aa5f3d649aef62784a94f36b0e",
+  "studySha256": "9b1c9bc484c35542892366cca34a30871fbe90a5c527cb81f8c1d6249773efc6",
+  "provenance": "Same-author SI checking data for the unchanged wall and its extra series layer.",
+  "nodes": [
+    "inside",
+    "interface",
+    "outside",
+    "supply"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "hot": {
+      "node": "supply",
+      "T": 380
+    },
+    "cold": {
+      "node": "outside",
+      "T": 280
+    }
+  },
+  "rods": {
+    "facing": {
+      "kind": "RodArea",
+      "a": "inside",
+      "b": "interface",
+      "k": 20,
+      "A": 0.02,
+      "L": 0.1
+    },
+    "strip": {
+      "kind": "RodArea",
+      "a": "interface",
+      "b": "outside",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "insert": {
+      "kind": "RodArea",
+      "a": "outside",
+      "b": "interface",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "backing": {
+      "kind": "RodArea",
+      "a": "supply",
+      "b": "inside",
+      "k": 10,
+      "A": 0.02,
+      "L": 0.1
+    }
+  }
+}
