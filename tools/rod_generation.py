@@ -64,12 +64,6 @@ def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False
                                       "nativeExecuted", "nativeQualified",
                                       "independentlyCertifiedReference", "runnerConsumable")},
     }
-    if probe is not None:
-        name, position = probe
-        fraction = decimal_input(position, "position fraction from port a")
-        if name not in facts["rods"] or fraction > 1:
-            raise ValueError("probe requires a known rod and a position fraction in [0,1]")
-        probe = (name, fraction)
     if profiles or probe is not None:
         result["schema"] = "sim_heat.offline_heated_rod_profiles/1"
         result.update(rod_peaks(net, sources, probe=probe))

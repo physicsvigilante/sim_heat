@@ -11,7 +11,7 @@ from tools.rod_generation import generation_from_network
 from tools.terminal_response import prepare_steady_network, response_from_network
 
 
-def investigate(inputs, port, rod_powers, enclosure_k, area_m2, emissivity, sigma, *, air_k=None, h_w_per_m2_k=None, profiles=False):
+def investigate(inputs, port, rod_powers, enclosure_k, area_m2, emissivity, sigma, *, air_k=None, h_w_per_m2_k=None, profiles=False, probe=None):
     facts, candidate, net = prepare_steady_network(*inputs)
     law = response_from_network(facts, candidate, net)
     fixed = generation_from_network(facts, candidate, net, rod_powers)
@@ -44,10 +44,10 @@ def investigate(inputs, port, rod_powers, enclosure_k, area_m2, emissivity, sigm
                   totalGeneratedPowerW=str(generated), heatedOpenTemperatureBoundsK=list(map(str, heated)),
                   maintainedBathSupplyBoundsW={name: list(map(str, q)) for name, q in supplies.items()},
                   conductorToSurfaceHeatBoundsW=list(map(str, (lo, hi))))
-    if profiles:
+    if profiles or probe is not None:
         powered = {name: F(watts) for name, watts in result["rodPowersW"].items()}
         port_node = facts["boundaries"][port]["node"]
-        result.update(rod_peaks(net, powered, fixed_temperatures={port_node: Box.bounds(*surface)}))
+        result.update(rod_peaks(net, powered, fixed_temperatures={port_node: Box.bounds(*surface)}, probe=probe))
     return result
 
 
@@ -59,7 +59,8 @@ if __name__ == "__main__":
     parser.add_argument("--air-k")
     parser.add_argument("--h-w-per-m2-k")
     parser.add_argument('--profiles', action='store_true')
+    parser.add_argument("--probe", nargs=2, metavar=("ROD", "FRACTION_FROM_A"))
     a = parser.parse_args()
     print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.port, a.generate, a.enclosure_k,
-                                 a.area_m2, a.emissivity, a.sigma, air_k=a.air_k, h_w_per_m2_k=a.h_w_per_m2_k, profiles=a.profiles),
+                                 a.area_m2, a.emissivity, a.sigma, air_k=a.air_k, h_w_per_m2_k=a.h_w_per_m2_k, profiles=a.profiles, probe=a.probe),
                      indent=2))
