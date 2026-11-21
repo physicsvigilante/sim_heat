@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support]
 permissions:
   contents: read
 jobs:
@@ -26,7 +26,8 @@ jobs:
       (github.base_ref == 'codex/radiating-surface' && github.head_ref == 'codex/radiative-gap') ||
       (github.base_ref == 'codex/radiative-gap' && github.head_ref == 'codex/radiation-shield') ||
       (github.base_ref == 'codex/radiation-shield' && github.head_ref == 'codex/radiation-power-bounds') ||
-      (github.base_ref == 'codex/radiation-power-bounds' && github.head_ref == 'codex/conducting-vacuum-support')
+      (github.base_ref == 'codex/radiation-power-bounds' && github.head_ref == 'codex/conducting-vacuum-support') ||
+      (github.base_ref == 'codex/conducting-vacuum-support' && github.head_ref == 'codex/spherical-conduction')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -235,6 +236,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_supported_radiative_gap tests.test_loaded_thermal_ports
           python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 0.8 --right-emissivity 0.5 --sigma 0.0000000567 --support studies/steady_bridge/study.json studies/steady_bridge studies/steady_bridge/facts.json 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf > radiation/support.json
+      - name: Verify concentric layers and replay radial flux
+        if: github.head_ref == 'codex/spherical-conduction'
+        run: |
+          python -B -m unittest -v tests.test_spherical_conduction tests.test_loaded_thermal_ports
+          python -B -m tools.spherical_conduction --inner-root studies/composite_wall --inner-study studies/composite_wall/study.json --inner-facts studies/composite_wall/facts.json --inner-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --outer-root studies/composite_wall --outer-study studies/composite_wall/study.json --outer-facts studies/composite_wall/facts.json --outer-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --inner-port cold --outer-port hot --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 > spherical-shell.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -255,3 +261,4 @@ jobs:
             two-contacts/*.json
             loaded-ports/*.json
             radiation/*.json
+            spherical-shell.json
