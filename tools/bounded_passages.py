@@ -29,20 +29,30 @@ def brackets(values, radius, threshold, step, directions):
     return passages, overlaps
 
 
-def observe(study, root, facts_path, facts_sha256, *, group, name, field, threshold, directions):
+def read_pinned_facts(facts_path, facts_sha256):
     path = Path(facts_path)
     if not path.is_file() or any(p.is_symlink() for p in (path, *path.parents)):
         raise ValueError("invalid source facts path")
     with path.open("rb") as stream:
-        facts = parse_facts(stream.read(MAX_SOURCE_BYTES + 1), expected_sha256=facts_sha256)
+        return parse_facts(stream.read(MAX_SOURCE_BYTES + 1), expected_sha256=facts_sha256)
+
+
+def observe(study, root, facts_path, facts_sha256, *, group, name, field, threshold, directions):
+    facts = read_pinned_facts(facts_path, facts_sha256)
     if facts["mode"] != "transient" or name not in facts[group]:
         raise ValueError(f"expected a transient study and an existing member of {group}")
-    candidate = prepare(study, root, path, facts_sha256)
+    candidate = prepare(study, root, facts_path, facts_sha256)
     key = name + "." + field
-    radius = Fraction(candidate["maxErrorToBudgetBySeries"]["exports"][key]) / 10**8
+    return series_passages(candidate, facts, "exports", key, threshold, directions)
+
+
+def series_passages(candidate, facts, family, key, threshold, directions):
+    series = candidate[family][key]
+    scale = {"K": 10**8, "W": 10**8, "J": 10**5}[series["unit"]]
+    radius = Fraction(candidate["maxErrorToBudgetBySeries"][family][key]) / scale
     analysis = facts["analysis"]
     step = Fraction(analysis["stopTime"]) / analysis["intervals"]
-    passages, overlaps = brackets(candidate["exports"][key]["values"], radius, threshold, step, directions)
+    passages, overlaps = brackets(series["values"], radius, threshold, step, directions)
     provenance = {key: candidate[key] for key in ("modelSha256", "studySha256", "factsSha256",
                                             "nativeExecuted", "nativeQualified",
                                             "independentlyCertifiedReference", "runnerConsumable")}
