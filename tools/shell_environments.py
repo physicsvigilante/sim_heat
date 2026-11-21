@@ -10,6 +10,7 @@ from tools.terminal_response import investigate as terminal_response
 
 def investigate(inputs, port, inner_radius_m, layers, coating_k, radii, limit_w,
                 emissivity, sigma, environments, cylinder_length_m=None):
+    environments = tuple(environments)
     if not environments:
         raise ValueError("at least one exterior condition required")
     law = terminal_response(*inputs)

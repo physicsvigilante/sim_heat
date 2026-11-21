@@ -26,6 +26,6 @@ class ShellEnvironments(TestCase):
     def test_exact_equality_and_distinct_condition_names(self):
         calm = ("calm","280","0","280")
         self.assertEqual(self.solve([calm],budget="0")["smallestEstablishedWithinBudgetRadiusM"], "3/25")
-        for cases in ([],[calm,calm]):
+        for cases in ([], iter(()), [calm,calm]):
             with self.assertRaises(ValueError):
                 self.solve(cases)
