@@ -1,0 +1,77 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "TwoContacts",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "fddb7f72205cb064dff122bf114a73eb0237429259caa1375b509b9bb6bd9333",
+  "studySha256": "08f6d3ccbeeb157f5f21f95248b7f5d0c39f3c089d78356dd6e9f7abeacd8a07",
+  "nodes": [
+    "warmL",
+    "coolR",
+    "centre",
+    "contact",
+    "secondContact"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "warmL": {
+      "node": "warmL",
+      "T": 380
+    },
+    "coolR": {
+      "node": "coolR",
+      "T": 280
+    }
+  },
+  "rods": {
+    "legA": {
+      "kind": "RodArea",
+      "a": "warmL",
+      "b": "centre",
+      "k": 20,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legB": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "centre",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legC": {
+      "kind": "RodArea",
+      "a": "secondContact",
+      "b": "centre",
+      "k": 50,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideA": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "secondContact",
+      "k": 6,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideB": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "coolR",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideC": {
+      "kind": "RodArea",
+      "a": "secondContact",
+      "b": "coolR",
+      "k": 15,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author six-rod reference with two storage-free shared contacts."
+}
