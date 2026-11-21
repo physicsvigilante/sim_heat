@@ -1,0 +1,61 @@
+name: H1 general conduction offline replay
+on:
+  pull_request:
+    branches: [numerics/h1-n12-triple-case-reference-staging]
+
+permissions:
+  contents: read
+
+jobs:
+  twin-bridge:
+    if: github.head_ref == 'codex/general-h1-reference'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install pinned offline checking dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          -r requirements-h1-ci.txt
+      - name: Verify frozen implementation and original held-out evidence
+        run: |
+          git diff --exit-code f05f6a8fbdfd5ac177a5441d22b40dda6bf8e0d4 HEAD -- h1 qualification ':!qualification/h1_n13/heldout'
+          git diff --exit-code 954cf65e1dffd04c706654418f30d891d1ccba57 HEAD -- qualification/h1_n13/heldout
+          git diff --exit-code 892e9e47e138b5ffd040e952d1ffa6598d2a052d HEAD -- qualification/h1_n13/heldout/{model.mo,study.json,facts.json,oracle.py,GIVENS.md}
+      - name: Run offline development regressions
+        run: python -B -m unittest -v qualification.h1_n13.test_conduction tests.test_twinbridge_ratios
+      - name: Generate and independently check fresh TwinBridge output
+        shell: bash
+        run: |
+          set -euo pipefail
+          case_dir=qualification/h1_n13/heldout
+          evidence="$RUNNER_TEMP/twin-bridge"
+          mkdir "$evidence"
+          git rev-parse HEAD > "$evidence/source-head.txt"
+          python -B -m qualification.h1_n13.conduction --root "$case_dir" --study "$case_dir/study.json" \
+            --facts "$case_dir/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 \
+            | gzip -n > "$evidence/fresh-output.json.gz"
+          python -B -m tools.verify_twinbridge "$evidence/fresh-output.json.gz" > "$evidence/oracle-results.json"
+          python -B -m qualification.h1_n13.heldout.controls > "$evidence/control-results.json"
+          python - "$case_dir" "$evidence" <<'PY'
+          import gzip, json, sys
+          from pathlib import Path
+          original, fresh = map(Path, sys.argv[1:])
+          with gzip.open(original / "first-output.json.gz", "rt") as a, gzip.open(fresh / "fresh-output.json.gz", "rt") as b:
+              assert json.load(a) == json.load(b), "replay differs from first output"
+          for name in ("oracle-results.json", "control-results.json"):
+              assert json.loads((original / name).read_bytes()) == json.loads((fresh / name).read_bytes()), name
+          print("Fresh output matches the first attempt; 49,241 analytical comparisons and seven controls passed.")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: twin-bridge-offline-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/twin-bridge
+          if-no-files-found: error

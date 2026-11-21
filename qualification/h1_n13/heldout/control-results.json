@@ -1,0 +1,37 @@
+[
+  {
+    "control": "reversed fact endpoints with original pin",
+    "exception": "PhysicalRefusal",
+    "detail": "h1_n4: source bytes differ from supplied hash"
+  },
+  {
+    "control": "reversed physical edge with fresh pin",
+    "exception": "Refusal",
+    "detail": "reference_binding: reference physical connectivity differs"
+  },
+  {
+    "control": "sub-binary64 time drift with fresh pin",
+    "exception": "ValueError",
+    "detail": "h1_n13: exact source analysis differs"
+  },
+  {
+    "control": "unsupported radiation with current model hash",
+    "exception": "Refusal",
+    "detail": "syntax: unsupported constructor SimHeat.Radiation"
+  },
+  {
+    "control": "one missing rod port series",
+    "exception": "AssertionError",
+    "detail": ""
+  },
+  {
+    "control": "one reversed nonzero boundary integral",
+    "exception": "AssertionError",
+    "detail": "('integrals', 'bath.Q_to_network', 100, Decimal('368.44386026252623281215114970961365217374731631253779281281890202384022555344624'))"
+  },
+  {
+    "control": "one omitted final junction value",
+    "exception": "AssertionError",
+    "detail": ""
+  }
+]
