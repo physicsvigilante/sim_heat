@@ -1,0 +1,51 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "CompositeWall",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "e6b0edff0f0274bad86736d07aa938be3e4ba8766b134776f8f9b8c2e74c6fe9",
+  "studySha256": "3ddc9873ec055709ce27a2a2cd302a663e71dbcbbac939a96d4a17d252f5f418",
+  "provenance": "Same-author SI transcription of the illustrative wall givens. The insert is oriented from cold to interface.",
+  "nodes": [
+    "inside",
+    "interface",
+    "outside"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "hot": {
+      "node": "inside",
+      "T": 380
+    },
+    "cold": {
+      "node": "outside",
+      "T": 280
+    }
+  },
+  "rods": {
+    "facing": {
+      "kind": "RodArea",
+      "a": "inside",
+      "b": "interface",
+      "k": 20,
+      "A": 0.02,
+      "L": 0.1
+    },
+    "strip": {
+      "kind": "RodArea",
+      "a": "interface",
+      "b": "outside",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "insert": {
+      "kind": "RodArea",
+      "a": "outside",
+      "b": "interface",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    }
+  }
+}
