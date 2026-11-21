@@ -29,14 +29,7 @@ def surface_root(open_k, resistance, enclosure_k, coefficient):
     return low, high
 
 
-def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma):
-    environment = decimal_input(enclosure_k, "enclosure temperature")
-    area = decimal_input(area_m2, "surface area")
-    eps = decimal_input(emissivity, "emissivity")
-    constant = decimal_input(sigma, "Stefan-Boltzmann constant")
-    if area <= 0 or eps > 1 or constant <= 0:
-        raise ValueError("positive area and sigma and emissivity in [0,1] required")
-    law = terminal_response(study, root, facts, facts_sha256)
+def physical_port(law, port):
     open_temp, resistance = port_equivalent(law, port)
     # Passive conduction puts the open temperature within the maintained bath range.
     baths = [Fraction(t) for name, t in law["imposedTemperaturesK"].items() if name != port]
@@ -45,6 +38,18 @@ def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, em
     rlo, rhi = resistance.span()
     if low < 0 or low > high or rlo <= 0:
         raise ValueError("physical open-port enclosure unresolved")
+    return (low, high), (rlo, rhi)
+
+
+def investigate(study, root, facts, facts_sha256, port, enclosure_k, area_m2, emissivity, sigma):
+    environment = decimal_input(enclosure_k, "enclosure temperature")
+    area = decimal_input(area_m2, "surface area")
+    eps = decimal_input(emissivity, "emissivity")
+    constant = decimal_input(sigma, "Stefan-Boltzmann constant")
+    if area <= 0 or eps > 1 or constant <= 0:
+        raise ValueError("positive area and sigma and emissivity in [0,1] required")
+    law = terminal_response(study, root, facts, facts_sha256)
+    (low, high), (rlo, rhi) = physical_port(law, port)
     coefficient = eps*constant*area
     if coefficient:
         # The root grows with open temperature. At fixed open temperature it
