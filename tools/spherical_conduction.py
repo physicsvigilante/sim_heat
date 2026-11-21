@@ -1,5 +1,6 @@
 """Steady radial conduction through concentric spherical or cylindrical layers."""
 import argparse
+from dataclasses import dataclass
 from fractions import Fraction
 import json
 
@@ -31,7 +32,33 @@ def radial_log(ratio):
     return log_mantissa_bounds(ratio/(2**n)) + n*log_mantissa_bounds(Fraction(2))
 
 
-def investigate(inner_inputs, outer_inputs, inner_port, outer_port, inner_radius_m, layers, cylinder_length_m=None):
+@dataclass
+class RadialLayers:
+    radii: list
+    material: list
+    resistances: list
+    pi: Box
+    length: Fraction | None
+
+    def outer_area(self):
+        radius = self.radii[-1]
+        factor = 4*radius**2 if self.length is None else 2*self.length*radius
+        return self.pi*factor
+
+    def surface_profile(self, open_temperature, port_resistance, rate):
+        surfaces = []
+        for r, resistance in zip(self.radii, self.resistances, strict=True):
+            temperature = open_temperature-rate*(port_resistance+resistance)
+            if self.length is None:
+                flux = rate*(1/r**2)/(4*self.pi)
+            else:
+                flux = rate*(1/(2*self.length*r))/self.pi
+            surfaces.append({"radiusM": str(r), "temperatureBoundsK": bounds(temperature),
+                             "outwardHeatFluxBoundsWPerM2": bounds(flux)})
+        return surfaces
+
+
+def prepare_layers(inner_radius_m, layers, cylinder_length_m):
     radius = decimal_input(inner_radius_m, "inner radius")
     if radius <= 0 or not isinstance(layers, (tuple, list)) or not 1 <= len(layers) <= 32:
         raise ValueError("positive inner radius and one to 32 layers required")
@@ -63,30 +90,27 @@ def investigate(inner_inputs, outer_inputs, inner_port, outer_port, inner_radius
         radial_resistances.append(accumulated)
         radius = outer
 
+    return RadialLayers(radii, material, radial_resistances, pi, length)
+
+
+def investigate(inner_inputs, outer_inputs, inner_port, outer_port, inner_radius_m, layers, cylinder_length_m=None):
+    shell = prepare_layers(inner_radius_m, layers, cylinder_length_m)
     inner, outer = (terminal_response(*args) for args in (inner_inputs, outer_inputs))
     ti, ri = port_equivalent(inner, inner_port)
     to, ro = port_equivalent(outer, outer_port)
-    rate = (ti-to)/(ri+accumulated+ro)
-    surfaces = []
-    for r, resistance in zip(radii, radial_resistances, strict=True):
-        temperature = ti-rate*(ri+resistance)
-        if length is None:
-            flux = rate*(1/r**2)/(4*pi)
-        else:
-            flux = rate*(1/(2*length*r))/pi
-        surfaces.append({"radiusM": str(r), "temperatureBoundsK": bounds(temperature),
-                         "outwardHeatFluxBoundsWPerM2": bounds(flux)})
+    rate = (ti-to)/(ri+shell.resistances[-1]+ro)
+    surfaces = shell.surface_profile(ti,ri,rate)
     sources = {side: {key: law[key] for key in ("modelSha256", "studySha256", "factsSha256")}
                for side, law in (("inner", inner), ("outer", outer))}
     result = {"schema": "sim_heat.offline_spherical_conduction/1", "sources": sources,
-            "innerPort": inner_port, "outerPort": outer_port, "layers": material,
-            "surfaces": surfaces, "shellResistanceBoundsKPerW": bounds(accumulated),
+            "innerPort": inner_port, "outerPort": outer_port, "layers": shell.material,
+            "surfaces": surfaces, "shellResistanceBoundsKPerW": bounds(shell.resistances[-1]),
             "outwardHeatRateBoundsW": bounds(rate), "nativeExecuted": False,
             "nativeQualified": False, "independentlyCertifiedReference": False,
             "runnerConsumable": False}
 
-    if length is not None:
-        result.update(schema="sim_heat.offline_cylindrical_conduction/1", cylinderLengthM=str(length))
+    if shell.length is not None:
+        result.update(schema="sim_heat.offline_cylindrical_conduction/1", cylinderLengthM=str(shell.length))
     return result
 
 
