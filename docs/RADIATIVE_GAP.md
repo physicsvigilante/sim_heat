@@ -32,3 +32,15 @@ The shield reduces the heat rate from **6.881 W to 2.596 W** and reaches **356.6
     Q = [KL KR/(KL + KR)] (TL⁴ − TR⁴).
 
 The wall surfaces still change temperature under load. The familiar factor of two for one black shield assumes fixed outer surface temperatures and identical gap coefficients. With a reflecting face on one side, the corresponding gap carries zero net heat. The shield then comes to the opposite plate temperature if that gap exchanges radiation. If both gaps are blocked, the model determines zero flow but leaves the shield temperature undetermined.
+
+## Add a conducting support outside the viewing area
+
+A solid frame can conduct heat between the two plate nodes even across an evacuated space. Model that frame as a separate two-terminal steady network. Its two original bath conditions are released when the frame is connected. Assume perfect end contacts, insulated frame sides, and a frame lying outside the stated radiating area. A floating shield, when present, has no contact with the frame.
+
+For the worked walls, use the balanced five-rod bridge as a frame. Its two branches conduct 1 and 1/2 W/K in parallel, giving G = 1.5 W/K. Append this option to the example command above.
+
+    --support studies/steady_bridge/study.json studies/steady_bridge studies/steady_bridge/facts.json 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf
+
+Both heat paths see the same plate temperatures. Their rates add to the heat supplied by the backing walls. In watts, Q = G (TL − TR) + K (TL⁴ − TR⁴), where K includes the area and gray-surface factors. Use the **total** Q to calculate the wall temperature drops. The resulting total is **61.130 W**, split into **58.304 W through the frame** and **2.826 W by radiation**. All three signed rates use the left-to-right direction. With one perfectly reflecting outer surface the frame still conducts 60 W.
+
+For positive support conductance the residual still increases with Q. Increasing the support conductance increases the magnitude of the transfer at fixed open temperatures and backing resistances. Solving at both ends of the support conductance enclosure, together with the existing port corners, bounds the total. The separate path enclosures use both their constitutive laws and the sum of their rates.
