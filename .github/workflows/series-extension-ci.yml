@@ -18,6 +18,8 @@ jobs:
           python-version: '3.13.5'
       - run: >-
           python -m pip install --disable-pip-version-check --only-binary=:all: -r requirements-h1-ci.txt
+      - name: Run inherited H1 offline baseline
+        run: python -B -m unittest discover -s h1/tests -v
       - run: python -B -m unittest -v tests.test_composite_wall tests.test_wall_revision tests.test_terminal_resistance tests.test_series_extension
       - name: Replay through the general conduction CLI
         run: |
