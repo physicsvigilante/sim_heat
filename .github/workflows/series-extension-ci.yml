@@ -1,12 +1,14 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance]
+    branches: [codex/terminal-resistance, codex/series-equivalence]
 permissions:
   contents: read
 jobs:
   wall:
-    if: github.head_ref == 'codex/series-equivalence'
+    if: |
+      (github.base_ref == 'codex/terminal-resistance' && github.head_ref == 'codex/series-equivalence') ||
+      (github.base_ref == 'codex/series-equivalence' && github.head_ref == 'codex/steady-bridge')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -28,6 +30,22 @@ jobs:
           dir=studies/composite_wall
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/study.json" --facts "$dir/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b > wall-output.json
           python -B -m tools.terminal_resistance --root "$dir" --study "$dir/higher_k.json" --facts "$dir/higher_k_facts.json" --facts-sha256 7b266f98ac5952ddc385e1555b6238fa775ef453c2eac4c899ff2e4a283b9e79 > revised-wall-output.json
+      - name: Verify steady bridge and replay both configurations
+        if: github.head_ref == 'codex/steady-bridge'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_steady_bridge
+          dir=studies/steady_bridge
+          mkdir bridge
+          replay() {
+            local label="$1" prefix="$2" pin="$3"
+            local args=(--root "$dir" --study "$dir/${prefix}study.json" --facts "$dir/${prefix}facts.json" --facts-sha256 "$pin")
+            python -B -m qualification.h1_n13.conduction "${args[@]}" > "bridge/$label.json"
+            python -B -m tools.terminal_resistance "${args[@]}" > "bridge/$label-resistance.json"
+          }
+          replay balanced '' 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf
+          replay revised changed_ 9e62ef107a7499beb80406ac8b54b35e084830eb17f8d370ce96888884ba9f1f
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -36,3 +54,4 @@ jobs:
             revised-wall-output.json
             series-output.json
             full-network.json
+            bridge/*.json
