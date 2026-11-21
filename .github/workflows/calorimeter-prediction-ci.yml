@@ -44,6 +44,8 @@ jobs:
         run: python -B -m tools.radiating_radial_layers --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --enclosure-k 280 --emissivity 0.8 --sigma 0.0000000567 --air-k 450 --h-w-per-m2-k 12 --radius-sensitivity > evidence/radial-air-film.json
       - name: Calibrate a film from an outer surface thermometer
         run: python -B -m tools.radial_film_calibration --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --surface-k 359 361 --air-k 450 --enclosure-k 280 --emissivity 0.8 --sigma 0.0000000567 > evidence/radial-film-calibration.json
+      - name: Identify convection and radiation from two trials
+        run: python -B -m tools.two_environment_calibration --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --sigma 0.0000000567 --trial 360 360 360 300 --trial 360 360 350 360 > evidence/two-environments.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

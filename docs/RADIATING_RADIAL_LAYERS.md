@@ -56,3 +56,9 @@ Pass both `--air-k` and `--h-w-per-m2-k` to add a uniform convective film around
 For pure convection, the critical outer radius is k/h for a long cylinder and 2k/h for a sphere. When radiation also acts, the local surface slope becomes h + 4εσT³. Use the calculated outer temperature in kelvin to evaluate that slope; changing the insulation thickness changes the temperature as well as the exposed area.
 
 A thermometer on the outer shell can also be used to estimate the film coefficient. The radial_film_calibration CLI accepts the same port, shell geometry and enclosure properties with `--surface-k LOW HIGH` and `--air-k`. The wall rate is (T_open − T_surface)/R_total. Subtract radiation from that rate and divide the remainder by A(T_surface − T_air). If the surface band includes the air temperature, the reading cannot resolve the film coefficient. Warm air and a cold enclosure can give a negative air heat rate with a positive film coefficient.
+
+## Distinguishing convection from radiation
+
+A single surface reading supplies one heat balance. To infer both h and emissivity, change the air or enclosure temperature and repeat the experiment with the same shell, maintained baths and surface properties. In a controlled example both runs have a 360 K outer surface. A 360 K air supply and 300 K enclosure isolate radiation in the first run. A 350 K air supply and 360 K enclosure isolate convection in the second. The wall supplies the same outward heat rate in both trials.
+
+The two_environment_calibration CLI accepts two `--trial LOW_K HIGH_K AIR_K ENCLOSURE_K` groups. Each group can have both exchanges active. The two heat balances must distinguish the coefficients across the measurement bands; repeated identical trials provide no second independent equation.
