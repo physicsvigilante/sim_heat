@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors]
 permissions:
   contents: read
 jobs:
@@ -52,7 +52,8 @@ jobs:
       (github.base_ref == 'codex/phase-reservoir-energy' && github.head_ref == 'codex/phase-entropy') ||
       (github.base_ref == 'codex/phase-entropy' && github.head_ref == 'codex/supported-wall-lesson') ||
       (github.base_ref == 'codex/supported-wall-lesson' && github.head_ref == 'codex/variable-conductivity') ||
-      (github.base_ref == 'codex/variable-conductivity' && github.head_ref == 'codex/dissimilar-conductors')
+      (github.base_ref == 'codex/variable-conductivity' && github.head_ref == 'codex/dissimilar-conductors') ||
+      (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -392,6 +393,9 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_join_variable_conductors tests.test_variable_conductivity tests.test_join_thermal_networks
           python -B -m tools.join_variable_conductors --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --left-reference-k 280 --left-slope-per-k 0.00625 --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-port hot --right-reference-k 280 --right-slope-per-k 0 > dissimilar-walls.json
+      - name: Replay the JEE composite-wall reversal exercise
+        if: github.head_ref == 'codex/wall-reversal-lesson'
+        run: python -B -m tools.wall_reversal_lesson > wall-reversal-lesson.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -446,3 +450,4 @@ jobs:
             lesson-cycle.json
             variable-conductivity.json
             dissimilar-walls.json
+            wall-reversal-lesson.json
