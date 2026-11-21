@@ -1,0 +1,55 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "ThreeTerminaltriangle",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "b9a25f893d0f321454f3325b746a615b7e7e4db1039f3ac5518a82b51b09c96d",
+  "studySha256": "5cce40bdadb507e36515458d0e164d3ddaa8b45849ec3e5df8477f610de9d9e1",
+  "nodes": [
+    "warm",
+    "middle",
+    "cool"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "warm": {
+      "node": "warm",
+      "T": 380
+    },
+    "middle": {
+      "node": "middle",
+      "T": 330
+    },
+    "cool": {
+      "node": "cool",
+      "T": 280
+    }
+  },
+  "rods": {
+    "first": {
+      "kind": "RodArea",
+      "a": "warm",
+      "b": "middle",
+      "k": 6,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "second": {
+      "kind": "RodArea",
+      "a": "warm",
+      "b": "cool",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "third": {
+      "kind": "RodArea",
+      "a": "middle",
+      "b": "cool",
+      "k": 15,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author SI checking facts for the three-terminal triangle study."
+}

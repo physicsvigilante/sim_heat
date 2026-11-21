@@ -1,0 +1,91 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "ThreeTerminalstar",
+  "model": {
+    "path": "model.mo",
+    "sha256": "79f475d64c9c99ecd675cd92bf8e36c44a5dd32e8da0c80480d907d7a742fb3d"
+  },
+  "mode": "steady",
+  "analysis": {},
+  "requests": [],
+  "provenance": [
+    {
+      "target": "warm.T",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "middle.T",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "cool.T",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "first.k",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "first.L",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "first.A",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "second.k",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "second.L",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "second.A",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "third.k",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "third.L",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "third.A",
+      "kind": "illustrative",
+      "locator": "../README.md",
+      "note": "Illustrative SI given for terminal equivalence."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "../README.md",
+      "note": "Ideal junctions, constant properties and steady conduction."
+    }
+  ]
+}
