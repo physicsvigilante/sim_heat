@@ -12,7 +12,7 @@ def pair(low, high):
     return [str(low), str(high)]
 
 
-def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_kg, properties, stages):
+def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_kg, properties, stages, recovery_k=None):
     if not isinstance(stages, (list, tuple)) or not stages:
         raise ValueError("one or more enclosure exposures required")
     schedule = []
@@ -62,7 +62,25 @@ def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_
         if status != "coexisting":
             break
         elapsed += duration
-    return {"schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
+    recovery = {}
+    if recovery_k is not None:
+        decimal_input(recovery_k, "recovery enclosure temperature")
+        if history[-1]["plateauStatus"] != "coexisting":
+            raise ValueError("recovery requires coexistence through the entire requested schedule")
+        qlo, qhi, surface = plateau_power(law, port, transition, (recovery_k, *properties), face)
+        if low == high == 0:
+            first = last = Fraction(0)
+        elif low > 0 and qhi < 0:
+            first, last = low/(-qlo), high/(-qhi)
+        elif high < 0 and qlo > 0:
+            first, last = -high/qhi, -low/qlo
+        else:
+            raise ValueError("restoring the initial inventory requires a resolved opposing heat flow")
+        recovery["inventoryRecovery"] = {**surface, "durationBoundsS": pair(first, last),
+            "endBoundsS": pair(elapsed+first, elapsed+last), "bathInflowBoundsW": pair(qlo, qhi),
+            "energyIntoBathBoundsJ": pair(-high, -low), "finalSolidKg": str(solid),
+            "finalLiquidKg": str(liquid)}
+    return {**recovery, "schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
             "transitionTemperatureK": str(transition), "specificLatentHeatJPerKg": str(latent),
             "initialSolidKg": str(solid), "initialLiquidKg": str(liquid),
             "requestedStages": [{"enclosureK": t, "durationS": str(d)} for t, d in schedule],
@@ -77,7 +95,8 @@ if __name__ == "__main__":
                   "latent-j-kg", "solid-kg", "liquid-kg", "area-m2", "emissivity", "sigma"):
         parser.add_argument("--"+field, required=True)
     parser.add_argument("--stage", action="append", nargs=2, required=True, metavar=("ENCLOSURE_K", "SECONDS"))
+    parser.add_argument("--recover-at-k", help="enclosure temperature for return to the initial inventory")
     a = parser.parse_args()
     print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.bath_port, a.surface_port,
                                  a.transition_k, a.latent_j_kg, a.solid_kg, a.liquid_kg,
-                                 (a.area_m2, a.emissivity, a.sigma), a.stage), indent=2))
+                                 (a.area_m2, a.emissivity, a.sigma), a.stage, a.recover_at_k), indent=2))
