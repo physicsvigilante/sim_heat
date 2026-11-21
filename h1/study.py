@@ -122,11 +122,18 @@ def compare_revision(parent: Study, child: Study, target: str) -> None:
 def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     """Validate offline only; this function never writes or invokes a compiler."""
     root = root.resolve(strict=True)
-    try:
-        relative = str(path.absolute().relative_to(root))
-    except ValueError as exc:
-        raise Refusal('path', 'study outside case root') from exc
-    path = checked_path(root, relative, root, '.json')
+    path = path.absolute()
+    base = root
+    if not path.is_relative_to(root):
+        # Locate the same root along the supplied spelling (e.g. an 8.3 name).
+        # Keep that spelling so checked_path can inspect every original component.
+        try:
+            base = next(parent for parent in path.parents if parent.samefile(root))
+        except (StopIteration, OSError, ValueError) as exc:
+            raise Refusal('path', 'study outside case root') from exc
+        root = base.resolve(strict=True)
+    relative = path.relative_to(base).as_posix()
+    path = checked_path(base, relative, root, '.json')
     require(path not in seen and len(seen) < 16, 'revision', 'cyclic/too deep parent chain')
     require(path.stat().st_size <= 262144, 'resource_limit', 'study exceeds 256 KiB')
     raw = path.read_bytes()
