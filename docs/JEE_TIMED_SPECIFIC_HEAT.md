@@ -13,3 +13,13 @@ python -B -m tools.timed_specific_heat --study studies/composite_wall/study.json
 ```
 
 The resulting interval includes both stopwatch uncertainty and the engine's transit-time bounds. An equilibrium target takes unbounded time to reach from a distinct starting temperature in this model.
+
+## When the empty calorimeter capacity is unknown
+
+Repeat the same temperature passage in the same apparatus with 0.500 kg of the same material. Suppose the second time is 76.24–76.26 s. In a plot of elapsed time against mass, the slope is proportional to sample specific heat, while the intercept is proportional to empty calorimeter capacity. The common proportionality factor for this wall is (ln 2)/2 in units of s K/J.
+
+Using the two central times, the slope is about 138.6 s/kg and the intercept is about 6.93 s. Dividing both by the common factor gives about 400 J/(kg K) and 20 J/K. Both trials must share the heat-transfer law, initial temperature, and target temperature. The program propagates measured time intervals and the common transit uncertainty.
+
+```shell
+python -B -m tools.two_mass_calorimeter --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 280 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0 --sigma 0.00000005 --initial-k 280 --target-k 330 --trial 0.2 34.65 34.67 --trial 0.5 76.24 76.26
+```
