@@ -32,5 +32,5 @@ class CompositeWallTests(TestCase):
             changed = Path(scratch) / "facts.json"
             data = json.dumps(facts).encode()
             changed.write_bytes(data)
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, r"reference fact differs: strip\.A$"):
                 prepare(CASE / "study.json", CASE, changed, sha256(data).hexdigest())
