@@ -1,0 +1,221 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "LoadedThermalPorts",
+  "model": {
+    "path": "model.mo",
+    "sha256": "bff0356d20bd8c37e75177db1ee7990c81ed47be5b2d253bde7b8486d3199733"
+  },
+  "mode": "steady",
+  "analysis": {},
+  "requests": [
+    {
+      "id": "contactT",
+      "op": "temperature",
+      "target": "legB.port_a"
+    },
+    {
+      "id": "rightPortT",
+      "op": "temperature",
+      "target": "sideA.port_a"
+    },
+    {
+      "id": "wallFlow",
+      "op": "heatFlow",
+      "target": "facing"
+    }
+  ],
+  "provenance": [
+    {
+      "target": "warmL.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "coolL.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "middleR.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "coolR.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legA.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legB.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "legC.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideA.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideB.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "sideC.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the explicit joined network."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Steady, constant properties, ideal contacts, insulated lateral surfaces."
+    },
+    {
+      "target": "facing.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    }
+  ]
+}
