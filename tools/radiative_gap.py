@@ -41,7 +41,7 @@ def fourth_root_bounds(low, high):
 
 
 def investigate(left_inputs, right_inputs, left_port, right_port, area_m2,
-                left_emissivity, right_emissivity, sigma, shield_emissivities=None, support_inputs=None):
+                left_emissivity, right_emissivity, sigma, shield_emissivities=None, support_inputs=None, *, shield_stack=None):
     area = decimal_input(area_m2, "overlap area")
     el = decimal_input(left_emissivity, "left emissivity")
     er = decimal_input(right_emissivity, "right emissivity")
@@ -52,17 +52,25 @@ def investigate(left_inputs, right_inputs, left_port, right_port, area_m2,
     ol, rl = physical_port(left, left_port)
     ot, rr = physical_port(right, right_port)
     # Reciprocal gray-surface radiation resistance for equal areas and F12=1.
-    if shield_emissivities is None:
-        coefficient = gap_coefficient(area*constant, el, er)
-    else:
-        if not isinstance(shield_emissivities, (tuple, list)) or len(shield_emissivities) != 2:
+    if shield_stack is not None and shield_emissivities is not None:
+        raise ValueError("choose one shield specification")
+    if shield_stack is not None and (not isinstance(shield_stack, (tuple, list)) or not shield_stack):
+        raise ValueError("a shield stack requires at least one shield")
+    pairs = ([shield_emissivities] if shield_emissivities is not None else shield_stack) or []
+    shields = []
+    gaps = []
+    previous = el
+    for faces in pairs:
+        if not isinstance(faces, (tuple, list)) or len(faces) != 2:
             raise ValueError("supply both shield face emissivities")
-        sl, sr = (decimal_input(e, "shield emissivity") for e in shield_emissivities)
-        if max(sl,sr) > 1:
+        front, back = (decimal_input(e, "shield emissivity") for e in faces)
+        if max(front, back) > 1:
             raise ValueError("shield emissivities must be in [0,1]")
-        kl = gap_coefficient(area*constant, el, sl)
-        kr = gap_coefficient(area*constant, sr, er)
-        coefficient = kl*kr/(kl+kr) if kl+kr else Fraction(0)
+        shields.append((front, back))
+        gaps.append(gap_coefficient(area*constant, previous, front))
+        previous = back
+    gaps.append(gap_coefficient(area*constant, previous, er))
+    coefficient = 1/sum(1/k for k in gaps) if all(gaps) else Fraction(0)
     qlo = qhi = Fraction(0)
     support_g = (Fraction(0),)
     if support_inputs is not None:
@@ -90,21 +98,41 @@ def investigate(left_inputs, right_inputs, left_port, right_port, area_m2,
         lo, hi = map(Fraction, result[key])
         return max(hull_low,lo), min(hull_high,hi)
 
-    if shield_emissivities is not None:
-        result["schema"] = "sim_heat.offline_radiation_shield/1"
-        result["gap"].update(shieldLeftEmissivity=str(sl), shieldRightEmissivity=str(sr))
-        # At equilibrium Ts^4 is the coefficient-weighted mean of the two
-        # plate fourth powers. Both may be clipped to the physical open-temperature hull.
-        if kl+kr:
-            moments = [(kl*l**4+kr*r**4)/(kl+kr) for l,r in zip(
-                plate("leftPlateTemperatureBoundsK"), plate("rightPlateTemperatureBoundsK"), strict=True)]
-            result["shieldTemperatureBoundsK"] = fourth_root_bounds(*moments)
-            result["shieldTemperatureStatus"] = "bounded"
+    if shields:
+        left_plate = plate("leftPlateTemperatureBoundsK")
+        right_plate = plate("rightPlateTemperatureBoundsK")
+        breaks = [i for i, k in enumerate(gaps) if not k]
+        cumulative = Fraction(0)
+        records = []
+        for i, (front, back) in enumerate(shields):
+            if not breaks:
+                cumulative += 1/gaps[i]
+                weight = coefficient*cumulative
+                moments = [(1-weight)*l**4 + weight*r**4
+                           for l, r in zip(left_plate, right_plate, strict=True)]
+                bounds = fourth_root_bounds(*moments)
+            elif i < breaks[0]:
+                bounds = list(map(str, left_plate))
+            elif i >= breaks[-1]:
+                bounds = list(map(str, right_plate))
+            else:
+                bounds = None
+            records.append({"leftEmissivity": str(front), "rightEmissivity": str(back),
+                            "temperatureBoundsK": bounds,
+                            "temperatureStatus": "undetermined" if bounds is None else "bounded"})
+        if shield_stack is not None:
+            result["schema"] = "sim_heat.offline_radiation_shield_stack/1"
+            result["shieldsLeftToRight"] = records
         else:
-            result["shieldTemperatureBoundsK"] = None
-            result["shieldTemperatureStatus"] = "undetermined"
+            record, = records
+            result["schema"] = "sim_heat.offline_radiation_shield/1"
+            result["gap"].update(shieldLeftEmissivity=record["leftEmissivity"],
+                                 shieldRightEmissivity=record["rightEmissivity"])
+            result["shieldTemperatureBoundsK"] = record["temperatureBoundsK"]
+            result["shieldTemperatureStatus"] = record["temperatureStatus"]
     if support_inputs is not None:
-        result["schema"] = "sim_heat.offline_supported_radiative_gap/1"
+        result["schema"] = ("sim_heat.offline_supported_shield_stack/1" if shield_stack is not None
+                            else "sim_heat.offline_supported_radiative_gap/1")
         sources["support"] = {k: support[k] for k in ("modelSha256", "studySha256", "factsSha256")}
         result["supportTerminalsLeftToRight"] = support["terminals"]
         ll, lh = plate("leftPlateTemperatureBoundsK")
@@ -128,6 +156,7 @@ if __name__ == "__main__":
             parser.add_argument("--"+side+"-"+field, required=True)
     for field in ("left-port", "right-port", "area-m2", "left-emissivity", "right-emissivity", "sigma"):
         parser.add_argument("--"+field, required=True)
+    parser.add_argument('--shield', nargs=2, action='append', metavar=('LEFT','RIGHT'), help='repeat once per shield in left-to-right order')
     parser.add_argument('--shield-emissivities', nargs=2, metavar=('LEFT','RIGHT'))
     parser.add_argument("--support", nargs=4, metavar=("STUDY","ROOT","FACTS","SHA256"))
     args = vars(parser.parse_args())
@@ -135,4 +164,4 @@ if __name__ == "__main__":
         return tuple(args[side+"_"+s.replace("-", "_")] for s in fields)
     print(json.dumps(investigate(inputs("left"), inputs("right"), args["left_port"], args["right_port"],
                                  args["area_m2"], args["left_emissivity"], args["right_emissivity"],
-                                 args["sigma"], args["shield_emissivities"], args["support"]), indent=2))
+                                 args["sigma"], args["shield_emissivities"], args["support"], shield_stack=args["shield"]), indent=2))

@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts]
 permissions:
   contents: read
 jobs:
@@ -69,7 +69,8 @@ jobs:
       (github.base_ref == 'codex/furnace-wall-lesson' && github.head_ref == 'codex/infer-wall-contact') ||
       (github.base_ref == 'codex/infer-wall-contact' && github.head_ref == 'codex/furnace-material-controls') ||
       (github.base_ref == 'codex/furnace-material-controls' && github.head_ref == 'codex/infer-layer-conductivity') ||
-      (github.base_ref == 'codex/infer-layer-conductivity' && github.head_ref == 'codex/probed-wall-contacts')
+      (github.base_ref == 'codex/infer-layer-conductivity' && github.head_ref == 'codex/probed-wall-contacts') ||
+      (github.base_ref == 'codex/probed-wall-contacts' && github.head_ref == 'codex/radiation-shield-stack')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -492,6 +493,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_probed_wall_contacts tests.test_infer_wall_contact
           python -B -m tools.probed_wall_contacts --left-k 420 --right-k 270 --probe-after 2 --probe-k 360 --min-w 40 --max-w 40 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 300 0 --contact '?' --contact 0 --contact '?' > probed-wall-contacts.json
+      - name: Replay ordered radiation shields on conducting walls
+        if: github.head_ref == 'codex/radiation-shield-stack'
+        run: |
+          python -B -m unittest -v tests.test_shield_stack tests.test_supported_radiative_gap tests.test_radiation_shield tests.test_radiative_gap
+          python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 1 --right-emissivity 1 --sigma 0.0000000567 --shield 1 1 --shield 1 1 > shield-stack.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -561,3 +567,4 @@ jobs:
             inferred-wall-contact.json
             inferred-layer-conductivity.json
             probed-wall-contacts.json
+            shield-stack.json
