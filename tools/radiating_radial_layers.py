@@ -12,13 +12,18 @@ from tools.terminal_response import investigate as terminal_response
 
 def investigate(inputs, port, inner_radius_m, layers, enclosure_k, emissivity, sigma,
                 cylinder_length_m=None, *, radius_sensitivity=False):
+    return solve(terminal_response(*inputs), port, inner_radius_m, layers, enclosure_k, emissivity,
+                 sigma, cylinder_length_m, radius_sensitivity=radius_sensitivity)
+
+
+def solve(law, port, inner_radius_m, layers, enclosure_k, emissivity, sigma,
+          cylinder_length_m=None, *, radius_sensitivity=False):
     environment = decimal_input(enclosure_k, "enclosure temperature")
     eps = decimal_input(emissivity, "emissivity")
     constant = decimal_input(sigma, "Stefan-Boltzmann constant")
     if eps > 1 or constant <= 0:
         raise ValueError("positive sigma and emissivity in [0,1] required")
     shell = prepare_layers(inner_radius_m, layers, cylinder_length_m)
-    law = terminal_response(*inputs)
     open_bounds, port_bounds = physical_port(law, port)
     port_resistance = Box.bounds(*port_bounds)
     total = port_resistance + shell.resistances[-1]
@@ -70,6 +75,52 @@ def investigate(inputs, port, inner_radius_m, layers, enclosure_k, emissivity, s
     return result
 
 
+def turning_radius(inputs, port, inner_radius_m, layers, enclosure_k, emissivity, sigma,
+                   cylinder_length_m, upper_radius_m):
+    law = terminal_response(*inputs)
+    def evaluate(stack):
+        return solve(law, port, inner_radius_m, stack, enclosure_k, emissivity, sigma,
+                     cylinder_length_m, radius_sensitivity=True)
+
+    lower = evaluate(layers)
+    lower_m = Fraction(lower["layers"][-1]["outerRadiusM"])
+    upper_m = decimal_input(upper_radius_m, "upper search radius")
+    if upper_m <= lower_m:
+        raise ValueError("upper search radius must exceed the starting outer radius")
+    base_layers = list(layers[:-1])
+    conductivity = layers[-1][1]
+    upper = evaluate([*base_layers,(upper_radius_m,conductivity)])
+    def trend(result):
+        return result["outerRadiusSensitivity"]["heatRateMagnitudeTrend"]
+    if {trend(lower),trend(upper)} != {"increasing","decreasing"}:
+        raise ValueError("resolved opposite heat-rate magnitude trends required")
+
+    # The public grammar accepts 18 decimal places. Integer arithmetic keeps
+    # every query on this grid, while preserving the two certified endpoint signs.
+    scale = 10**18
+    a, b = int(lower_m*scale), int(upper_m*scale)
+    reason = "iteration_limit"
+    for _ in range(64):
+        tick = (a+b)//2
+        if tick == a:
+            reason = "decimal_resolution"
+            break
+        radius = f"{tick//scale}.{tick%scale:018d}"
+        mid = evaluate([*base_layers,(radius,conductivity)])
+        if trend(mid) == trend(lower):
+            a, lower = tick, mid
+        elif trend(mid) == trend(upper):
+            b, upper = tick, mid
+        else:
+            reason = "midpoint_trend_unresolved"
+            break
+    return {"schema": "sim_heat.offline_insulation_turning_radius/1",
+            "searchRadiusBoundsM": [str(lower_m),str(upper_m)],
+            "turningRadiusBoundsM": [str(Fraction(a,scale)),str(Fraction(b,scale))],
+            "extremumWithinBracket": "maximum" if trend(lower) == "increasing" else "minimum",
+            "termination": reason, "lowerEndpoint": lower, "upperEndpoint": upper}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("study","root","facts","facts-sha256","port","inner-radius-m","enclosure-k","emissivity","sigma"):
@@ -77,7 +128,12 @@ if __name__ == "__main__":
     parser.add_argument("--cylinder-length-m")
     parser.add_argument("--layer", nargs=2, action="append", required=True, metavar=("OUTER_RADIUS_M","K_W_PER_M_K"))
     parser.add_argument("--radius-sensitivity", action="store_true")
+    parser.add_argument("--bracket-to-radius-m", help="bound an extremum using opposite endpoint slopes")
     args = parser.parse_args()
-    print(json.dumps(investigate((args.study,args.root,args.facts,args.facts_sha256),args.port,
-                                 args.inner_radius_m,args.layer,args.enclosure_k,args.emissivity,
-                                 args.sigma,args.cylinder_length_m, radius_sensitivity=args.radius_sensitivity),indent=2))
+    inputs = ((args.study,args.root,args.facts,args.facts_sha256),args.port,args.inner_radius_m,
+              args.layer,args.enclosure_k,args.emissivity,args.sigma,args.cylinder_length_m)
+    if args.bracket_to_radius_m is None:
+        result = investigate(*inputs,radius_sensitivity=args.radius_sensitivity)
+    else:
+        result = turning_radius(*inputs,args.bracket_to_radius_m)
+    print(json.dumps(result,indent=2))
