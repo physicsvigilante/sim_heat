@@ -1,7 +1,7 @@
 name: H1 general conduction offline replay
 on:
   pull_request:
-    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time]
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows]
 
 permissions:
   contents: read
@@ -40,7 +40,8 @@ jobs:
       (github.base_ref == 'codex/coupled-phase-baths' && github.head_ref == 'codex/phase-bath-equilibrium') ||
       (github.base_ref == 'codex/phase-bath-equilibrium' && github.head_ref == 'codex/phase-transfer-time') ||
       (github.base_ref == 'codex/phase-transfer-time' && github.head_ref == 'codex/phase-state-at-time') ||
-      (github.base_ref == 'codex/phase-state-at-time' && github.head_ref == 'codex/phase-branch-flows')
+      (github.base_ref == 'codex/phase-state-at-time' && github.head_ref == 'codex/phase-branch-flows') ||
+      (github.base_ref == 'codex/phase-branch-flows' && github.head_ref == 'codex/phase-short-interval')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

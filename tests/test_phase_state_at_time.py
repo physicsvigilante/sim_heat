@@ -59,3 +59,20 @@ class StateAtTimeTests(TestCase):
         self.assertLess(hi - lo, Fraction(1, 10**12))
         self.assertEqual(state["baths"]["cold"]["temperatureBoundsK"], ["5463/20"] * 2)
         self.assertEqual(state["baths"]["hot"]["liquidMassBoundsKg"], ["0"] * 2)
+
+    def test_short_horizon_after_tiny_latent_inventories(self):
+        hot = ("hot", "331", "1", "999999999999", "0.1")
+        cold = ("cold", "301", "1", "0.1", "999999999999")
+        cp = ("999999999999", "999999999999")
+        output = investigate(LINK, hot, cold, "1", cp, track_duration=True)
+        low, high = map(Fraction, output["stateAtDuration"]["transferredEnergyMagnitudeBoundsJ"])
+        # The 60 W initial rate lasts 1/600 s, then two equal capacities relax.
+        with mp.workdps(110):
+            capacity = mp.mpf("999999999999.1") * mp.mpf(cp[0])
+            elapsed = 1 - 1 / mp.mpf(600)
+            energy = mp.mpf("0.1") - 15 * capacity * mp.expm1(-4 * elapsed / capacity)
+            exact = Fraction(mp.nstr(energy, 95))
+        self.assertLessEqual(low, exact)
+        self.assertLessEqual(exact, high)
+        self.assertLessEqual(high, 60)
+        self.assertLess(high - low, Fraction(1, 10**15))

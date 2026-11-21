@@ -144,14 +144,14 @@ def passage_at_energy(left, right, conductance, final, target):
 def state_at_time(left, right, conductance, final, horizon):
     hot, cold = sorted((left, right), key=lambda row: row[1], reverse=True)
     maximum = -Fraction(final["baths"][hot[0]]["energyIntoBathJ"])
-    low = Fraction(0)
-    high = maximum
+    # The temperature drive only decreases, so even after a phase transition
+    # the initial rate times the elapsed duration bounds the transferred energy.
     rate = conductance * (hot[1] - cold[1])
     rate_low, rate_high = rate.span()
+    high = min(maximum, horizon * rate_high)
     plateau_budget = min(hot[2] * hot[4], cold[2] * cold[3])
-    if horizon * rate_high <= plateau_budget:
-        low, high = horizon * rate_low, horizon * rate_high
-    else:
+    low = min(plateau_budget, horizon * rate_low)
+    if horizon * rate_high > plateau_budget:
         # Monotone passage time brackets the energy even near asymptotic equilibrium.
         for _ in range(64):
             trial = (low + high) / 2
