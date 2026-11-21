@@ -23,3 +23,9 @@ In the archived experiment a 100 J/K body initially at 360 K stays on a 2 W/K ro
 A 100 J/K body on the 380 K, 2 W/K wall is observed at 430 K, 410 K and 400 K, each 20 seconds apart. Assume constant heat capacity, constant film coefficient, fixed baths and negligible radiation. The successive changes are −20 K and −10 K, so the temperature excess halves every interval. The effective equilibrium is 390 K, the sum of the continuing geometric series. The combined conductance is (100/20) ln(2) W/K.
 
 Subtract the known wall conductance to find the air-film conductance. For area 0.5 m², h = 2[5 ln(2) − 2] W/(m² K). At equilibrium the air must replace the heat flowing to the 380 K wall. Its temperature is 390 + 20/[5 ln(2) − 2] kelvin. The three_reading_cooling CLI accepts the measured temperatures in chronological order. Its reported intervals bound the logarithm and the source-network response for exact inputs; the model does not assign measurement error to the three readings.
+
+## Transferring the calibration to a different wall
+
+Keep the same air temperature and heat-transfer coefficient while changing the conducting network, body heat capacity, or air-exposed area. With the new port's source temperature and resistance, the equilibrium follows from steady heat balance and the time constant from C/(G_wall + hA). The calibrated_wall_cooling CLI returns bounds for the equilibrium, time constant, half-life and temperature at a specified elapsed time. Both the original calibration and the new network retain their own source pins.
+
+For the original apparatus, the 430, 410 and 400 K readings predict **395 K at 60 s**, one reading interval beyond the data used for the fit. The archived transfer instead attaches a 150 J/K body to the middle port of a three-terminal star and exposes 1 m² to the same air. This assumes the change of apparatus preserves the film coefficient and uniform air temperature.
