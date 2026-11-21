@@ -1,7 +1,7 @@
 name: H1 general conduction offline replay
 on:
   pull_request:
-    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time]
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows]
 
 permissions:
   contents: read
@@ -58,7 +58,8 @@ jobs:
       (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson') ||
       (github.base_ref == 'codex/wall-reversal-lesson' && github.head_ref == 'codex/nonlinear-radiating-wall') ||
       (github.base_ref == 'codex/nonlinear-radiating-wall' && github.head_ref == 'codex/radiating-body-time') ||
-      (github.base_ref == 'codex/radiating-body-time' && github.head_ref == 'codex/wall-lesson-flows')
+      (github.base_ref == 'codex/radiating-body-time' && github.head_ref == 'codex/wall-lesson-flows') ||
+      (github.base_ref == 'codex/wall-lesson-flows' && github.head_ref == 'codex/radiating-body-energy')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

@@ -10,7 +10,7 @@ from tools.terminal_response import investigate as terminal_response
 
 
 def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
-                capacity_j_per_k, initial_k, target_k):
+                capacity_j_per_k, initial_k, target_k, *, track_energy=False):
     capacity = decimal_input(capacity_j_per_k, "heat capacity")
     start = decimal_input(initial_k, "initial temperature")
     target = decimal_input(target_k, "target temperature")
@@ -32,10 +32,13 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
             raise ValueError("inconsistent passive network coupling")
         couplings.append((material.potential(bath), max(0, -high), -low))
 
+    def radiation(t):
+        return area*eps*constant*(env-t)*(env+t)*(env*env+t*t)
+
     def directed_power(t):
         # Response rows sum to zero. Temperature differences also preserve exact equilibrium.
         value = material.potential(t)
-        low = high = area*eps*constant*(env-t)*(env+t)*(env*env+t*t)
+        low = high = radiation(t)
         for bath, gmin, gmax in couplings:
             endpoints = (gmin*(bath-value), gmax*(bath-value))
             low += min(endpoints)
@@ -49,7 +52,11 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
             "initialTemperatureK": str(start), "targetTemperatureK": str(target),
             **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
                                    "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    if track_energy:
+        data["energyToBodyBoundsJ"] = None
     if target == start:
+        if track_energy:
+            data["energyToBodyBoundsJ"] = {"radiation": ["0", "0"], "conduction": ["0", "0"]}
         return {**data, "status": "already_at_target", "timeBoundsS": ["0", "0"]}
     end_low, end_high = directed_power(target)
     if end_high <= 0:
@@ -66,11 +73,28 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     quantum = 10**18
     previous_high = directed_power(start)[1]
     lower_ticks = upper_ticks = 0
+    rad_low_ticks = rad_high_ticks = 0
+    previous_rad = radiation(start)
     for i in range(1, panels+1):
         low, high = directed_power(start+i*step)
         lower_ticks += math.floor(quantum*energy/previous_high)
         upper_ticks += math.ceil(quantum*energy/low)
+        if track_energy:
+            current_rad = radiation(start+i*step)
+            # Radiation is monotone in temperature, including across a sign change.
+            # Combining both power endpoints with both residence-time bounds
+            # also encloses panels on which radiation opposes the net heat flow.
+            products = [p*energy/denom for p in (previous_rad, current_rad)
+                        for denom in (previous_high, low)]
+            rad_low_ticks += math.floor(quantum*min(products))
+            rad_high_ticks += math.ceil(quantum*max(products))
+            previous_rad = current_rad
         previous_high = high
+    if track_energy:
+        rad_low, rad_high = (Fraction(ticks, quantum) for ticks in (rad_low_ticks, rad_high_ticks))
+        stored = capacity*(target-start)
+        data["energyToBodyBoundsJ"] = {"radiation": [str(rad_low), str(rad_high)],
+                                      "conduction": [str(stored-rad_high), str(stored-rad_low)]}
     return {**data, "status": "reached", "bodyEnergyChangeJ": str(capacity*(target-start)),
             "timeBoundsS": [str(Fraction(v, quantum)) for v in (lower_ticks, upper_ticks)]}
 
@@ -81,6 +105,7 @@ if __name__ == "__main__":
               "enclosure-k", "area-m2", "emissivity", "sigma", "capacity-j-per-k", "initial-k", "target-k")
     for field in fields:
         parser.add_argument("--"+field, required=True)
+    parser.add_argument('--track-energy', action='store_true')
     args = vars(parser.parse_args())
     values = [args[field.replace("-", "_")] for field in fields]
-    print(json.dumps(investigate(values[:4], *values[4:]), indent=2))
+    print(json.dumps(investigate(values[:4], *values[4:], track_energy=args["track_energy"]), indent=2))
