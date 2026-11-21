@@ -13,6 +13,10 @@ from pathlib import Path
 import sys
 from urllib.parse import urlsplit
 
+ROOT = Path(__file__).resolve().parents[1]
+if __package__ in (None, ''):
+    sys.path.insert(0, str(ROOT))
+
 from h1.model import Refusal, require
 from h1.source_preview import build_source_preview, serialized
 from h1.study import load_study
