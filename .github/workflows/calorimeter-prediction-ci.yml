@@ -1,7 +1,7 @@
-name: Offline calorimeter predictions
+name: Offline thermal engine and viewer regressions
 on:
   pull_request:
-    branches: [codex/portable-workbench-launch, codex/correlated-bath-prediction, codex/interior-rod-probe, codex/three-thermometer-rod, codex/radiating-wall-probe, codex/frozen-reference-checkout, codex/radial-air-film]
+    branches: [main, 'codex/**']
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,13 @@ jobs:
           mkdir -p evidence
           git rev-parse HEAD > evidence/head.txt
           python -B -m unittest discover -s tests -v 2>&1 | tee evidence/regression.log
+      - name: Run H1, analytical and viewer regression suites
+        run: |
+          set -o pipefail
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee evidence/h1.log
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee evidence/analytical.log
+          python -B -m unittest discover -s viewer/network/tests -v 2>&1 | tee evidence/adapter.log
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/*.test.mjs 2>&1 | tee evidence/viewer.log
       - name: Replay three-bath calorimetry
         run: python -B -m tools.two_heater_calorimetry --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --heaters first second --bath warm 21 23 --bath middle -58 -56 --predict > evidence/prediction.json
       - name: Replay interior rod probe
@@ -38,6 +45,7 @@ jobs:
       - name: Calibrate a film from an outer surface thermometer
         run: python -B -m tools.radial_film_calibration --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --surface-k 359 361 --air-k 450 --enclosure-k 280 --emissivity 0.8 --sigma 0.0000000567 > evidence/radial-film-calibration.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: calorimeter-${{ github.event.pull_request.head.sha }}
           path: evidence/
