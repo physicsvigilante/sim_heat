@@ -23,3 +23,9 @@ In the example above, heat only the facing at 320 W. Half the generated power re
 Keep the facing's uniform generation at 320 W and the inner bath at 380 K. Replace the outer bath with 0.2 m² of black surface facing a 300 K enclosure, in 450 K air with h = 13.5 W/(m² K). At 400 K the surface radiates 175 W and receives 135 W from the air. Its 40 W net loss is supplied by the conducting wall. The inner bath absorbs the remaining 280 W of internal generation.
 
 The powered_wall_surface CLI combines the source-pinned terminal response, the distribution of generated power, and the surface balance. With the optional profiles flag it propagates the released surface temperature into every junction and rod. In this example the inner junction is at 410 K. The facing reaches **410.625 K seven eighths of the way from the 380 K bath to that junction**. Using the original cold-bath temperature in the profile calculation would put the maximum at the wrong end of the rod.
+
+## Measuring an unknown heater through the wall
+
+Keep the same surface conditions and measure 400 K. The surface loses 40 W net to air and radiation, while a passive surface held at that temperature would send another 40 W into the wall. At fixed surface temperature the buried sources must therefore contribute 80 W toward that surface.
+
+Only one quarter of heat generated in the facing goes to this port. With no other heater, its power is 80/(1/4) = 320 W. If the insert is independently known to generate 80 W, it already contributes 60 W toward the port. The inferred facing power drops to **80 W**. The infer_rod_power CLI can take a lower and upper thermometer reading and bounds the resulting power. It refuses an inference when the measured port has no resolved sensitivity to the chosen rod.
