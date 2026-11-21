@@ -1,0 +1,207 @@
+{
+  "exports.amber.C": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "J/K"
+  },
+  "exports.amber.Q_in": {
+    "maxAbsWithGuard": 1.3992798445998612e-14,
+    "maxRatioToOriginalOnePercent": 8.182923067835446e-09,
+    "unit": "W"
+  },
+  "exports.amber.T": {
+    "maxAbsWithGuard": 2.839017003192769e-14,
+    "maxRatioToOriginalOnePercent": 4.84199329962475e-08,
+    "unit": "K"
+  },
+  "exports.amber.dU": {
+    "maxAbsWithGuard": 2.2725872658051837e-13,
+    "maxRatioToOriginalOnePercent": 5.800385167410566e-09,
+    "unit": "J"
+  },
+  "exports.bath.Q_to_network": {
+    "maxAbsWithGuard": 1.7744145140971173e-15,
+    "maxRatioToOriginalOnePercent": 8.449592924271988e-09,
+    "unit": "W"
+  },
+  "exports.bath.T": {
+    "maxAbsWithGuard": 1e-65,
+    "maxRatioToOriginalOnePercent": 9.09090909090909e-59,
+    "unit": "K"
+  },
+  "exports.blue.C": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "J/K"
+  },
+  "exports.blue.Q_in": {
+    "maxAbsWithGuard": 1.3925049592831881e-14,
+    "maxRatioToOriginalOnePercent": 9.221887147570782e-09,
+    "unit": "W"
+  },
+  "exports.blue.T": {
+    "maxAbsWithGuard": 2.841867984288535e-14,
+    "maxRatioToOriginalOnePercent": 6.612628700807474e-08,
+    "unit": "K"
+  },
+  "exports.blue.dU": {
+    "maxAbsWithGuard": 1.1357723865069553e-13,
+    "maxRatioToOriginalOnePercent": 3.813130672882084e-09,
+    "unit": "J"
+  },
+  "exports.feed.G": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "W/K"
+  },
+  "exports.feed.Q_flow": {
+    "maxAbsWithGuard": 1.7744145140971173e-15,
+    "maxRatioToOriginalOnePercent": 8.449592924271988e-09,
+    "unit": "W"
+  },
+  "exports.feed.T_a": {
+    "maxAbsWithGuard": 1e-65,
+    "maxRatioToOriginalOnePercent": 9.09090909090909e-59,
+    "unit": "K"
+  },
+  "exports.feed.T_b": {
+    "maxAbsWithGuard": 2.8421653641136672e-14,
+    "maxRatioToOriginalOnePercent": 1.9842918073322446e-07,
+    "unit": "K"
+  },
+  "exports.feed.port_a.Q_flow": {
+    "maxAbsWithGuard": 1.7744145140971173e-15,
+    "maxRatioToOriginalOnePercent": 8.449592924271988e-09,
+    "unit": "W"
+  },
+  "exports.feed.port_b.Q_flow": {
+    "maxAbsWithGuard": 1.7744145140971173e-15,
+    "maxRatioToOriginalOnePercent": 8.449592924271988e-09,
+    "unit": "W"
+  },
+  "exports.link.G": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "W/K"
+  },
+  "exports.link.Q_flow": {
+    "maxAbsWithGuard": 7.068025259554677e-15,
+    "maxRatioToOriginalOnePercent": 8.72595711056133e-09,
+    "unit": "W"
+  },
+  "exports.link.T_a": {
+    "maxAbsWithGuard": 2.841867984288535e-14,
+    "maxRatioToOriginalOnePercent": 6.612628700807474e-08,
+    "unit": "K"
+  },
+  "exports.link.T_b": {
+    "maxAbsWithGuard": 2.839017003192769e-14,
+    "maxRatioToOriginalOnePercent": 4.84199329962475e-08,
+    "unit": "K"
+  },
+  "exports.link.port_a.Q_flow": {
+    "maxAbsWithGuard": 7.068025259554677e-15,
+    "maxRatioToOriginalOnePercent": 8.72595711056133e-09,
+    "unit": "W"
+  },
+  "exports.link.port_b.Q_flow": {
+    "maxAbsWithGuard": 7.068025259554677e-15,
+    "maxRatioToOriginalOnePercent": 8.72595711056133e-09,
+    "unit": "W"
+  },
+  "exports.lower.G": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "W/K"
+  },
+  "exports.lower.Q_flow": {
+    "maxAbsWithGuard": 7.0848750875719636e-15,
+    "maxRatioToOriginalOnePercent": 9.978697306439385e-09,
+    "unit": "W"
+  },
+  "exports.lower.T_a": {
+    "maxAbsWithGuard": 2.8421653641136672e-14,
+    "maxRatioToOriginalOnePercent": 1.9842918073322446e-07,
+    "unit": "K"
+  },
+  "exports.lower.T_b": {
+    "maxAbsWithGuard": 2.841867984288535e-14,
+    "maxRatioToOriginalOnePercent": 6.612628700807474e-08,
+    "unit": "K"
+  },
+  "exports.lower.port_a.Q_flow": {
+    "maxAbsWithGuard": 7.0848750875719636e-15,
+    "maxRatioToOriginalOnePercent": 9.978697306439385e-09,
+    "unit": "W"
+  },
+  "exports.lower.port_b.Q_flow": {
+    "maxAbsWithGuard": 7.0848750875719636e-15,
+    "maxRatioToOriginalOnePercent": 9.978697306439385e-09,
+    "unit": "W"
+  },
+  "exports.upper.G": {
+    "maxAbsWithGuard": 0.0,
+    "maxRatioToOriginalOnePercent": 0.0,
+    "unit": "W/K"
+  },
+  "exports.upper.Q_flow": {
+    "maxAbsWithGuard": 6.7874802354713124e-15,
+    "maxRatioToOriginalOnePercent": 7.458769489528914e-09,
+    "unit": "W"
+  },
+  "exports.upper.T_a": {
+    "maxAbsWithGuard": 2.839017003192769e-14,
+    "maxRatioToOriginalOnePercent": 4.84199329962475e-08,
+    "unit": "K"
+  },
+  "exports.upper.T_b": {
+    "maxAbsWithGuard": 2.8421653641136672e-14,
+    "maxRatioToOriginalOnePercent": 1.9842918073322446e-07,
+    "unit": "K"
+  },
+  "exports.upper.port_a.Q_flow": {
+    "maxAbsWithGuard": 6.7874802354713124e-15,
+    "maxRatioToOriginalOnePercent": 7.458769489528914e-09,
+    "unit": "W"
+  },
+  "exports.upper.port_b.Q_flow": {
+    "maxAbsWithGuard": 6.7874802354713124e-15,
+    "maxRatioToOriginalOnePercent": 7.458769489528914e-09,
+    "unit": "W"
+  },
+  "integrals.amber.Q_in": {
+    "maxAbsWithGuard": 2.2725872658051837e-13,
+    "maxRatioToOriginalOnePercent": 5.800385167410566e-09,
+    "unit": "J"
+  },
+  "integrals.bath.Q_to_network": {
+    "maxAbsWithGuard": 1.0952169860943162e-13,
+    "maxRatioToOriginalOnePercent": 5.375040458340195e-09,
+    "unit": "J"
+  },
+  "integrals.blue.Q_in": {
+    "maxAbsWithGuard": 1.1357723865069553e-13,
+    "maxRatioToOriginalOnePercent": 3.813130672882084e-09,
+    "unit": "J"
+  },
+  "requests.blueGain": {
+    "maxAbsWithGuard": 1.1357723865069553e-13,
+    "maxRatioToOriginalOnePercent": 3.813130672882084e-09,
+    "unit": "J"
+  },
+  "requests.joint": {
+    "maxAbsWithGuard": 2.8421653641136672e-14,
+    "maxRatioToOriginalOnePercent": 1.9842918073322446e-07,
+    "unit": "K"
+  },
+  "requests.lowerFlow": {
+    "maxAbsWithGuard": 7.0848750875719636e-15,
+    "maxRatioToOriginalOnePercent": 9.978697306439385e-09,
+    "unit": "W"
+  },
+  "requests.separation": {
+    "maxAbsWithGuard": 7.068025259554677e-15,
+    "maxRatioToOriginalOnePercent": 7.853361399505197e-09,
+    "unit": "K"
+  }
+}
