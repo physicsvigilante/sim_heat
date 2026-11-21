@@ -1,12 +1,13 @@
-h1/cases/S1/model.mo text eol=lf
-h1/cases/S1/study.json text eol=lf
+# These checked-in inputs and products are verified by their exact bytes.
+h1/cases/*/model.mo text eol=lf
+h1/cases/*/study.json text eol=lf
+viewer/network/data/*.json text eol=lf
+viewer/source_preview/data/*.json text eol=lf
+docs/CAPABILITIES.md text eol=lf
+docs/CAPABILITIES.html text eol=lf
+docs/AUTHORING.md text eol=lf
+docs/AUTHORING.html text eol=lf
 h1/reference_cases/S1.json text eol=lf
-h1/cases/D1/model.mo text eol=lf
-h1/cases/D1/study.json text eol=lf
 h1/reference_cases/D1.json text eol=lf
-h1/cases/D2/model.mo text eol=lf
-h1/cases/D2/study.json text eol=lf
 h1/reference_cases/D2.json text eol=lf
-h1/cases/D2_K2/model.mo text eol=lf
-h1/cases/D2_K2/study.json text eol=lf
 h1/reference_cases/D2_K2.json text eol=lf
