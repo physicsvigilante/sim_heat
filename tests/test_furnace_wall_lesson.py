@@ -16,3 +16,19 @@ class FurnaceReplayTests(TestCase):
             with self.subTest(contact=contact), patch.object(lesson, "investigate", changed):
                 with self.assertRaisesRegex(ValueError, "signed rod flow"):
                     lesson.replay()
+
+    def test_material_and_contact_substitutions(self):
+        original = lesson.investigate
+        for mutation in ("flat", "wrong_contact", "forged_slopes"):
+            def changed(layers, contacts, *args, **kwargs):
+                substituted = [(v[0], v[1], v[2], "0") for v in layers]
+                result = original(layers if mutation == "wrong_contact" else substituted, contacts, *args, **kwargs)
+                if mutation == "wrong_contact" and contacts == ["0"]:
+                    result["contactResistancesKPerW"] = ["7"]
+                if mutation == "forged_slopes":
+                    for record, layer in zip(result["layers"], layers):
+                        record["relativeSlopePerK"] = str(lesson.Fraction(layer[3]))
+                return result
+            with self.subTest(mutation=mutation), patch.object(lesson, "investigate", changed):
+                with self.assertRaises(ValueError):
+                    lesson.replay()

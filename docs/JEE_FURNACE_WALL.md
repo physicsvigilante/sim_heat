@@ -35,3 +35,9 @@ With zero contact resistance, Tₛ = 610 − q. Substituting this in the radiati
 Run `python -B -m tools.furnace_wall_lesson` from the repository root. The output includes the original calculation, the repaired contact and a third case with temperature-dependent rods. Each case reports face temperatures and signed rod flows.
 
 In the third case all rod conductivities in the first panel increase linearly by 0.001 of their reference values per kelvin above 566.25 K. Those in the second panel decrease by the same fraction per kelvin above 443.75 K. These reference temperatures are the arithmetic means of the panel face temperatures in the table. Integrating a linear conductivity over that interval therefore gives exactly the reference conductivity times the temperature difference. The same 175 W and the same four panel-face temperatures satisfy the steady balances, even though the temperature profiles inside individual rods can change.
+
+### Can the same heat loss hide different panel drops?
+
+Keep the 0.20 K/W contact. Give the first panel a relative conductivity slope of +0.0025/K at 285 K and the second a slope of −0.002/K at 312.5 K. The fourth replay case predicts 610 → 560 K across the first panel, 560 → 525 K across the contact, and 525 → 400 K across the second panel.
+
+Check each solid at its mean face temperature. At 585 K the first conductivity factor is 1.75, giving 2 × 1.75 × 50 = 175 W. At 462.5 K the second factor is 0.70, giving 2 × 0.70 × 125 = 175 W. The 35 K contact drop and 400 K radiating surface still carry 175 W. Measuring only total heat loss would miss the redistribution between the panels.
