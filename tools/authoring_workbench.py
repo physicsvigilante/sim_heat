@@ -21,7 +21,6 @@ from h1.model import Refusal, require
 from h1.source_preview import build_source_preview, serialized
 from h1.study import load_study
 
-ROOT = Path(__file__).resolve().parents[1]
 VIEW = ROOT / 'viewer' / 'source_preview'
 DEFAULT_ROUTE = '/viewer/source_preview/data/TEACH_SPLIT3.json'
 
