@@ -6,6 +6,26 @@ from tools.composite_layer_stack import prepare_layers
 from tools.radiating_surface import decimal_input
 
 
+def walk_to_face(prepared, gaps, indices, bath, q, cold, hot):
+    # Walk inward from a measured bath, across every known resistance on that side.
+    sign = 1 if bath == cold else -1
+    lo = hi = bath
+    for n, i in enumerate(indices):
+        material, (glo, ghi), _ = prepared[i]
+        delta = sorted((sign*q/glo, sign*q/ghi))
+        a = material.potential(lo)+delta[0]
+        b = material.potential(hi)+delta[1]
+        if a < 0 or b > material.potential(hot):
+            raise ValueError("measured rate exceeds the certified layer temperature range")
+        lo, hi = material.inverse(a, hot, False), material.inverse(b, hot, True)
+        if n+1 < len(indices):
+            drop = sign*q*gaps[min(i, indices[n+1])]
+            lo, hi = lo+drop, hi+drop
+            if lo < cold or hi > hot:
+                raise ValueError("known contact drop exceeds the available temperature difference")
+    return lo, hi
+
+
 def investigate(layers, contacts, left_k, right_k, min_w, max_w):
     left, right = (decimal_input(x, "bath temperature") for x in (left_k, right_k))
     cold, hot = sorted((left, right))
@@ -18,30 +38,11 @@ def investigate(layers, contacts, left_k, right_k, min_w, max_w):
     gaps = [None if x == "?" else decimal_input(x, "contact resistance") for x in contacts]
     prepared, sources = prepare_layers(layers, cold, hot)
 
-    def face(indices, bath, q):
-        # Walk inward from a measured bath, across every known resistance on that side.
-        sign = 1 if bath == cold else -1
-        lo = hi = bath
-        for n, i in enumerate(indices):
-            material, (glo, ghi), _ = prepared[i]
-            delta = sorted((sign*q/glo, sign*q/ghi))
-            a = material.potential(lo)+delta[0]
-            b = material.potential(hi)+delta[1]
-            if a < 0 or b > material.potential(hot):
-                raise ValueError("measured rate exceeds the certified layer temperature range")
-            lo, hi = material.inverse(a, hot, False), material.inverse(b, hot, True)
-            if n+1 < len(indices):
-                drop = sign*q*gaps[min(i, indices[n+1])]
-                lo, hi = lo+drop, hi+drop
-                if lo < cold or hi > hot:
-                    raise ValueError("known contact drop exceeds the available temperature difference")
-        return lo, hi
-
     candidates = []
     left_faces, right_faces = [], []
     for q in (qlo, qhi):
-        lf = face(range(cut+1), left, q)
-        rf = face(range(len(layers)-1, cut, -1), right, q)
+        lf = walk_to_face(prepared, gaps, range(cut+1), left, q, cold, hot)
+        rf = walk_to_face(prepared, gaps, range(len(layers)-1, cut, -1), right, q, cold, hot)
         left_faces.extend(lf)
         right_faces.extend(rf)
         warm, cool = (lf, rf) if left > right else (rf, lf)
