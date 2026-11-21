@@ -13,3 +13,15 @@ python -B -m tools.latent_heat_bath --root studies/composite_wall --study studie
 The offline observer replaces the selected maintained terminal with the hypothetical phase bath. All other maintained temperatures and the conductor network come from the pinned study. Positive heat into the bath melts solid. Negative heat freezes liquid until it runs out. At exactly zero inflow the phases coexist indefinitely in this model. Both initial phase masses and the latent heat must be positive. A rate interval spanning both signs produces a refusal. A requested time inside the exhaustion-time interval is reported as uncertain, with conservative bounds on the inventory and modeled duration.
 
 This is a lumped, perfectly mixed, constant-pressure phase-equilibrium example. Wall properties, geometry and contact resistance stay fixed, and there is no heat loss to any other system. It assumes the wall is already in its steady conduction regime. The model ends at depletion of the first phase.
+
+## When will the meltwater reach 20 °C?
+
+Once the last ice melts, all 0.600 kg of liquid can warm. Use constant liquid specific heat 4,200 J/(kg K) and a target of 293.15 K. The wall rate falls as the temperature difference falls. The water needs **50,400 J** after melting, in addition to **167,000 J** for the original ice. A separate target-time observer follows both stages under the same maintained-bath temperatures.
+
+Let To be the backing network's open-port temperature and R its resistance seen from the phase bath. With final mass M and specific heat c the single-phase temperature obeys Mc dT/dt = (To − T)/R. Integrating from the transition temperature Tm to target T gives the additional time RMc ln[(To − Tm)/(To − T)]. For the worked example the phase transition takes **781.47 s**, the liquid then warms for **261.13 s**, and the target is reached at **1042.60 s** from the start.
+
+~~~sh
+python -B -m tools.phase_bath_target --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --final-specific-heat-j-per-kg-k 4200 --target-k 293.15
+~~~
+
+The same calculation covers a liquid that finishes freezing and then cools, using the solid's specific heat. Targets must be beyond the transition in the direction of heat transfer and strictly before the open-port equilibrium. The hypothetical bath remains lumped and perfectly mixed, with constant properties and no further phase transitions on the chosen path.
