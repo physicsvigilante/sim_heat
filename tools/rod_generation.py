@@ -15,6 +15,10 @@ def bounds(box):
 
 def investigate(study, root, facts_path, facts_sha256, rod_powers, *, profiles=False):
     facts, candidate, net = prepare_steady_network(study, root, facts_path, facts_sha256)
+    return generation_from_network(facts, candidate, net, rod_powers, profiles=profiles)
+
+
+def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False):
     sources = {}
     for name, watts in rod_powers:
         if name not in facts["rods"] or name in sources:

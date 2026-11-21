@@ -17,3 +17,9 @@ With `--profiles`, the same experiment reconstructs loaded junction temperatures
 Here P is the uniform total heat generation and G = kA/L. The quadratic term makes it possible for a point inside the rod to be hotter than either end. When P is zero, the profile is linear. A flat rod can attain its maximum everywhere.
 
 In the example above, heat only the facing at 320 W. Half the generated power reaches the junction as an equivalent input. The junction rises by 160/(4 + 4) = 20 K, to 350 K. Along the facing, T(x) = 380 + 10x − 40x² kelvin. The maximum is **380.625 K at one eighth of the length from the hot bath**. The archived CI example instead heats the link in a conducting bridge, so both endpoints of the heated rod move.
+
+## Releasing the surface to air and radiation
+
+Keep the facing's uniform generation at 320 W and the inner bath at 380 K. Replace the outer bath with 0.2 m² of black surface facing a 300 K enclosure, in 450 K air with h = 13.5 W/(m² K). At 400 K the surface radiates 175 W and receives 135 W from the air. Its 40 W net loss is supplied by the conducting wall. The inner bath absorbs the remaining 280 W of internal generation.
+
+The powered_wall_surface CLI combines the source-pinned terminal response, the distribution of generated power, and the surface balance. With the optional profiles flag it propagates the released surface temperature into every junction and rod. In this example the inner junction is at 410 K. The facing reaches **410.625 K seven eighths of the way from the 380 K bath to that junction**. Using the original cold-bath temperature in the profile calculation would put the maximum at the wrong end of the rod.

@@ -30,6 +30,10 @@ def prepare_steady_network(study, root, facts_path, facts_sha256):
 
 def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
     facts, candidate, net = prepare_steady_network(study, root, facts_path, facts_sha256)
+    return response_from_network(facts, candidate, net, include_rods=include_rods)
+
+
+def response_from_network(facts, candidate, net, *, include_rods=False):
     terminals = sorted(facts["boundaries"])
     response = {name: {} for name in terminals}
     rods = {name: {} for name in facts["rods"]} if include_rods else {}

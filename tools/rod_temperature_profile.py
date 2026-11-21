@@ -6,8 +6,9 @@ from qualification.h1_n7.verified_junctions import _enclosure_from_verified_barr
 from qualification.h1_n13.conduction import Box, ZERO
 
 
-def loaded_temperatures(net, powers):
-    temperatures = net.values([Box.exact(net.initial[n]) for n in net.fixed])
+def loaded_temperatures(net, powers, fixed_temperatures=None):
+    prescribed = fixed_temperatures or {}
+    temperatures = net.values([prescribed.get(n, Box.exact(net.initial[n])) for n in net.fixed])
     injections = {node: F(0) for node in net.nodes}
     edges = []
     for rod, a, b, g in net.edges:
@@ -43,8 +44,8 @@ def peak(a, b, curvature):
     return (1-x)*a + x*b + curvature*x*(1-x)
 
 
-def rod_peaks(net, powers):
-    temperatures = loaded_temperatures(net, powers)
+def rod_peaks(net, powers, *, fixed_temperatures=None):
+    temperatures = loaded_temperatures(net, powers, fixed_temperatures)
     records = {}
     for rod, first, last, conductance in net.edges:
         a, b = temperatures[first], temperatures[last]
