@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="source-sha256" content="d91e26bc702123cb8ef3ed5519a4ccf83320f658138b28abd636cb4997921303"><title>Author a supported thermal model</title><style>:root{font-family:system-ui,sans-serif;color:#173c43;background:#f5f7f3;line-height:1.7;color-scheme:light}
+<meta name="source-sha256" content="205f43235d37cef3d87f6d2d494ef5d1d5347b0a5fdcfc9f43df6a3c0fda653f"><title>Author a supported thermal model</title><style>:root{font-family:system-ui,sans-serif;color:#173c43;background:#f5f7f3;line-height:1.7;color-scheme:light}
 *{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1120px;margin:auto;padding:24px}
 header,footer{border-bottom:1px solid #ccdcd5}nav{display:flex;gap:20px;flex-wrap:wrap}
 a{color:#116973;text-underline-offset:3px}a:focus-visible,.table-scroll:focus-visible{outline:3px solid #a65124;outline-offset:4px}
@@ -38,7 +38,7 @@ root = Path.cwd()
 original = root / &quot;h1/cases/D1&quot;
 
 with TemporaryDirectory(prefix=&quot;simheat-authoring-&quot;) as temporary:
-    draft = Path(temporary)
+    draft = Path(temporary).resolve(strict=True)
     model_path = draft / &quot;model.mo&quot;
     study_path = draft / &quot;study.json&quot;
     model_path.write_bytes((original / &quot;model.mo&quot;).read_bytes())
@@ -56,7 +56,7 @@ with TemporaryDirectory(prefix=&quot;simheat-authoring-&quot;) as temporary:
         return run.returncode, result
 
     code, result = admit()
-    assert code == 0 and result[&quot;admitted&quot;] is True
+    assert code == 0 and result[&quot;admitted&quot;] is True, result
 
     text = model_path.read_text(encoding=&quot;utf-8&quot;)
     assert &quot;T_initial=293.15&quot; in text
@@ -76,7 +76,7 @@ with TemporaryDirectory(prefix=&quot;simheat-authoring-&quot;) as temporary:
                           note=&quot;Chosen 298.15 K for this scratch draft, not a textbook given.&quot;)
     study_path.write_text(json.dumps(study, indent=2) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
     code, result = admit()
-    assert code == 0 and result[&quot;admitted&quot;] is True
+    assert code == 0 and result[&quot;admitted&quot;] is True, result
     assert all(item[&quot;status&quot;] == &quot;not_computed&quot; for item in result[&quot;requests&quot;])
     print(&quot;PASS: attributed scratch edit admitted; all readings not_computed&quot;)
 
