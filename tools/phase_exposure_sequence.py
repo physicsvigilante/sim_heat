@@ -39,8 +39,34 @@ def reservoir_energies(stages, recovery):
             "energyIntoSupportsBoundsJ": {name: pair(*total) for name, total in supports.items()}}
 
 
+def entropy_ledger(stages, recovery, energy, transition, maintained):
+    """Entropy change of the bath and ideal reservoirs during heat exchange."""
+    def heat_over_temperature(heat, kelvin):
+        if kelvin <= 0:
+            raise ValueError("entropy accounting requires positive reservoir temperatures")
+        return tuple(Fraction(q) / kelvin for q in heat)
+
+    bath = heat_over_temperature(energy["energyIntoBathBoundsJ"], transition)
+    supports = {name: heat_over_temperature(heat, Fraction(maintained[name]))
+                for name, heat in energy["energyIntoSupportsBoundsJ"].items()}
+    enclosures = []
+    for row in [*stages, *recovery.values()]:
+        kelvin = Fraction(row["radiatingSurface"]["enclosureTemperatureK"])
+        change = heat_over_temperature(row["energyIntoEnclosureBoundsJ"], kelvin)
+        enclosures.append(change)
+        row["enclosureEntropyChangeBoundsJPerK"] = pair(*change)
+    # Each exposure has its own isothermal exterior. Include heat exchange
+    # during modeled time only, including the optional recovery exposure.
+    terms = [bath, *supports.values(), *enclosures]
+    total = [sum(endpoints) for endpoints in zip(*terms)]
+    return {"bathChangeBoundsJPerK": pair(*bath),
+            "supportChangeBoundsJPerK": {name: pair(*value) for name, value in supports.items()},
+            "enclosuresChangeBoundsJPerK": pair(*(sum(column) for column in zip(*enclosures))),
+            "generatedBoundsJPerK": pair(*total)}
+
+
 def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_kg, properties, stages, recovery_k=None,
-                track_reservoir_energy=False):
+                track_reservoir_energy=False, track_entropy=False):
     if not isinstance(stages, (list, tuple)) or not stages:
         raise ValueError("one or more enclosure exposures required")
     schedule = []
@@ -108,11 +134,14 @@ def investigate(inputs, port, face, transition_k, latent_j_kg, solid_kg, liquid_
             "endBoundsS": pair(elapsed+first, elapsed+last), "bathInflowBoundsW": pair(qlo, qhi),
             "energyIntoBathBoundsJ": pair(-high, -low), "finalSolidKg": str(solid),
             "finalLiquidKg": str(liquid)}
-    ledger = {}
-    if track_reservoir_energy:
+    observations = {}
+    if track_reservoir_energy or track_entropy:
         ledger = reservoir_energies(history, recovery)
         ledger["energyIntoBathBoundsJ"] = pair(0, 0) if recovery else pair(low, high)
-    return {**({"reservoirEnergy": ledger} if track_reservoir_energy else {}), **recovery, "schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
+        observations["reservoirEnergy"] = ledger
+        if track_entropy:
+            observations["entropy"] = entropy_ledger(history, recovery, ledger, transition, law["imposedTemperaturesK"])
+    return {**observations, **recovery, "schema": "sim_heat.offline_phase_exposure_sequence/1", "bathPort": port,
             "transitionTemperatureK": str(transition), "specificLatentHeatJPerKg": str(latent),
             "initialSolidKg": str(solid), "initialLiquidKg": str(liquid),
             "requestedStages": [{"enclosureK": t, "durationS": str(d)} for t, d in schedule],
@@ -130,7 +159,9 @@ if __name__ == "__main__":
     parser.add_argument("--recover-at-k", help="enclosure temperature for return to the initial inventory")
     parser.add_argument("--track-reservoir-energy", action="store_true",
                         help="report heat entering the enclosures and maintained supports through the modeled stages")
+    parser.add_argument("--track-entropy", action="store_true",
+                        help="include reservoir energy and entropy changes for the modeled heat exchanges")
     a = parser.parse_args()
     print(json.dumps(investigate((a.study, a.root, a.facts, a.facts_sha256), a.bath_port, a.surface_port,
                                  a.transition_k, a.latent_j_kg, a.solid_kg, a.liquid_kg,
-                                 (a.area_m2, a.emissivity, a.sigma), a.stage, a.recover_at_k, a.track_reservoir_energy), indent=2))
+                                 (a.area_m2, a.emissivity, a.sigma), a.stage, a.recover_at_k, a.track_reservoir_energy, a.track_entropy), indent=2))
