@@ -3,6 +3,7 @@ import argparse
 from fractions import Fraction
 import json
 import math
+from typing import NamedTuple
 
 from tools.join_variable_conductors import Material
 from tools.radiative_gap import shield_exchange
@@ -10,7 +11,32 @@ from tools.radiating_surface import decimal_input, exterior_parameters
 from tools.terminal_response import investigate as terminal_response
 
 
-def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma, start, target=None, *, shield_stack=None):
+class AirFilm(NamedTuple):
+    temperature: Fraction
+    area: Fraction
+    coefficient: Fraction
+
+    def power(self, t):
+        return self.area*self.coefficient*(self.temperature-t)
+
+    def record(self):
+        return {"temperatureK": str(self.temperature), "areaM2": str(self.area),
+                "coefficientWPerM2K": str(self.coefficient)}
+
+
+def prepare_air_film(values):
+    if values is None:
+        return None
+    if not isinstance(values, (tuple, list)) or len(values) != 3:
+        raise ValueError("supply air temperature, exposed area and film coefficient")
+    film = AirFilm(*(decimal_input(x, label) for x, label in zip(
+        values, ("air temperature", "air-exposed area", "film coefficient"), strict=True)))
+    if film.area <= 0:
+        raise ValueError("positive air-exposed area required")
+    return film
+
+
+def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma, start, target=None, *, shield_stack=None, film=None):
     env, area, eps, constant = exterior_parameters(enclosure_k, area_m2, emissivity, sigma)
     coefficient = area*eps*constant
     shields = []
@@ -30,6 +56,8 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
         domain.append(target)
     elif coefficient:
         domain.append(env)
+    if target is None and film and film.coefficient:
+        domain.append(film.temperature)
     material = Material(reference_k, slope_per_k, min(domain), max(domain))
     row = law["supplyResponseBoundsWPerK"][port]
     couplings = []
@@ -45,7 +73,7 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
     def power(t):
         # Response rows sum to zero. Temperature differences also preserve exact equilibrium.
         value = material.potential(t)
-        low = high = radiation(t)
+        low = high = radiation(t) + (film.power(t) if film else 0)
         for bath, gmin, gmax in couplings:
             endpoints = (gmin*(bath-value), gmax*(bath-value))
             low += min(endpoints)
@@ -59,6 +87,8 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
             "initialTemperatureK": str(start),
             **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
                                    "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+    if film:
+        data['airFilm'] = film.record()
     if shields:
         data["exterior"].update(
             shieldFacesBodyToEnclosure=[list(map(str, pair)) for pair in shields],
@@ -75,8 +105,9 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     target = decimal_input(target_k, "target temperature")
     if capacity <= 0:
         raise ValueError("positive heat capacity required")
+    film = prepare_air_film(air_film)
     data, power, radiation, _ = prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k,
-                                             area_m2, emissivity, sigma, start, target, shield_stack=shield_stack)
+                                             area_m2, emissivity, sigma, start, target, shield_stack=shield_stack, film=film)
     data.update(schema="sim_heat.offline_radiating_body_target/1", capacityJPerK=str(capacity),
                 targetTemperatureK=str(target))
 
@@ -84,24 +115,12 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
         data["schema"] = "sim_heat.offline_shielded_body_target/1"
 
     pathways = {"radiation": radiation}
-    if air_film is not None:
-        if not isinstance(air_film, (tuple, list)) or len(air_film) != 3:
-            raise ValueError("supply air temperature, exposed area and film coefficient")
-        air, area, h = (decimal_input(x, label) for x, label in zip(
-            air_film, ("air temperature", "air-exposed area", "film coefficient"), strict=True))
-        if area <= 0:
-            raise ValueError("positive air-exposed area required")
-        def convection(t):
-            return area*h*(air-t)
-        pathways["convection"] = convection
-        data.update(schema="sim_heat.offline_body_air_film_target/1",
-                    airFilm={"temperatureK": str(air), "areaM2": str(area), "coefficientWPerM2K": str(h)})
+    if film:
+        pathways["convection"] = film.power
+        data["schema"] = "sim_heat.offline_body_air_film_target/1"
 
     def directed_power(t):
         low, high = power(t)
-        if air_film is not None:
-            air_power = convection(t)
-            low, high = low + air_power, high + air_power
         return (low, high) if target >= start else (-high, -low)
 
     if track_energy:
