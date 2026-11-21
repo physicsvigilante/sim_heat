@@ -16,6 +16,18 @@ python -B -m qualification.h1_n13.conduction --root studies/composite_wall --stu
 
 Read the values in the four named entries under `requests`. To check energy balance from the sheet's perspective, compare the 200 W arriving through the facing with the 50 + 150 W leaving. [Wall model](../studies/composite_wall/model.mo)
 
+### What if conductivity increases with temperature?
+
+Keep the same wall and bath temperatures. Take each piece's authored conductivity as its value at 280 K and multiply it by 1 + 0.01(T − 280 K), with T in kelvin and the slope in K⁻¹. The factor increases from 1 at the cold reservoir to 2 at the hot one. Each piece obeys steady Fourier conduction with a constant cross-section.
+
+Integrate the factor from 280 K to T. Writing x = T − 280 K gives a transformed temperature u = x + 0.005x². The original wall conductance of 2 W/K now multiplies the difference in u. At 380 K, u = 150 K, so **300 W** crosses the wall. The strip carries +75 W and the reversed insert reads −225 W.
+
+The facing and the parallel section have equal reference resistance. At their junction u = 75 K, so solving x + 0.005x² = 75 gives **338.114 K**. The junction lies above 330 K because the hot section conducts more readily. The same calculation applies to branches and loops when every rod shares the relative slope and its conductivity stays positive over the bath temperature range.
+
+~~~sh
+python -B -m tools.variable_conductivity --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --reference-k 280 --slope-per-k 0.01
+~~~
+
 ## A bridge with a conducting crossbar
 
 Two branches run from 380 K to 280 K. Along the upper branch the conductances are 2 and 2 W/K, in hot-to-cold order. Along the lower branch they are 1 and 1 W/K. A 1 W/K crossbar joins the branch midpoints, with positive flow from upper to lower.
