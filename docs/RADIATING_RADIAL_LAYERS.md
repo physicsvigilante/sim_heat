@@ -68,3 +68,9 @@ The two_environment_calibration CLI accepts two `--trial LOW_K HIGH_K AIR_K ENCL
 For a 1 m long cylinder with inner radius 0.1 m, coating conductivity 1 W/(m K) and an outside film coefficient of 5 W/(m² K), the convection-only critical radius is 0.2 m. With a 380 K open port, 0.5 K/W port resistance and 280 K air, compare outer radii 0.12, 0.20 and 0.50 m against a 127 W heat-transfer budget. The smallest and largest sizes meet the budget while the middle size exceeds it.
 
 The shell_size_selection command evaluates every supplied `--radius-m` with the same inner layers and outer coating material. It reports the smallest available size established to meet the budget. A smaller unresolved candidate leaves the minimum undecided. The budget applies to the magnitude of the rate, so the same comparison works for inward heat leaks.
+
+## How long does the ice last?
+
+The radial_phase_bath experiment holds a coexisting solid and liquid at the transition temperature while heat passes through the steady conductor and shell. For a two-terminal vessel, the bath receives exactly the negative of the outward shell rate. With other maintained reservoirs attached, their heat flows enter the balance too. A perfectly insulated outer shell can still permit melting if a separate warm reservoir connects to the phase bath.
+
+While ice remains, a positive heat rate Q melts Q/L kilograms per second for latent heat L. A negative rate freezes liquid. The experiment clips the converted mass at the first exhausted phase and reports the corresponding time interval. It assumes quasi-steady conduction with negligible heat storage in the vessel and shell, constant boundary conditions, and a well-mixed phase bath.

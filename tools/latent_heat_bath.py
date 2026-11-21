@@ -45,14 +45,7 @@ def plateau_power(law, port, transition, exterior, surface_port):
             temperature, outgoing = surface_balance(open_temp, resistance, environment, eps*sigma*area)
             temperatures = {n: Fraction(t) for n, t in maintained.items()}
             temperatures[surface_port] = interval(temperature)
-            inflows = {}
-            for terminal in law["terminals"]:
-                if terminal == surface_port:
-                    continue
-                row = law["supplyResponseBoundsWPerK"][terminal]
-                inflow = -sum((interval(row[n]) * (t - temperatures[terminal])
-                               for n, t in temperatures.items() if n != terminal), ZERO)
-                inflows[terminal] = inflow.span()
+            inflows = reservoir_inflows(law, surface_port, temperatures)
             qlo, qhi = inflows.pop(port)
             surface["maintainedReservoirInflowBoundsW"] = {
                 name: list(map(str, pair)) for name, pair in inflows.items()}
@@ -65,7 +58,25 @@ def plateau_power(law, port, transition, exterior, surface_port):
     return qlo, qhi, surface
 
 
+def reservoir_inflows(law, surface_port, temperatures):
+    inflows = {}
+    for terminal in law["terminals"]:
+        if terminal == surface_port:
+            continue
+        row = law["supplyResponseBoundsWPerK"][terminal]
+        inflow = -sum((interval(row[n]) * (t - temperatures[terminal])
+                       for n, t in temperatures.items() if n != terminal), ZERO)
+        inflows[terminal] = inflow.span()
+    return inflows
+
+
 def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
+    phase = phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
+    qlo, qhi, surface = plateau_power(law, port, phase[0], exterior, surface_port)
+    return plateau_state(law, port, phase, qlo, qhi, surface)
+
+
+def phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s):
     transition = decimal_input(transition_k, "transition temperature")
     latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
     solid = decimal_input(solid_kg, "initial solid mass")
@@ -73,7 +84,11 @@ def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, 
     horizon = decimal_input(duration_s, "duration")
     if min(transition,latent,solid,liquid) <= 0:
         raise ValueError("positive transition temperature, latent heat and both initial masses required")
-    qlo, qhi, surface = plateau_power(law, port, transition, exterior, surface_port)
+    return transition, latent, solid, liquid, horizon
+
+
+def plateau_state(law, port, phase, qlo, qhi, surface):
+    transition, latent, solid, liquid, horizon = phase
     if qlo > 0:
         mode = "melting"
         start, end = solid*latent/qhi, solid*latent/qlo
