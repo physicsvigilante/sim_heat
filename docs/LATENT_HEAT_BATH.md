@@ -45,3 +45,11 @@ For the closed pair above, append `--equilibrium-cp 2000 4200` to calculate the 
 After the donor freezes, cooling its 0.55 kg of solid from 333.15 K to 273.15 K can release another 66,000 J. Together with its latent heat it can supply **156,000 J**. Melting every bit of ice would require 167,000 J, so the final temperature stays at **273.15 K** and about **0.033 kg of ice** remains. The connecting network sets the initial 120 W and the timing of the first event. The energy balance fixes the limiting temperature and inventories.
 
 If the receiver can melt and then reach the donor's transition temperature while the donor is still two-phase, the final state instead stays at the donor temperature. Otherwise both participating phases are exhausted and the common temperature lies between the two transition temperatures. For that case, with total final heat capacities Ch and Cc, equate the donor's freezing energy plus Ch(Th − T) to the receiver's melting energy plus Cc(T − Tc). The output records latent and sensible energy separately for each bath.
+
+### When have the two reservoirs exchanged 120 kJ?
+
+Append `--equilibrium-cp 2000 4200 --transfer-target-j 120000` to the two-bath command. The target is the total energy transferred from the initially warmer bath to the initially colder bath. This passage calculation has its own endpoint, independent of the duration requested for the first plateau.
+
+For the first 90 kJ the two temperatures stay fixed, giving 750 s at 120 W. The donor then cools as a solid, while the receiver still contains ice. The next 30 kJ takes longer per joule. The calculation gives a total time of **1083.37 s**. Both endpoint temperatures and the duration of each stage appear under `transferPassage`.
+
+If E is the energy transferred so far, conservation fixes each temperature: the hot material starts to cool after freezing its initial liquid, and the cold material starts to warm after melting its initial solid. Between these two event energies the temperature difference D(E) is affine. For an interval ΔE with terminal conductance G, the elapsed time is ΔE/(G D) for constant D. When D falls from D1 to D2 the time is ΔE ln(D1/D2)/[G(D1 − D2)]. The equilibrium transfer is approached asymptotically. Positive targets at or beyond that energy have no finite passage.
