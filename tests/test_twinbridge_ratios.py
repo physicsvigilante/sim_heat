@@ -2,6 +2,7 @@
 from fractions import Fraction
 import gzip
 import json
+from math import nextafter
 from unittest import TestCase
 
 from qualification.h1_n13.heldout.oracle import HERE
@@ -29,3 +30,13 @@ class ErrorRatioTests(TestCase):
                 ratios[name] = str(factor * actual)
                 with self.assertRaisesRegex(ValueError, rf"understated error ratio for {family}\.{name} at sample"):
                     verify(data)
+
+    def test_static_budget_uses_spacing_at_later_sample(self):
+        data = original()
+        values = data["exports"]["upper.G"]["values"]
+        self.assertEqual(values[0], 2.0)
+        self.assertEqual(values[57], 2.0)
+        values[57] = nextafter(2.0, 0.0)
+        data["maxErrorToBudgetBySeries"]["exports"]["upper.G"] = "1"
+        with self.assertRaisesRegex(ValueError, r"understated error ratio for exports\.upper\.G at sample 57$"):
+            verify(data)

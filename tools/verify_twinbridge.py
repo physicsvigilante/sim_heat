@@ -26,29 +26,23 @@ def verify(data):
         context.prec = 80
         context.rounding = ROUND_HALF_EVEN
         summary = oracle.verify(data)
-        # The frozen oracle has checked units, identities, inventories and lengths.
-        # Convert each ratio once. All subsequent comparisons use exact rationals.
-        bounds = {}
-        for family, ratios in data["maxErrorToBudgetBySeries"].items():
-            for name, ratio in ratios.items():
-                series = data[family][name]
-                unit = series["unit"]
-                if unit in ABSOLUTE_BUDGET:
-                    limit = ABSOLUTE_BUDGET[unit]
-                    guard = ANALYTICAL_GUARD
-                else:
-                    # TwinBridge C and G are exact, constant integers.
-                    limit = Fraction(64, 100) * Fraction(ulp(series["values"][0]))
-                    guard = 0
-                bounds[family, name] = Fraction(ratio) * limit + guard
-
+        # The frozen oracle checks units, identities, inventories and lengths.
+        ratios = {(family, name): Fraction(ratio)
+                  for family, maxima in data["maxErrorToBudgetBySeries"].items()
+                  for name, ratio in maxima.items()}
         for index in range(1201):
             for family, quantities in oracle.expected(Decimal(index) / 10).items():
-                for name, (_, reference) in quantities.items():
-                    centre = Fraction(data[family][name]["values"][index])
-                    # A discrepancy beyond the claim plus oracle uncertainty
-                    # disproves the reported series maximum at this sample.
-                    if abs(centre - Fraction(reference)) > bounds[family, name]:
+                for name, (unit, reference) in quantities.items():
+                    sample = data[family][name]["values"][index]
+                    if unit in ABSOLUTE_BUDGET:
+                        budget = ABSOLUTE_BUDGET[unit]
+                        guard = ANALYTICAL_GUARD
+                    else:
+                        # The solver uses the spacing of each emitted centre.
+                        budget = Fraction(64, 100) * Fraction(ulp(sample))
+                        guard = 0
+                    bound = ratios[family, name] * budget + guard
+                    if abs(Fraction(sample) - Fraction(reference)) > bound:
                         raise ValueError(f"understated error ratio for {family}.{name} at sample {index}")
     return summary
 
