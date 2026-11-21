@@ -1,4 +1,5 @@
 """Portable study paths through the public offline loader."""
+from hashlib import sha256
 import json
 from pathlib import Path
 from shutil import copytree
@@ -24,7 +25,14 @@ class StudyPathTests(TestCase):
             (Path(scratch) / "sibling").mkdir()
             alias_root = Path(scratch) / "sibling" / ".." / "cases"
             alias_path = alias_root / "D2_K2/study.json"
-            self.assertEqual(load_study(alias_path, alias_root).path, path.resolve())
+            self.assertNotEqual(alias_root, root)
+            self.assertTrue(alias_root.samefile(root))
+            for study_path in (alias_path, path):
+                for case_root in (alias_root, root):
+                    with self.subTest(study_path=study_path, case_root=case_root):
+                        loaded = load_study(study_path, case_root)
+                        self.assertEqual(loaded.path, path.resolve())
+                        self.assertEqual(loaded.sha256, sha256(original).hexdigest())
             for section, key, value in (
                 ("model", "path", r".\model.mo"),
                 ("revision", "parentStudyPath", r"..\D2\study.json"),

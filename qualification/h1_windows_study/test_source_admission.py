@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 N1 = ROOT / "qualification/h1_n1"
 PARENT = "6904ec8219be0ddb8ec1635a9d000ddda80307c9"
 MANIFEST_SHA = "28e249bbda68fba3a511caede4dfdec8cd5254e3a02b5eda5025bba82dbb6766"
-WINDOWS_LOADER_SHA = "e32b28258ce93c9a055dab5f5b1982f1ad2b56841ef626d3745d5a1d08f75c45"
+WINDOWS_LOADER_SHA = "a3746e42fc43c35fc0084e2e0783e3d0e27bc5a9fea44e84ca25dcc68e9b7264"
 
 
 class SourceAdmissionTests(TestCase):
