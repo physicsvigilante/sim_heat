@@ -9,14 +9,12 @@ from tools.radiating_radial_layers import solve
 from tools.terminal_response import investigate as terminal_response
 
 
-def investigate(inputs, phase_port, surface_port, transition_k, latent_heat_j_per_kg,
-                solid_kg, liquid_kg, duration_s, inner_radius_m, layers, enclosure_k,
-                emissivity, sigma, cylinder_length_m=None, *, air_k=None, h_w_per_m2_k=None):
-    phase = phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
-    law = terminal_response(*inputs)
+def bath_inflow_from_law(law, phase_port, surface_port, transition, inner_radius_m, layers,
+                         enclosure_k, emissivity, sigma, cylinder_length_m=None, *,
+                         air_k=None, h_w_per_m2_k=None):
     if phase_port == surface_port or not {phase_port, surface_port} <= set(law["terminals"]):
         raise ValueError("distinct phase and shell ports required in the pinned network")
-    maintained = {**law["imposedTemperaturesK"], phase_port: str(phase[0])}
+    maintained = {**law["imposedTemperaturesK"], phase_port: str(transition)}
     shell = solve({**law, "imposedTemperaturesK": maintained}, surface_port, inner_radius_m, layers,
                   enclosure_k, emissivity, sigma, cylinder_length_m, air_k=air_k, h_w_per_m2_k=h_w_per_m2_k)
     # The network terminates at the shell's inner face. The outer face
@@ -32,9 +30,28 @@ def investigate(inputs, phase_port, surface_port, transition_k, latent_heat_j_pe
         raise ValueError("phase, maintained reservoirs and radial surface violate steady energy balance")
     details = {"radialShell": shell, "maintainedReservoirInflowBoundsW": {
         name:list(map(str,v)) for name,v in inflows.items()}}
+    return low, high, details
+
+
+def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_per_kg,
+                   solid_kg, liquid_kg, duration_s, inner_radius_m, layers, enclosure_k,
+                   emissivity, sigma, cylinder_length_m=None, *, air_k=None, h_w_per_m2_k=None):
+    phase = phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
+    low, high, details = bath_inflow_from_law(
+        law, phase_port, surface_port, phase[0], inner_radius_m, layers, enclosure_k,
+        emissivity, sigma, cylinder_length_m, air_k=air_k, h_w_per_m2_k=h_w_per_m2_k)
     result = plateau_state(law, phase_port, phase, low, high, details)
     result["schema"] = "sim_heat.offline_radial_phase_bath/1"
     return result
+
+
+def investigate(inputs, phase_port, surface_port, transition_k, latent_heat_j_per_kg,
+                solid_kg, liquid_kg, duration_s, inner_radius_m, layers, enclosure_k,
+                emissivity, sigma, cylinder_length_m=None, *, air_k=None, h_w_per_m2_k=None):
+    return solve_from_law(terminal_response(*inputs), phase_port, surface_port, transition_k,
+                          latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, inner_radius_m,
+                          layers, enclosure_k, emissivity, sigma, cylinder_length_m,
+                          air_k=air_k, h_w_per_m2_k=h_w_per_m2_k)
 
 
 if __name__ == "__main__":
