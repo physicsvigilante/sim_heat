@@ -21,3 +21,24 @@ The hotter enclosure in the pipe example supplies heat inward. The observer calc
 python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280
 python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 --emissivity 0.8 --sigma 0.0000000567 --cylinder-length-m 1 --enclosure-k 450
 ~~~
+
+## Can adding insulation increase the heat loss?
+
+Increase only the outer radius of the last layer. Its material and emissivity stay fixed, along with the inner layers, backing network, enclosure temperature and pipe length. Added material increases conduction resistance and also adds radiating area. The local heat-rate derivative tells which effect wins for a small thickness change.
+
+Write A for the outside area, r for the outside radius, k for the last layer's conductivity, and R for the total resistance from the open port to the outside surface. Let h = 4 ε σ Ts³ be the slope of emitted flux with respect to the surface temperature at the operating point. For a sphere take m = 2, and for a cylinder take m = 1. Then A′/A = m/r and R′ = 1/(kA). Differentiating the coupled energy balance gives
+
+    dQ/dr = Q (m/r − h/k) / (1 + h A R).
+
+The same factor times |Q| gives the slope of heat-rate magnitude for inward and outward flow. In this model a stationary nonzero transfer satisfies r = m k/h, where h itself depends on the solved surface temperature. The slope describes this operating point. A finite thickness change requires solving the revised geometry.
+
+For the same 380 K backing, 280 K enclosure, and a single spherical layer of conductivity 2 W/(m K) starting at 0.10 m, the local behavior changes with thickness.
+
+| Outer radius (m) | Outward heat (W) | Magnitude slope (W/m) | Effect of a small increase |
+|---|---|---|---|
+| 0.12 | 64.094 | 474.171 | increasing |
+| 1.4 | 113.688 | -0.765 | decreasing |
+
+~~~sh
+python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.12 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --radius-sensitivity
+~~~
