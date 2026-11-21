@@ -22,14 +22,20 @@ def port_equivalent(law, port):
     return origin - forcing/slope, ONE/slope
 
 
-def investigate(left_inputs, link_inputs, right_inputs, left_port, right_port):
-    left, link, right = (terminal_response(*args) for args in (left_inputs, link_inputs, right_inputs))
+def link_conductance(link):
     if len(link["terminals"]) != 2:
         raise ValueError("coupling link requires exactly two terminals")
-    a, b = link["terminals"]
+    a = link["terminals"][0]
     slope = interval(link["supplyResponseBoundsWPerK"][a][a])
     if slope.low <= 0:
         raise ValueError("link conductance is unresolved")
+    return slope
+
+
+def investigate(left_inputs, link_inputs, right_inputs, left_port, right_port):
+    left, link, right = (terminal_response(*args) for args in (left_inputs, link_inputs, right_inputs))
+    slope = link_conductance(link)
+    a, b = link["terminals"]
     resistance = ONE/slope
     tl, rl = port_equivalent(left, left_port)
     tr, rr = port_equivalent(right, right_port)
