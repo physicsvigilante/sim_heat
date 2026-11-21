@@ -36,6 +36,20 @@ class RadiatingSurfaceTests(TestCase):
             self.assertEqual(law["surfaceTemperatureBoundsK"], ["380","380"])
             self.assertEqual(law["netHeatToEnclosureBoundsW"], ["0","0"])
 
+    def test_extreme_enclosure_resolves_conductive_heat_rate(self):
+        environment = 999999999999
+        result = investigate(*WALL, "cold", str(environment), "1", "1", "0.0000000567")
+        lo, hi = map(F, result["netHeatToEnclosureBoundsW"])
+        self.assertLess(hi-lo, F(1,10**6))
+        self.assertLess(hi, 0)
+        # Invert the wall's exact conduction law. This residual is increasing
+        # while the surface temperature stays nonnegative.
+        def residual(rate):
+            surface = 380-rate/2
+            return rate-F(".0000000567")*(surface**4-environment**4)
+        self.assertLessEqual(residual(lo), 0)
+        self.assertGreaterEqual(residual(hi), 0)
+
     def test_invalid_exterior_refused(self):
         for values in (("-1","1","1","1"), ("280","0","1","1"), ("280","1","1.1","1"),
                        ("280","1","1","0"), ("280","1","nan","1")):
