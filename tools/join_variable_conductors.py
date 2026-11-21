@@ -1,4 +1,4 @@
-"""Join two steady rod networks with distinct linear conductivity laws at one ideal contact."""
+"""Join two steady rod networks with distinct linear conductivity laws through one thermal contact."""
 import argparse
 from fractions import Fraction
 import json
@@ -32,8 +32,9 @@ def response(row, potentials):
     return low, high
 
 
-def investigate(left, right):
+def investigate(left, right, contact_resistance_k_per_w="0"):
     """Each side supplies (source inputs, released port, reference kelvin, relative slope/K)."""
+    resistance = decimal_input(contact_resistance_k_per_w, "contact resistance")
     sides = []
     baths = []
     for inputs, port, reference, slope in (left, right):
@@ -55,13 +56,23 @@ def investigate(left, right):
         constant = response(row, {**fixed, port: (0, 0)})
         prepared.append((law, port, material, fixed, pivot, constant))
 
+    def port_supply(side, temperature, index):
+        _, _, material, _, pivot, offset = prepared[side]
+        return pivot[index]*material.potential(temperature) + offset[index]
+
+    def right_temperature(left_temperature, left_supply):
+        # q flows left to right, while a port supply is positive into its network.
+        # Both faces lie within the bath extrema. Clipping off-root trial values
+        # extends the residual monotonically without extrapolating either material.
+        return min(hot, max(cold, left_temperature + resistance*left_supply))
+
     def bracket(index):
         # Both residual envelopes increase because the integrated conductivity is increasing.
         low, high = cold, hot
         for _ in range(96):
             mid = (low+high)/2
-            value = sum(pivot[index]*m.potential(mid) + offset[index]
-                        for _, _, m, _, pivot, offset in prepared)
+            supplied = port_supply(0, mid, index)
+            value = supplied + port_supply(1, right_temperature(mid, supplied), index)
             if value == 0:
                 return mid, mid
             if value < 0:
@@ -70,12 +81,19 @@ def investigate(left, right):
                 high = mid
         return low, high
 
-    contact = bracket(1)[0], bracket(0)[1]
-    result = {"schema": "sim_heat.offline_dissimilar_conductors/1",
-              "contactTemperatureBoundsK": list(map(str, contact)), "nativeExecuted": False,
-              "nativeQualified": False, "independentlyCertifiedReference": False, "runnerConsumable": False}
+    left_face = bracket(1)[0], bracket(0)[1]
+    right_face = tuple(right_temperature(t, port_supply(0, t, i)) for i, t in enumerate(left_face))
+    result = {"nativeExecuted": False, "nativeQualified": False,
+              "independentlyCertifiedReference": False, "runnerConsumable": False}
+    if resistance:
+        result.update(schema="sim_heat.offline_resistive_contact/1", contactResistanceKPerW=str(resistance),
+                      leftFaceTemperatureBoundsK=list(map(str, left_face)),
+                      rightFaceTemperatureBoundsK=list(map(str, right_face)))
+    else:
+        result.update(schema="sim_heat.offline_dissimilar_conductors/1",
+                      contactTemperatureBoundsK=list(map(str, left_face)))
     currents = []
-    for side, (law, port, material, fixed, _, _) in zip(("left", "right"), prepared):
+    for side, contact, (law, port, material, fixed, _, _) in zip(("left", "right"), (left_face, right_face), prepared):
         potentials = {**fixed, port: tuple(map(material.potential, contact))}
         supplies = {p: response(row, potentials) for p, row in law["supplyResponseBoundsWPerK"].items()}
         currents.append(supplies.pop(port))
@@ -99,10 +117,11 @@ if __name__ == "__main__":
     for side in ("left", "right"):
         for field in fields:
             parser.add_argument("--"+side+"-"+field, required=True)
+    parser.add_argument("--contact-resistance-k-per-w", default="0")
     args = vars(parser.parse_args())
 
     def bundle(side):
         values = [args[side+"_"+field.replace("-", "_")] for field in fields]
         return (values[:4], *values[4:])
 
-    print(json.dumps(investigate(bundle("left"), bundle("right")), indent=2))
+    print(json.dumps(investigate(bundle("left"), bundle("right"), args["contact_resistance_k_per_w"]), indent=2))
