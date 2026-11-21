@@ -1,7 +1,7 @@
 name: H1 general conduction offline replay
 on:
   pull_request:
-    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity]
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds]
 
 permissions:
   contents: read
@@ -20,7 +20,8 @@ jobs:
       (github.base_ref == 'codex/thermal-terminal-response' && github.head_ref == 'codex/join-thermal-networks') ||
       (github.base_ref == 'codex/join-thermal-networks' && github.head_ref == 'codex/thermal-port-relaxation') ||
       (github.base_ref == 'codex/thermal-port-relaxation' && github.head_ref == 'codex/rod-resistance-sensitivity') ||
-      (github.base_ref == 'codex/rod-resistance-sensitivity' && github.head_ref == 'codex/finite-conductivity-bounds')
+      (github.base_ref == 'codex/rod-resistance-sensitivity' && github.head_ref == 'codex/finite-conductivity-bounds') ||
+      (github.base_ref == 'codex/finite-conductivity-bounds' && github.head_ref == 'codex/isolated-pair-exchange')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
