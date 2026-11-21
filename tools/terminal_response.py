@@ -10,7 +10,7 @@ from qualification.h1_n5.thermal_graph import assemble
 from qualification.h1_n13.conduction import Box, Conduction, prepare
 
 
-def investigate(study, root, facts_path, facts_sha256):
+def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
     path = Path(facts_path)
     if not path.is_file() or any(p.is_symlink() for p in (path, *path.parents)):
         raise ValueError("invalid source facts path")
@@ -27,15 +27,19 @@ def investigate(study, root, facts_path, facts_sha256):
     net = Conduction(assemble(raw, expected_sha256=facts_sha256), components)
     terminals = sorted(facts["boundaries"])
     response = {name: {} for name in terminals}
+    rods = {name: {} for name in facts["rods"]} if include_rods else {}
     # Each column is the supply response to a unit increment at one terminal.
     for selected in terminals:
         increments = [Box.exact(net.owner[n] == selected) for n in net.fixed]
-        _, incoming = net.flows(net.values(increments))
+        signed, incoming = net.flows(net.values(increments))
+        for name in rods:
+            rods[name][selected] = list(map(str, signed[name].span()))
         for n in net.fixed:
             supply = -incoming[n]
             response[net.owner[n]][selected] = [str(x) for x in supply.span()]
 
-    return {"schema": "sim_heat.offline_terminal_response/1", "terminals": terminals,
+    return {**({"rodResponseBoundsWPerK": rods} if include_rods else {}),
+            "schema": "sim_heat.offline_terminal_response/1", "terminals": terminals,
             "supplyResponseBoundsWPerK": response,
             "imposedTemperaturesK": {n: str(Fraction(facts["boundaries"][n]["T"])) for n in terminals},
             **{k: candidate[k] for k in ("modelSha256", "studySha256", "factsSha256",
