@@ -69,7 +69,7 @@ def prepare_body(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, e
 
 
 def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, emissivity, sigma,
-                capacity_j_per_k, initial_k, target_k, *, track_energy=False, shield_stack=None):
+                capacity_j_per_k, initial_k, target_k, *, track_energy=False, shield_stack=None, air_film=None):
     capacity = decimal_input(capacity_j_per_k, "heat capacity")
     start = decimal_input(initial_k, "initial temperature")
     target = decimal_input(target_k, "target temperature")
@@ -83,15 +83,32 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     if shield_stack is not None:
         data["schema"] = "sim_heat.offline_shielded_body_target/1"
 
+    pathways = {"radiation": radiation}
+    if air_film is not None:
+        if not isinstance(air_film, (tuple, list)) or len(air_film) != 3:
+            raise ValueError("supply air temperature, exposed area and film coefficient")
+        air, area, h = (decimal_input(x, label) for x, label in zip(
+            air_film, ("air temperature", "air-exposed area", "film coefficient"), strict=True))
+        if area <= 0:
+            raise ValueError("positive air-exposed area required")
+        def convection(t):
+            return area*h*(air-t)
+        pathways["convection"] = convection
+        data.update(schema="sim_heat.offline_body_air_film_target/1",
+                    airFilm={"temperatureK": str(air), "areaM2": str(area), "coefficientWPerM2K": str(h)})
+
     def directed_power(t):
         low, high = power(t)
+        if air_film is not None:
+            air_power = convection(t)
+            low, high = low + air_power, high + air_power
         return (low, high) if target >= start else (-high, -low)
 
     if track_energy:
         data["energyToBodyBoundsJ"] = None
     if target == start:
         if track_energy:
-            data["energyToBodyBoundsJ"] = {"radiation": ["0", "0"], "conduction": ["0", "0"]}
+            data["energyToBodyBoundsJ"] = {name: ["0", "0"] for name in (*pathways, "conduction")}
         return {**data, "status": "already_at_target", "timeBoundsS": ["0", "0"]}
     end_low, end_high = directed_power(target)
     if end_high <= 0:
@@ -108,28 +125,30 @@ def investigate(inputs, port, reference_k, slope_per_k, enclosure_k, area_m2, em
     quantum = 10**18
     previous_high = directed_power(start)[1]
     lower_ticks = upper_ticks = 0
-    rad_low_ticks = rad_high_ticks = 0
-    previous_rad = radiation(start)
+    ticks = {name: [0, 0] for name in pathways}
+    previous_flux = {name: flux(start) for name, flux in pathways.items()}
     for i in range(1, panels+1):
-        low, high = directed_power(start+i*step)
+        temperature = start+i*step
+        low, high = directed_power(temperature)
         lower_ticks += math.floor(quantum*energy/previous_high)
         upper_ticks += math.ceil(quantum*energy/low)
         if track_energy:
-            current_rad = radiation(start+i*step)
-            # Radiation is monotone in temperature, including across a sign change.
-            # Combining both power endpoints with both residence-time bounds
-            # also encloses panels on which radiation opposes the net heat flow.
-            products = [p*energy/denom for p in (previous_rad, current_rad)
-                        for denom in (previous_high, low)]
-            rad_low_ticks += math.floor(quantum*min(products))
-            rad_high_ticks += math.ceil(quantum*max(products))
-            previous_rad = current_rad
+            for name, flux in pathways.items():
+                current = flux(temperature)
+                # Each signed flux is monotone across the panel. Include both
+                # residence-time endpoints even when a pathway opposes cooling.
+                products = [p*energy/denom for p in (previous_flux[name], current)
+                            for denom in (previous_high, low)]
+                ticks[name][0] += math.floor(quantum*min(products))
+                ticks[name][1] += math.ceil(quantum*max(products))
+                previous_flux[name] = current
         previous_high = high
     if track_energy:
-        rad_low, rad_high = (Fraction(ticks, quantum) for ticks in (rad_low_ticks, rad_high_ticks))
+        energies = {name: [Fraction(v, quantum) for v in limits] for name, limits in ticks.items()}
         stored = capacity*(target-start)
-        data["energyToBodyBoundsJ"] = {"radiation": [str(rad_low), str(rad_high)],
-                                      "conduction": [str(stored-rad_high), str(stored-rad_low)]}
+        conduction = [stored-sum(pair[i] for pair in energies.values()) for i in (1, 0)]
+        energies["conduction"] = conduction
+        data["energyToBodyBoundsJ"] = {name: list(map(str, limits)) for name, limits in energies.items()}
     return {**data, "status": "reached", "bodyEnergyChangeJ": str(capacity*(target-start)),
             "timeBoundsS": [str(Fraction(v, quantum)) for v in (lower_ticks, upper_ticks)]}
 
@@ -141,7 +160,8 @@ if __name__ == "__main__":
     for field in fields:
         parser.add_argument("--"+field, required=True)
     parser.add_argument('--shield', nargs=2, action='append', metavar=('BODY_SIDE', 'ENCLOSURE_SIDE'))
+    parser.add_argument('--air-film', nargs=3, metavar=('AIR_K', 'AREA_M2', 'H_W_PER_M2_K'))
     parser.add_argument('--track-energy', action='store_true')
     args = vars(parser.parse_args())
     values = [args[field.replace("-", "_")] for field in fields]
-    print(json.dumps(investigate(values[:4], *values[4:], track_energy=args["track_energy"], shield_stack=args["shield"]), indent=2))
+    print(json.dumps(investigate(values[:4], *values[4:], track_energy=args["track_energy"], shield_stack=args["shield"], air_film=args["air_film"]), indent=2))
