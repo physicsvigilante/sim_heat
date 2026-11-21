@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat]
 permissions:
   contents: read
 jobs:
@@ -60,7 +60,8 @@ jobs:
       (github.base_ref == 'codex/wall-lesson-flows' && github.head_ref == 'codex/radiating-body-energy') ||
       (github.base_ref == 'codex/radiating-body-energy' && github.head_ref == 'codex/body-exposure-temperature') ||
       (github.base_ref == 'codex/body-exposure-temperature' && github.head_ref == 'codex/body-exposure-sequence') ||
-      (github.base_ref == 'codex/body-exposure-sequence' && github.head_ref == 'codex/timed-specific-heat')
+      (github.base_ref == 'codex/body-exposure-sequence' && github.head_ref == 'codex/timed-specific-heat') ||
+      (github.base_ref == 'codex/timed-specific-heat' && github.head_ref == 'codex/two-mass-calorimeter')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -438,6 +439,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_timed_specific_heat tests.test_radiating_body_time
           python -B -m tools.timed_specific_heat --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 280 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0 --sigma 0.00000005 --initial-k 280 --target-k 330 --time-low-s 34.65 --time-high-s 34.67 --calorimeter-j-per-k 20 --sample-kg 0.2 > timed-specific-heat.json
+      - name: Calibrate a calorimeter using two timed sample masses
+        if: github.head_ref == 'codex/two-mass-calorimeter'
+        run: |
+          python -B -m unittest -v tests.test_two_mass_calorimeter tests.test_timed_specific_heat
+          python -B -m tools.two_mass_calorimeter --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 280 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0 --sigma 0.00000005 --initial-k 280 --target-k 330 --trial 0.2 34.65 34.67 --trial 0.5 76.24 76.26 > two-mass-calorimeter.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -499,3 +505,4 @@ jobs:
             body-exposure-temperature.json
             body-exposure-sequence.json
             timed-specific-heat.json
+            two-mass-calorimeter.json
