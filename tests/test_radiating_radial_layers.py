@@ -43,3 +43,36 @@ class RadiatingRadialTests(TestCase):
         for radius, em in (("0.1","1.1"),("0.2","1")):
             with self.assertRaises(ValueError):
                 investigate(LINK,"cold",radius,[("0.2","2")],"280",em,"0.0000000567")
+
+    def test_mixed_air_and_enclosure_have_opposing_heat_flows(self):
+        for length in (None, "1"):
+            result = investigate(LINK, "cold", "0.1", [("0.2","2")], "280", "0.8",
+                                 "0.0000000567", length, air_k="450", h_w_per_m2_k="12")
+            with mp.workdps(110):
+                r = mp.mpf("0.2")
+                area = 4*mp.pi*r*r if length is None else 2*mp.pi*r
+                shell_r = 5/(8*mp.pi) if length is None else mp.log(2)/(4*mp.pi)
+                total = mp.mpf("0.5") + shell_r
+                def radiation(t):
+                    return area*mp.mpf("0.00000004536")*(t**4-280**4)
+                def conv(t):
+                    return area*12*(t-450)
+                t = mp.findroot(lambda temp: (380-temp)/total-radiation(temp)-conv(temp), 375)
+                for limits, expected in [(result["surfaces"][-1]["temperatureBoundsK"],t),
+                                         (result["outwardHeatRateBoundsW"],(380-t)/total),
+                                         (result["netHeatToAirBoundsW"],conv(t)),
+                                         (result["netHeatToEnclosureBoundsW"],radiation(t))]:
+                    lo, hi = map(Fraction, limits)
+                    self.assertTrue(lo <= Fraction(mp.nstr(expected,95)) <= hi)
+                    self.assertLess(hi-lo, Fraction(1,10**11))
+
+    def test_pure_convection_critical_radius_and_partial_options(self):
+        args = (LINK, "cold", "0.1", [("0.2","2")], "280", "0", "0.0000000567")
+        # At radius k/h for a cylinder and 2k/h for a sphere, the added
+        # conduction resistance exactly offsets the increase in outer area.
+        for length, h in (("1","10"), (None,"20")):
+            r = investigate(*args, length, radius_sensitivity=True, air_k="280", h_w_per_m2_k=h)
+            self.assertEqual(r["outerRadiusSensitivity"]["heatRateMagnitudeTrend"], "stationary")
+            self.assertEqual(r["netHeatToEnclosureBoundsW"], ["0","0"])
+        with self.assertRaisesRegex(ValueError, "together"):
+            investigate(*args, air_k="280")
