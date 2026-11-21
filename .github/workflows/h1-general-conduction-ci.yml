@@ -1,7 +1,7 @@
 name: H1 general conduction offline replay
 on:
   pull_request:
-    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface]
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap]
 
 permissions:
   contents: read
@@ -25,7 +25,8 @@ jobs:
       (github.base_ref == 'codex/isolated-pair-exchange' && github.head_ref == 'codex/two-contact-join') ||
       (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports') ||
       (github.base_ref == 'codex/conduction-walkthrough' && github.head_ref == 'codex/radiating-surface') ||
-      (github.base_ref == 'codex/radiating-surface' && github.head_ref == 'codex/radiative-gap')
+      (github.base_ref == 'codex/radiating-surface' && github.head_ref == 'codex/radiative-gap') ||
+      (github.base_ref == 'codex/radiative-gap' && github.head_ref == 'codex/radiation-shield')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
