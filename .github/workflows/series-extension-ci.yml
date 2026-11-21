@@ -1,7 +1,7 @@
 name: Series extension of a two-terminal wall
 on:
   pull_request:
-    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy]
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy]
 permissions:
   contents: read
 jobs:
@@ -49,7 +49,8 @@ jobs:
       (github.base_ref == 'codex/local-review-workflow' && github.head_ref == 'codex/phase-exposure-sequence') ||
       (github.base_ref == 'codex/phase-exposure-sequence' && github.head_ref == 'codex/phase-recovery-time') ||
       (github.base_ref == 'codex/phase-recovery-time' && github.head_ref == 'codex/phase-reservoir-energy') ||
-      (github.base_ref == 'codex/phase-reservoir-energy' && github.head_ref == 'codex/phase-entropy')
+      (github.base_ref == 'codex/phase-reservoir-energy' && github.head_ref == 'codex/phase-entropy') ||
+      (github.base_ref == 'codex/phase-entropy' && github.head_ref == 'codex/supported-wall-lesson')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -374,6 +375,11 @@ jobs:
         run: |
           python -B -m unittest -v tests.test_phase_entropy tests.test_phase_reservoir_energy tests.test_phase_recovery_time tests.test_phase_exposure_sequence
           python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 --track-entropy > phase-entropy.json
+      - name: Replay both supported-wall lesson investigations
+        if: github.head_ref == 'codex/supported-wall-lesson'
+        run: |
+          python -B -m tools.phase_balance_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 > lesson-balance.json
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 --track-entropy > lesson-cycle.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: series-extension-${{ github.event.pull_request.head.sha }}
@@ -424,3 +430,5 @@ jobs:
             phase-recovery-time.json
             phase-reservoir-energy.json
             phase-entropy.json
+            lesson-balance.json
+            lesson-cycle.json
