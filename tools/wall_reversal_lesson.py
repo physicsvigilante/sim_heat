@@ -6,6 +6,20 @@ from pathlib import Path
 from tools.join_variable_conductors import investigate
 
 
+def check_flow(bounds, fraction_of_magnitude, exact_magnitude, component):
+    a, b = map(Fraction, bounds)
+    low, high = sorted((a/fraction_of_magnitude, b/fraction_of_magnitude))
+    if exact_magnitude is None:
+        # The physical reverse magnitude is the unique root in [0, 200] W.
+        def polynomial(m):
+            return m*m - 1680*m + 168000
+        contains = 0 <= low <= high <= 200 and polynomial(high) <= 0 <= polynomial(low)
+    else:
+        contains = low <= exact_magnitude <= high
+    if not contains or not 0 <= b-a <= Fraction(1, 10**10):
+        raise ValueError(f"{component} flow differs from the worked solution")
+
+
 def replay():
     root = Path(__file__).resolve().parents[1] / "studies/composite_wall"
     inputs = (root / "study.json", root, root / "facts.json",
@@ -15,21 +29,26 @@ def replay():
         for drive, left, right in (("forward", "cold", "hot"), ("reverse", "hot", "cold")):
             result = investigate((inputs, left, "280", slope), (inputs, right, "280", "0"))
             a, b = (Fraction(t)-280 for t in result["contactTemperatureBoundsK"])
-            qlo, qhi = map(Fraction, result["leftToRightHeatRateBoundsW"])
             if slope == "0":
-                rise = 50
-                q = 100 if drive == "forward" else -100
-                valid = a <= rise <= b and qlo <= q <= qhi
+                magnitude = 100
+                valid = a <= 50 <= b
             elif drive == "forward":
-                valid = a <= 60 <= b and qlo <= 120 <= qhi
+                magnitude = 120
+                valid = a <= 60 <= b
             else:
-                # The exact reverse magnitude m satisfies m² - 1680m + 168000 = 0.
-                def polynomial(m):
-                    return m*m - 1680*m + 168000
-                valid = (0 <= a <= b <= 100 and a*a+640*a <= 32000 <= b*b+640*b
-                         and -200 <= qlo <= qhi <= 0 and polynomial(-qlo) <= 0 <= polynomial(-qhi))
-            if not valid or max(b-a, qhi-qlo) > Fraction(1, 10**10):
-                raise ValueError(f"{material} {drive} differs from the worked solution")
+                magnitude = None
+                valid = 0 <= a <= b <= 100 and a*a+640*a <= 32000 <= b*b+640*b
+            if not valid or not 0 <= b-a <= Fraction(1, 10**10):
+                raise ValueError(f"{material} {drive} interface differs from the worked solution")
+            check_flow(result["leftToRightHeatRateBoundsW"], 1 if drive == "forward" else -1,
+                       magnitude, "contact")
+            for side, released in (("left", left), ("right", right)):
+                parts = {"facing": 1, "strip": Fraction(1, 4), "insert": Fraction(-3, 4)}
+                for rod, share in parts.items():
+                    check_flow(result[side]["rodHeatFlowBoundsW"][rod], share, magnitude, side+"."+rod)
+                bath = "hot" if released == "cold" else "cold"
+                check_flow(result[side]["terminalSupplyBoundsW"][bath], 1 if bath == "hot" else -1,
+                           magnitude, side+"."+bath)
             output[f"{material}_{drive}"] = result
     return output
 
