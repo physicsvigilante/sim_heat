@@ -169,6 +169,10 @@ class OfflineProvenanceTests(TestCase):
             response_from_network(star_facts, star_cand, tri_net, include_rods=True)
         with self.assertRaisesRegex(ValueError, "network does not match"):
             generation_from_network(star_facts, star_cand, tri_net, [("first", "1")])
+        # Mutated ownerless junction inventory (STAR 160 W profiles=True witness) must refuse.
+        star_net.junctions = []
+        with self.assertRaisesRegex(ValueError, "junctions do not match"):
+            generation_from_network(star_facts, star_cand, star_net, [("first", "160")], profiles=True)
         with self.assertRaisesRegex(ValueError, "identities do not match"):
             series_passages(d1_cand, link_facts, "exports", "body.T",
                             F("323.15"), ("cooling", "warming"))

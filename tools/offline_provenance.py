@@ -95,6 +95,11 @@ def _verify_network_matches_facts(net, facts):
         if (a, b) != (rod["a"], rod["b"]) or g.span() != _rod_conductance_box(rod, pi).span():
             raise ValueError("prepared network does not match prepared facts")
 
+    expected_junctions = set(nodes) - set(net.fixed) - set(net.bodies)
+    if (len(net.junctions) != len(expected_junctions)
+            or set(net.junctions) != expected_junctions):
+        raise ValueError("prepared network junctions do not match prepared facts")
+
     owners = net.bodies + net.fixed
     if set(net.weights) != set(net.nodes) or any(len(net.weights[n]) != len(owners) for n in net.nodes):
         raise ValueError("prepared network weights do not match prepared facts")
@@ -105,7 +110,7 @@ def _verify_network_matches_facts(net, facts):
                 raise ValueError("prepared network weights do not match prepared facts")
         unit = [Box.exact(int(i == j)) for i in range(len(owners))]
         _, incoming = net.flows(net.values(unit))
-        if not all(incoming[jn].contains_zero() for jn in net.junctions):
+        if not all(incoming[jn].contains_zero() for jn in expected_junctions):
             raise ValueError("prepared network weights violate junction balance")
 
 
