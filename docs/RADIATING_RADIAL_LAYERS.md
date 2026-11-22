@@ -78,3 +78,7 @@ While ice remains, a positive heat rate Q melts Q/L kilograms per second for lat
 ### Sizing radial insulation for a target hold time
 
 The `phase_shell_sizing` command evaluates each stocked `--radius-m` against a positive `--hold-duration-s`. A radius is established to meet the hold time when both phases remain coexisting across the entire target duration (including certified exact-zero equilibrium, or an unresolved near-zero flux whose worst-case conversion in either direction cannot exhaust either phase). Because heat rate can peak at the critical radius, a medium thickness may exhaust before the target duration while thinner and thicker options both survive. As with heat-budget sizing, an unresolved smaller candidate prevents claiming a larger radius as the smallest established choice.
+
+### Sequential exterior stages (day/night exposure)
+
+The `radial_phase_exposure` command tracks a finite two-phase inventory inside a fixed radial vessel across successive `--stage NAME AIR_K H_W_PER_M2_K ENCLOSURE_K DURATION_S` exposures. Cumulative latent energy and solid/liquid mass intervals carry forward from stage to stage while both phases coexist; if either phase exhausts or exhaustion becomes uncertain mid-stage, the schedule halts at that stage without fabricating post-exhaustion stages.
