@@ -5,6 +5,7 @@ import json
 import re
 
 from tools.loaded_thermal_ports import port_equivalent
+from tools.offline_provenance import offline_provenance
 from tools.terminal_response import investigate as terminal_response
 
 
@@ -114,8 +115,7 @@ def exterior_balance(law, port, opens, resistances, environment, area, eps, cons
     result = {"schema": "sim_heat.offline_radiating_surface/1", "releasedPort": port,
               "exterior": exterior, "surfaceTemperatureBoundsK": [str(low), str(high)],
               "netHeatToEnclosureBoundsW": list(map(str, radiation)),
-              **{k: law[k] for k in ("modelSha256", "studySha256", "factsSha256", "nativeExecuted",
-                                      "nativeQualified", "independentlyCertifiedReference", "runnerConsumable")}}
+              **offline_provenance(law)}
     if mixed:
         conv = ha*(low-air), ha*(high-air)
         wall = [(t-u)/r for t in opens for u in (low, high) for r in resistances]

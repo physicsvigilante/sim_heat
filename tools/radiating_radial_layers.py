@@ -5,6 +5,7 @@ import json
 
 from qualification.h1_n13.conduction import Box
 from tools.join_thermal_networks import bounds
+from tools.offline_provenance import offline_provenance
 from tools.radiating_surface import decimal_input, exterior_balance, physical_port, surface_balance
 from tools.spherical_conduction import prepare_layers
 from tools.terminal_response import investigate as terminal_response
@@ -58,9 +59,7 @@ def solve(law, port, inner_radius_m, layers, enclosure_k, emissivity, sigma,
             "layers": shell.material, "surfaces": profile, "exposedAreaBoundsM2": bounds(area),
             "outwardHeatRateBoundsW": bounds(rate), "enclosureTemperatureK": str(environment),
             "emissivity": str(eps), "sigmaWPerM2K4": str(constant),
-            **{key: law[key] for key in ("modelSha256", "studySha256", "factsSha256",
-                                         "nativeExecuted", "nativeQualified",
-                                         "independentlyCertifiedReference", "runnerConsumable")}}
+            **offline_provenance(law)}
 
     if air_k is not None:
         # Bound each exchange over the whole T and area enclosures. Individual

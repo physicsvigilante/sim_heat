@@ -5,6 +5,7 @@ import json
 
 from qualification.h1_n13.conduction import ZERO, interval
 from tools.loaded_thermal_ports import link_conductance
+from tools.offline_provenance import offline_provenance
 from tools.radiating_surface import decimal_input, exterior_parameters, physical_port, surface_balance
 from tools.terminal_response import investigate as terminal_response
 
@@ -125,8 +126,7 @@ def plateau_state(law, port, phase, qlo, qhi, surface):
             "latentEnergyIntoBathBoundsJ": bounds(mlo*latent,mhi*latent),
             "remainingSolidBoundsKg": bounds(solid-mhi,solid-mlo),
             "remainingLiquidBoundsKg": bounds(liquid+mlo,liquid+mhi),
-            **{k: law[k] for k in ("studySha256","modelSha256","factsSha256","nativeExecuted",
-                                   "nativeQualified","independentlyCertifiedReference","runnerConsumable")}}
+            **offline_provenance(law)}
 
 
 if __name__ == "__main__":

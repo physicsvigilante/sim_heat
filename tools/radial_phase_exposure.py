@@ -3,6 +3,7 @@ import argparse
 from fractions import Fraction as F
 import json
 
+from tools.offline_provenance import offline_provenance
 from tools.radial_phase_bath import bath_inflow_from_law
 from tools.radiating_surface import decimal_input
 from tools.terminal_response import investigate as terminal_response
@@ -135,9 +136,7 @@ def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_pe
         "finalSolidMassBoundsKg": history[-1]["solidMassBoundsKg"],
         "finalLiquidMassBoundsKg": history[-1]["liquidMassBoundsKg"],
         "stages": history,
-        **{key: law[key] for key in ("studySha256", "modelSha256", "factsSha256", "nativeExecuted",
-                                     "nativeQualified", "independentlyCertifiedReference",
-                                     "runnerConsumable")},
+        **offline_provenance(law),
     }
 
 

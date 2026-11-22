@@ -7,6 +7,7 @@ from qualification.h1_n4.static_physical import pi_rational_enclosure
 from qualification.h1_n13.conduction import ZERO, Box, interval
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs, reservoir_inflows
+from tools.offline_provenance import offline_provenance
 from tools.phase_film_calibration import intersect_boxes, signed_decimal
 from tools.radiating_surface import decimal_input, physical_port
 from tools.spherical_conduction import radial_log
@@ -190,9 +191,7 @@ def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_pe
         "outerSurfaceTemperatureBoundsK": bounds(surface),
         "unknownLayerResistanceBoundsKPerW": bounds(r_unknown),
         "inferredConductivityBoundsWPerMK": bounds(k_unknown),
-        **{key: law[key] for key in ("modelSha256", "studySha256", "factsSha256",
-                                     "nativeExecuted", "nativeQualified",
-                                     "independentlyCertifiedReference", "runnerConsumable")},
+        **offline_provenance(law),
     }
     if air_k is not None:
         result.update(airTemperatureK=str(air), convectionCoefficientWPerM2K=str(h))

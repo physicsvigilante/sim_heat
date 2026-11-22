@@ -81,6 +81,26 @@ class AuditCIScopeTests(unittest.TestCase):
         self.assertNotIn('apt-get', qual.lower())
         self.assertNotIn('docker', qual.lower())
 
+        main_ci = (ROOT / '.github/workflows/main-offline-acceptance-ci.yml').read_text(encoding='utf-8')
+        self.assertIn('push:\n    branches: [main]', main_ci)
+        self.assertIn('pull_request:\n    branches: [main]', main_ci)
+        self.assertNotIn('github.event.pull_request.head.sha', main_ci)
+        for required in (
+            'unittest discover -s tests',
+            'unittest discover -s h1/tests',
+            'unittest discover -s experiments/h1_spike/checks',
+            'unittest discover -s viewer/network/tests',
+            'node --test',
+            'tools/verify_n1_plan_maintenance.py --run-tests',
+            'qualification/h1_n13/test_conduction.py',
+            'actions/upload-artifact@',
+        ):
+            self.assertIn(required, main_ci)
+        for idx in range(2, 13):
+            self.assertIn(f'qualification/h1_n{idx}/tests', main_ci)
+        self.assertNotIn('apt-get', main_ci.lower())
+        self.assertNotIn('docker', main_ci.lower())
+
     def test_n1_maintenance_verifier_accepts_valid_plan_and_refuses_mutations(self):
         pins_src = ROOT / 'qualification/h1_n1/SOURCE-PINS.json'
         pins_lf = pins_src.read_bytes().replace(b'\r\n', b'\n')

@@ -7,6 +7,7 @@ from qualification.h1_n4.static_physical import pi_rational_enclosure
 from qualification.h1_n13.conduction import ZERO, Box, interval
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs, plateau_state, reservoir_inflows
+from tools.offline_provenance import offline_provenance
 from tools.radiating_surface import decimal_input, physical_port, surface_balance
 from tools.radiative_gap import fourth_root_bounds
 from tools.spherical_conduction import prepare_layers
@@ -153,9 +154,7 @@ def solve(law, port, inner_radius_m, layers, surface_emissivity, enclosure_radiu
         "shieldsInnerToOuter": shield_records,
         "effectiveRadiativeConductanceBoundsWPerK4": c_rad_bounds,
         "outwardHeatRateBoundsW": bounds(rate),
-        **{key: law[key] for key in ("modelSha256", "studySha256", "factsSha256",
-                                     "nativeExecuted", "nativeQualified",
-                                     "independentlyCertifiedReference", "runnerConsumable")},
+        **offline_provenance(law),
     }
 
 
