@@ -22,7 +22,7 @@ python -m http.server 8000 --bind 127.0.0.1
 
 Open `http://127.0.0.1:8000/` for the [start page](index.html). Its primary link opens the existing [thermal explorer](viewer/network/index.html); the second opens the [saved conductivity comparison](viewer/network/compare.html). No OpenModelica installation is needed for archived playback. The server serves static files, not a solver.
 
-The [capability and evidence registry](docs/CAPABILITIES.md) is the current product inventory. It separates **archived native diagnostics**, **analytical checking data**, and **expected-only source views**, with links to the original records. The dated [November 17 audit](docs/PROJECT_AUDIT_2026_11_17.md) is preserved as history rather than silently rewritten into a new result.
+The [capability and evidence registry](docs/CAPABILITIES.md) is the current product inventory. It separates **archived native diagnostics**, **admitted authored-source previews**, **analytical checking data**, **offline analytical thermal tools**, and **expected-only source views**, with links to the original records. The dated [November 17 audit](docs/PROJECT_AUDIT_2026_11_17.md) is preserved as history rather than silently rewritten into a new result.
 
 The previous direct route still works: serve `viewer/network` with `python -m http.server 8000 --bind 127.0.0.1 --directory viewer/network` or open `/viewer/network/` from the repository-root server. The older bridge-only prototype remains at `/viewer/`.
 
