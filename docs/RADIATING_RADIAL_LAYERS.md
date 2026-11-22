@@ -82,3 +82,7 @@ The `phase_shell_sizing` command evaluates each stocked `--radius-m` against a p
 ### Sequential exterior stages (day/night exposure)
 
 The `radial_phase_exposure` command tracks a finite two-phase inventory inside a fixed radial vessel across successive `--stage NAME AIR_K H_W_PER_M2_K ENCLOSURE_K DURATION_S` exposures. Cumulative latent energy and solid/liquid mass intervals carry forward from stage to stage while both phases coexist; if either phase exhausts or exhaustion becomes uncertain mid-stage, the schedule halts at that stage without fabricating post-exhaustion stages.
+
+### Calibrating the outer air film from melted or frozen mass
+
+Without an outer surface thermometer, the `phase_film_calibration` command infers bounds on the external convection coefficient from a timed solid-to-liquid mass change `--melted-kg LOW_KG HIGH_KG` (positive for melting, negative for freezing). The measured conversion must remain strictly below the initial solid and liquid inventories so coexistence holds throughout the exposure. The bath heat rate $Q = L\,\Delta m / \Delta t$ pins the inner and outer shell temperatures through the steady conductor network and shell resistance, subtracts radiation $\varepsilon \sigma A (T_s^4 - T_{\text{enc}}^4)$, and divides by $A(T_s - T_{\text{air}})$. Measurements that imply exhaustion, negative Kelvin shell temperatures, a surface band straddling $T_{\text{air}}$, thermally decoupled ports, or negative convection coefficients are refused.
