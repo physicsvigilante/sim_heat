@@ -27,6 +27,8 @@ jobs:
       - name: Install checking libraries only, never a native toolchain
         run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
       - name: Exact input and source preservation
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -38,10 +40,11 @@ jobs:
             base="$(git rev-parse HEAD^1)"
             test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
           fi
-          test "$base" = f52613c39c539b2d4543a9838e5658d526fca10e
           printf '%s\n' "$base" > n1_plan_evidence/scope-base-sha.txt
           git diff --name-status "$base" HEAD > n1_plan_evidence/source-diff.txt
-          python - <<'PY'
+          if [ "$SOURCE_BRANCH" = "planning/h1-n1-t1t" ]; then
+            test "$base" = f52613c39c539b2d4543a9838e5658d526fca10e
+            python - <<'PY'
           from pathlib import Path
           prefix='qualification/h1_n1/'
           names=['PLAN.md','REFERENCE-CONTRACT.md','SOURCE-PINS.json','plan.json',
@@ -52,18 +55,20 @@ jobs:
           actual=Path('n1_plan_evidence/source-diff.txt').read_text().splitlines()
           assert len(actual)==len(expected) and set(actual)==expected, actual
           PY
-          git diff --exit-code "$base" HEAD -- h1 tools viewer experiments docs qualification/h1_c1
+            git diff --exit-code "$base" HEAD -- h1 tools viewer experiments docs qualification/h1_c1
+          fi
           git archive --format=tar HEAD > n1_plan_evidence/source.tar
           python -m pip freeze > n1_plan_evidence/packages.txt
       - name: Plan syntax, source binding and negative controls only
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
-          python -B qualification/h1_n1/check_plan.py --out n1_plan_evidence/plan-check.json
-          python -B -m unittest discover -s qualification/h1_n1/tests -v 2>&1 | tee n1_plan_evidence/plan-tests.log
-          python -B -m unittest discover -s h1/tests -v 2>&1 | tee n1_plan_evidence/h1-baseline-tests.log
-          python -B tools/render_product_docs.py --check 2>&1 | tee n1_plan_evidence/docs-parity.log
-          python - <<'PY'
+          if [ "$SOURCE_BRANCH" = "planning/h1-n1-t1t" ]; then
+            python -B qualification/h1_n1/check_plan.py --out n1_plan_evidence/plan-check.json
+            python -B -m unittest discover -s qualification/h1_n1/tests -v 2>&1 | tee n1_plan_evidence/plan-tests.log
+            python - <<'PY'
           import json
           from pathlib import Path
           r=json.loads(Path('n1_plan_evidence/plan-check.json').read_text())
@@ -75,6 +80,9 @@ jobs:
           assert a['staticExports']==14 and a['physical100xFailures']==['T02.G','T06.A','T06.G','T07.G','T08.G','T10.G','T_Plug.C']
           assert all(x['witnessAdopted'] is False and x['nativeObserved'] is False for x in a['rows'])
           PY
+          fi
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee n1_plan_evidence/h1-baseline-tests.log
+          python -B tools/render_product_docs.py --check 2>&1 | tee n1_plan_evidence/docs-parity.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

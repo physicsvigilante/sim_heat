@@ -47,6 +47,24 @@ class AuditCIScopeTests(unittest.TestCase):
             self.assertIn('git rev-parse HEAD^1', source)
             self.assertIn('github.event.pull_request.head.sha', source)
 
+    def test_h1_n1_plan_and_product_entry_introduction_guards_are_branch_scoped(self):
+        n1 = (ROOT / '.github/workflows/h1-n1-plan-ci.yml').read_text(encoding='utf-8')
+        self.assertIn('SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}', n1)
+        self.assertIn('if [ "$SOURCE_BRANCH" = "planning/h1-n1-t1t" ]; then', n1)
+        self.assertIn('unittest discover -s h1/tests', n1)
+        self.assertIn('tools/render_product_docs.py --check', n1)
+
+        prod = (ROOT / '.github/workflows/product-entry-ci.yml').read_text(encoding='utf-8')
+        self.assertIn('SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}', prod)
+        self.assertIn(
+            'if [ "$SOURCE_BRANCH" = "product/authoring-guide" ] || [ "$SOURCE_BRANCH" = "product/explorer-entry" ]; then',
+            prod,
+        )
+        for required in ('unittest discover -s h1/tests', 'unittest discover -s tests',
+                         'node --test', 'replay_published_archives.py',
+                         'browser_product_docs.py', 'tools/render_product_docs.py --check'):
+            self.assertIn(required, prod)
+
 
 if __name__ == '__main__':
     unittest.main()
