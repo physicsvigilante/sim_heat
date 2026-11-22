@@ -10,7 +10,7 @@ import tempfile
 import textwrap
 import unittest
 
-from tools.verify_n1_plan_maintenance import BASELINE_COMMIT, verify as verify_n1
+from tools.verify_n1_plan_maintenance import BASELINE_COMMIT, SOURCE_PINS_SHA256, verify as verify_n1
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -82,7 +82,10 @@ class AuditCIScopeTests(unittest.TestCase):
         self.assertNotIn('docker', qual.lower())
 
     def test_n1_maintenance_verifier_accepts_valid_plan_and_refuses_mutations(self):
-        pins = json.loads((ROOT / 'qualification/h1_n1/SOURCE-PINS.json').read_text(encoding='utf-8'))
+        pins_src = ROOT / 'qualification/h1_n1/SOURCE-PINS.json'
+        pins_lf = pins_src.read_bytes().replace(b'\r\n', b'\n')
+        self.assertEqual(sha256(pins_lf).hexdigest(), SOURCE_PINS_SHA256)
+        pins = json.loads(pins_lf.decode('utf-8'))
         git_agents = subprocess.run(
             ['git', '-C', str(ROOT), 'show', f'{BASELINE_COMMIT}:AGENTS.md'],
             capture_output=True, check=False,
@@ -91,56 +94,69 @@ class AuditCIScopeTests(unittest.TestCase):
             mirror = Path(tmp)
             shutil.copytree(ROOT / 'h1', mirror / 'h1')
             shutil.copytree(ROOT / 'qualification/h1_n1', mirror / 'qualification/h1_n1')
+            # Normalize CRLF to LF for Windows checkouts so pinned LF hashes match.
+            mirror_pins = mirror / 'qualification/h1_n1/SOURCE-PINS.json'
+            mirror_pins.write_bytes(pins_lf)
             for rel in pins['readonlySha256']:
                 if rel == 'AGENTS.md':
                     continue
                 dst = mirror / rel
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                # Normalize CRLF to LF for Windows checkouts so pinned LF hashes match.
                 dst.write_bytes((ROOT / rel).read_bytes().replace(b'\r\n', b'\n'))
             for rel in pins['inputSha256']:
                 dst = mirror / rel
                 dst.write_bytes((ROOT / rel).read_bytes().replace(b'\r\n', b'\n'))
 
-            if git_agents.returncode == 0:
-                agents_bytes = git_agents.stdout
-            else:
-                # Shallow CI clones without baseline history still exercise all live
-                # plan, negative-control, and non-AGENTS source-pin checks.
-                agents_bytes = b'historical AGENTS.md fixture\n'
-                mirror_pins = mirror / 'qualification/h1_n1/SOURCE-PINS.json'
-                updated = json.loads(mirror_pins.read_text(encoding='utf-8'))
-                updated['readonlySha256']['AGENTS.md'] = sha256(agents_bytes).hexdigest()
-                mirror_pins.write_text(json.dumps(updated, indent=2) + '\n', encoding='utf-8')
+            agents_bytes = git_agents.stdout if git_agents.returncode == 0 else None
+            if agents_bytes is not None:
+                if os.name == 'posix':
+                    ok = verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                    self.assertEqual(ok['planStructuralChecks'], 'PASS')
+                    self.assertFalse(ok['nativeExecuted'])
+                    self.assertFalse(ok['nativeQualified'])
+                    self.assertEqual(ok['maintenanceVerification']['sourcePinsManifestSha256Verified'],
+                                     SOURCE_PINS_SHA256)
+                    self.assertTrue(ok['maintenanceVerification']['livePlanAndNonAgentsPinsVerified'])
 
-            if os.name == 'posix':
-                ok = verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
-                self.assertEqual(ok['planStructuralChecks'], 'PASS')
-                self.assertFalse(ok['nativeExecuted'])
-                self.assertFalse(ok['nativeQualified'])
-                self.assertTrue(ok['maintenanceVerification']['livePlanAndNonAgentsPinsVerified'])
+                plan_path = mirror / 'qualification/h1_n1/plan.json'
+                original_plan = plan_path.read_bytes()
+                for label, mutate, expected_err in (
+                    ('native_permission', lambda p: p['authority'].__setitem__('nativeExecutionApproved', True),
+                     'only planning authorized'),
+                    ('missing_blocker', lambda p: p['executionBlockers'].pop(), 'unresolved gates omitted'),
+                    ('weakened_margin', lambda p: p['acceptance'].__setitem__('referenceErrorFractionMaximum', 0.02),
+                     'numerical bounds'),
+                ):
+                    with self.subTest(mutation=label):
+                        data = json.loads(original_plan.decode('utf-8'))
+                        mutate(data)
+                        plan_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+                        with self.assertRaisesRegex(ValueError, expected_err):
+                            verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                        plan_path.write_bytes(original_plan)
 
-            plan_path = mirror / 'qualification/h1_n1/plan.json'
-            original_plan = plan_path.read_bytes()
-            for label, mutate, expected_err in (
-                ('native_permission', lambda p: p['authority'].__setitem__('nativeExecutionApproved', True),
-                 'only planning authorized'),
-                ('missing_blocker', lambda p: p['executionBlockers'].pop(), 'unresolved gates omitted'),
-                ('weakened_margin', lambda p: p['acceptance'].__setitem__('referenceErrorFractionMaximum', 0.02),
-                 'numerical bounds'),
-            ):
-                with self.subTest(mutation=label):
-                    data = json.loads(original_plan.decode('utf-8'))
-                    mutate(data)
-                    plan_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
-                    with self.assertRaisesRegex(ValueError, expected_err):
-                        verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
-                    plan_path.write_bytes(original_plan)
-
-            # Mutating any non-AGENTS pinned file must fail closed with source drift.
+            # Mutating any non-AGENTS pinned file alone must fail closed with source drift.
             c1 = mirror / 'qualification/h1_c1/FREEZE.md'
-            c1.write_bytes(c1.read_bytes() + b'tamper\n')
+            original_c1 = c1.read_bytes()
+            tampered_c1 = original_c1 + b'tamper\n'
+            c1.write_bytes(tampered_c1)
             with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_c1/FREEZE.md'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+
+            # Dual tamper: altering BOTH a protected file AND updating SOURCE-PINS.json
+            # to match must still fail closed on manifest digest drift.
+            rehashed = json.loads(pins_lf.decode('utf-8'))
+            rehashed['readonlySha256']['qualification/h1_c1/FREEZE.md'] = sha256(tampered_c1).hexdigest()
+            mirror_pins.write_text(json.dumps(rehashed, indent=2) + '\n', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_n1/SOURCE-PINS.json'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+
+            # Removing a protected entry from SOURCE-PINS.json must also fail closed.
+            c1.write_bytes(original_c1)
+            pruned = json.loads(pins_lf.decode('utf-8'))
+            del pruned['readonlySha256']['qualification/h1_c1/FREEZE.md']
+            mirror_pins.write_text(json.dumps(pruned, indent=2) + '\n', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_n1/SOURCE-PINS.json'):
                 verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
 
 

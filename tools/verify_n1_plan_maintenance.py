@@ -14,6 +14,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_COMMIT = "f52613c39c539b2d4543a9838e5658d526fca10e"
 BASELINE_TREE = "0c44961b473d23737b0c9f3b3f2cd3db65b9f264"
+SOURCE_PINS_SHA256 = "28e249bbda68fba3a511caede4dfdec8cd5254e3a02b5eda5025bba82dbb6766"
 HISTORICAL_DRIFT_ONLY = "AGENTS.md"
 EXPECTED_100X_FAILURES = ["T02.G", "T06.A", "T06.G", "T07.G", "T08.G", "T10.G", "T_Plug.C"]
 
@@ -60,7 +61,13 @@ def verify(root: Path = ROOT, *, run_tests: bool = False,
            agents_bytes: bytes | None = None, out: Path | None = None) -> dict:
     root = Path(root).resolve()
     n1_dir = root / "qualification" / "h1_n1"
-    pins = json.loads((n1_dir / "SOURCE-PINS.json").read_text(encoding="utf-8"))
+    pins_path = n1_dir / "SOURCE-PINS.json"
+    if pins_path.is_symlink() or not pins_path.resolve().is_relative_to(root) or not pins_path.is_file():
+        raise ValueError("missing or unsafe N1 SOURCE-PINS.json")
+    pins_bytes = pins_path.read_bytes()
+    if _sha256_bytes(pins_bytes) != SOURCE_PINS_SHA256:
+        raise ValueError("source drift: qualification/h1_n1/SOURCE-PINS.json")
+    pins = json.loads(pins_bytes.decode("utf-8"))
     if pins.get("baselineCommit") != BASELINE_COMMIT or pins.get("baselineTree") != BASELINE_TREE:
         raise ValueError("N1 SOURCE-PINS.json baseline commit or tree drifted")
 
@@ -129,6 +136,7 @@ def verify(root: Path = ROOT, *, run_tests: bool = False,
 
     report["maintenanceVerification"] = {
         "schema": "sim_heat.h1_n1_plan_maintenance/1",
+        "sourcePinsManifestSha256Verified": SOURCE_PINS_SHA256,
         "historicalPinnedFile": HISTORICAL_DRIFT_ONLY,
         "historicalBaselineCommit": BASELINE_COMMIT,
         "historicalAgentsSha256Verified": expected_agents,
