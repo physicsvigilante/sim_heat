@@ -3,7 +3,7 @@ from fractions import Fraction
 import re
 
 from qualification.h1_n4.static_physical import pi_rational_enclosure
-from qualification.h1_n13.conduction import Box
+from qualification.h1_n13.conduction import ONE, Box, _enclosure_from_verified_barrier
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_HASH_KEYS = ("modelSha256", "studySha256", "factsSha256")
@@ -47,15 +47,15 @@ def offline_provenance(law):
     }
 
 
-def _rod_conductance_box(rod, pi):
+def _rod_conductance_interval(rod, pi):
     k = Fraction(rod["k"])
     length = Fraction(rod["L"])
     if rod["kind"] == "RodArea":
         g = k * Fraction(rod["A"]) / length
-        return Box.bounds(g, g)
+        return g, g
     if rod["kind"] == "RodCircular":
         d = Fraction(rod["d"])
-        return Box.bounds(k * pi[0] * d * d / (4 * length), k * pi[1] * d * d / (4 * length))
+        return k * pi[0] * d * d / (4 * length), k * pi[1] * d * d / (4 * length)
     raise ValueError("unsupported rod kind in prepared facts")
 
 
@@ -87,13 +87,16 @@ def _verify_network_matches_facts(net, facts):
         raise ValueError("prepared network does not match prepared facts")
     pi = pi_rational_enclosure()
     seen_rods = set()
+    rational_edges = []
     for name, a, b, g in net.edges:
         if name not in rods or name in seen_rods:
             raise ValueError("prepared network does not match prepared facts")
         seen_rods.add(name)
         rod = rods[name]
-        if (a, b) != (rod["a"], rod["b"]) or g.span() != _rod_conductance_box(rod, pi).span():
+        g_lo, g_hi = _rod_conductance_interval(rod, pi)
+        if (a, b) != (rod["a"], rod["b"]) or g.span() != Box.bounds(g_lo, g_hi).span():
             raise ValueError("prepared network does not match prepared facts")
+        rational_edges.append((name, a, b, g_lo, g_hi))
 
     expected_junctions = set(nodes) - set(net.fixed) - set(net.bodies)
     if (len(net.junctions) != len(expected_junctions)
@@ -103,15 +106,13 @@ def _verify_network_matches_facts(net, facts):
     owners = net.bodies + net.fixed
     if set(net.weights) != set(net.nodes) or any(len(net.weights[n]) != len(owners) for n in net.nodes):
         raise ValueError("prepared network weights do not match prepared facts")
-    for j in range(len(owners)):
-        for i, owner_node in enumerate(owners):
-            expected_w = Fraction(int(i == j))
-            if net.weights[owner_node][j].span() != (expected_w, expected_w):
-                raise ValueError("prepared network weights do not match prepared facts")
-        unit = [Box.exact(int(i == j)) for i in range(len(owners))]
-        _, incoming = net.flows(net.values(unit))
-        if not all(incoming[jn].contains_zero() for jn in expected_junctions):
-            raise ValueError("prepared network weights violate junction balance")
+    for j, selected in enumerate(owners):
+        known = {n: Fraction(1 + int(n == selected)) for n in owners}
+        boxes, _ = _enclosure_from_verified_barrier(net.junctions, known, rational_edges)
+        for n in net.nodes:
+            expected_w = (Box.exact(known[n]) if n in known else Box.bounds(*boxes[n])) - ONE
+            if net.weights[n][j].span() != expected_w.span():
+                raise ValueError("prepared network weights do not match certified Dirichlet solution")
 
 
 def verified_prepared_provenance(candidate, facts, net=None):

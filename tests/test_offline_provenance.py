@@ -1,7 +1,8 @@
 from fractions import Fraction as F
 from unittest import TestCase
 
-from qualification.h1_n13.conduction import prepare
+from qualification.h1_n13.conduction import Box, prepare
+from tests.test_join_thermal_networks import FULL
 from tests.test_loaded_thermal_ports import LINK
 from tests.test_temperature_passages import D1, D1_PIN, ROOT
 from tests.test_terminal_response import CASES, STAR, TRIANGLE
@@ -173,6 +174,15 @@ class OfflineProvenanceTests(TestCase):
         star_net.junctions = []
         with self.assertRaisesRegex(ValueError, "junctions do not match"):
             generation_from_network(star_facts, star_cand, star_net, [("first", "160")], profiles=True)
+        # Inconsistent two-junction interior weights that satisfy individual interval residuals
+        # (FULL studies/joined_terminals witness) must still be refused.
+        full_facts, full_cand, full_net = prepare_steady_network(*FULL)
+        j_warm = next(i for i, n in enumerate(full_net.bodies + full_net.fixed)
+                      if full_net.owner[n] == "warmL")
+        full_net.weights["centre"][j_warm] = Box.exact(F(9, 20))
+        full_net.weights["contact"][j_warm] = Box.bounds(F(0), F(1))
+        with self.assertRaisesRegex(ValueError, "certified Dirichlet solution"):
+            response_from_network(full_facts, full_cand, full_net)
         with self.assertRaisesRegex(ValueError, "identities do not match"):
             series_passages(d1_cand, link_facts, "exports", "body.T",
                             F("323.15"), ("cooling", "warming"))
