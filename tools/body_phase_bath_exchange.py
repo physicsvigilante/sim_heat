@@ -320,18 +320,14 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                 upper_mono = min(duration, ts_lo)
                 ex_lo, ex_hi = _bisect_threshold(
                     energy_at, limit, F(0), upper_mono, increasing=melting_first)
-                if ex_hi is None:
-                    status = "exhaustion_time_uncertain"
-                    exhausted_phase = None
-                    mod_lo, mod_hi = ex_lo, min(duration, ts_hi)
-                    e_box = Box.bounds(max(e_liquid, min(e_solid, e_req.span()[0])),
-                                       min(e_solid, max(e_liquid, e_req.span()[1])))
-                    t_final = body_temp_at_interval(mod_lo, mod_hi)
-                else:
-                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
-                    mod_lo, mod_hi = ex_lo, ex_hi
-                    e_box = Box.exact(limit)
-                    t_final = body_temp_at_interval(ex_lo, ex_hi)
+                # Even if near-tangent peak uncertainty leaves ex_hi unresolved on [0, ts_lo],
+                # peak_hit and opposite endpoint flow signs certify first exhaustion in
+                # [ex_lo, min(duration, ts_hi)] with exact event energy limit and zero remaining phase.
+                hi_bound = min(duration, ts_hi) if ex_hi is None else ex_hi
+                exhaustion_bounds = [str(ex_lo), str(hi_bound)]
+                mod_lo, mod_hi = ex_lo, hi_bound
+                e_box = Box.exact(limit)
+                t_final = body_temp_at_interval(mod_lo, mod_hi)
             elif peak_safe and end_hit:
                 status = "exhausted"
                 exhausted_phase = "liquid" if melting_first else "solid"
@@ -340,18 +336,12 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                 lower_mono = min(duration, ts_hi)
                 ex_lo, ex_hi = _bisect_threshold(
                     energy_at, limit, lower_mono, duration, increasing=not melting_first)
-                if ex_hi is None:
-                    status = "exhaustion_time_uncertain"
-                    exhausted_phase = None
-                    mod_lo, mod_hi = min(duration, ts_lo), duration
-                    e_box = Box.bounds(max(e_liquid, min(e_solid, e_req.span()[0])),
-                                       min(e_solid, max(e_liquid, e_req.span()[1])))
-                    t_final = body_temp_at_interval(mod_lo, mod_hi)
-                else:
-                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
-                    mod_lo, mod_hi = ex_lo, ex_hi
-                    e_box = Box.exact(limit)
-                    t_final = body_temp_at_interval(ex_lo, ex_hi)
+                lo_bound = min(duration, ts_lo) if ex_hi is None else ex_lo
+                hi_bound = duration if ex_hi is None else ex_hi
+                exhaustion_bounds = [str(lo_bound), str(hi_bound)]
+                mod_lo, mod_hi = lo_bound, hi_bound
+                e_box = Box.exact(limit)
+                t_final = body_temp_at_interval(mod_lo, mod_hi)
             else:
                 status = "exhaustion_time_uncertain"
                 mod_lo, mod_hi = F(0), duration

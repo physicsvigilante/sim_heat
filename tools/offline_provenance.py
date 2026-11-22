@@ -1,4 +1,5 @@
 """Validate pinned source digests and enforce offline provenance flags on derived results."""
+from fractions import Fraction
 import re
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -41,3 +42,22 @@ def offline_provenance(law):
         "independentlyCertifiedReference": False,
         "runnerConsumable": False,
     }
+
+
+def verified_prepared_provenance(candidate, facts, net=None):
+    """Validate offline provenance and cross-check prepared candidate/facts/network identity."""
+    provenance = offline_provenance(candidate)
+    if not isinstance(facts, dict):
+        raise ValueError("prepared facts mapping required")
+    if (facts.get("modelSha256") != provenance["modelSha256"]
+            or facts.get("studySha256") != provenance["studySha256"]
+            or facts.get("mode") != candidate.get("mode")):
+        raise ValueError("prepared facts and candidate identities do not match")
+    if net is not None:
+        if ({net.owner[n] for n in net.fixed} != set(facts.get("boundaries", {}))
+                or {net.owner[n] for n in net.bodies} != set(facts.get("bodies", {}))
+                or {name for name, *_ in net.edges} != set(facts.get("rods", {}))
+                or any(net.initial[n] != Fraction(facts["boundaries"][net.owner[n]]["T"])
+                       for n in net.fixed)):
+            raise ValueError("prepared network does not match prepared facts")
+    return provenance

@@ -1,8 +1,12 @@
 from fractions import Fraction as F
 from unittest import TestCase
 
+from qualification.h1_n13.conduction import prepare
 from tests.test_loaded_thermal_ports import LINK
+from tests.test_temperature_passages import D1, D1_PIN, ROOT
+from tests.test_terminal_response import CASES, STAR
 from tools.body_phase_bath_exchange import solve_from_law as solve_body_phase
+from tools.bounded_passages import read_pinned_facts, series_passages
 from tools.latent_heat_bath import phase_inputs, plateau_state
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS, offline_provenance
 from tools.phase_film_calibration import solve_from_law as solve_film_cal
@@ -14,7 +18,12 @@ from tools.radial_phase_exposure import solve_from_law as solve_radial_exposure
 from tools.radial_radiation_shields import solve as solve_shields, solve_phase_dewar
 from tools.radiating_radial_layers import solve as solve_radial
 from tools.radiating_surface import exterior_balance, physical_port
-from tools.terminal_response import investigate as terminal_response
+from tools.rod_generation import generation_from_network
+from tools.terminal_response import (
+    investigate as terminal_response,
+    prepare_steady_network,
+    response_from_network,
+)
 
 
 class OfflineProvenanceTests(TestCase):
@@ -106,3 +115,50 @@ class OfflineProvenanceTests(TestCase):
                 out = fn(omitted_flags_law)
                 for flag in OFFLINE_FLAG_KEYS:
                     self.assertIs(out[flag], False)
+
+    def test_prepared_object_producers_refuse_forged_flags_bad_digests_and_mixed_studies(self):
+        # Issue #195 F2 witnesses: response_from_network, generation_from_network, series_passages.
+        link_facts, link_cand, link_net = prepare_steady_network(*LINK)
+        star_dir = CASES / "star"
+        star_facts, star_cand, star_net = prepare_steady_network(
+            star_dir / "study.json", star_dir, star_dir / "facts.json", STAR,
+        )
+        d1_path = ROOT / "h1/reference_cases/D1.json"
+        d1_facts = read_pinned_facts(d1_path, D1_PIN)
+        d1_cand = prepare(D1 / "study.json", D1, d1_path, D1_PIN)
+
+        producers = (
+            ("terminal_response.response_from_network",
+             link_cand,
+             lambda cand: response_from_network(link_facts, cand, link_net)),
+            ("rod_generation.generation_from_network",
+             link_cand,
+             lambda cand: generation_from_network(link_facts, cand, link_net, [("insert", "1")])),
+            ("bounded_passages.series_passages",
+             d1_cand,
+             lambda cand: series_passages(cand, d1_facts, "exports", "body.T",
+                                          F("323.15"), ("cooling", "warming"))[3]),
+        )
+        for name, base_cand, fn in producers:
+            with self.subTest(producer=name):
+                for flag in OFFLINE_FLAG_KEYS:
+                    with self.assertRaisesRegex(ValueError, f"refuses non-False {flag}"):
+                        fn({**base_cand, flag: True})
+                for key in SOURCE_HASH_KEYS:
+                    with self.assertRaisesRegex(ValueError, f"valid 64-hex {key}"):
+                        fn({**base_cand, key: "bad"})
+                omitted = {k: v for k, v in base_cand.items() if k not in OFFLINE_FLAG_KEYS}
+                out = fn(omitted)
+                for flag in OFFLINE_FLAG_KEYS:
+                    self.assertIs(out[flag], False)
+
+        # Mixed-study witnesses: genuine objects from different studies must be refused.
+        with self.assertRaisesRegex(ValueError, "identities do not match"):
+            response_from_network(star_facts, link_cand, star_net)
+        with self.assertRaisesRegex(ValueError, "identities do not match"):
+            generation_from_network(star_facts, link_cand, star_net, [("insert", "1")])
+        with self.assertRaisesRegex(ValueError, "network does not match"):
+            response_from_network(star_facts, star_cand, link_net)
+        with self.assertRaisesRegex(ValueError, "identities do not match"):
+            series_passages(d1_cand, link_facts, "exports", "body.T",
+                            F("323.15"), ("cooling", "warming"))

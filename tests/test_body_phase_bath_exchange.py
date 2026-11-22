@@ -224,3 +224,45 @@ class BodyPhaseBathExchangeTests(TestCase):
         }
         with self.assertRaisesRegex(ValueError, "not thermally coupled"):
             solve_from_law(decoupled, "hot", "cold", "273.15", "334000", "0.02", "0.03", "200", "300", "10")
+
+    def test_near_tangent_reversing_exhaustion_retains_exact_event_energy_and_zero_inventory(self):
+        # Issue #195 F1 witnesses: peak exceeds the latent budget by ~2.74e-47 J before
+        # reversal, while the untruncated horizon energy drops back below the budget.
+        case = CASES / "star"
+        inputs = (case / "study.json", case, case / "facts.json", STAR)
+        budget = "34061415317.531641403602549745"
+        capacity = "923864956.216485709294744294"
+        duration = "1108637948"
+        t_first_approx = F("705663761.067432")
+
+        # 1) Melting-to-freezing near-tangent solid exhaustion.
+        melt = investigate(
+            inputs, "warm", "cool", "350", "1", budget, "999999999999",
+            capacity, "500", duration,
+        )
+        self.assertEqual(melt["phaseProcess"], "reversing_melting_to_freezing")
+        self.assertEqual(melt["plateauStatus"], "exhausted")
+        self.assertEqual(melt["exhaustedPhase"], "solid")
+        self.assertEqual(melt["latentEnergyIntoBathBoundsJ"], [str(F(budget)), str(F(budget))])
+        self.assertEqual(melt["remainingSolidBoundsKg"], ["0", "0"])
+        self.assertEqual(melt["modeledDurationBoundsS"], melt["exhaustionTimeBoundsS"])
+        m_lo, m_hi = map(F, melt["modeledDurationBoundsS"])
+        self.assertLessEqual(m_lo, m_hi)
+        self.assertLess(abs(m_lo - t_first_approx), F(1))
+        self.assertLess(abs(m_hi - t_first_approx), F(1))
+
+        # 2) Mirrored freezing-to-melting near-tangent liquid exhaustion.
+        freeze = investigate(
+            inputs, "warm", "cool", "310", "1", "999999999999", budget,
+            capacity, "160", duration,
+        )
+        self.assertEqual(freeze["phaseProcess"], "reversing_freezing_to_melting")
+        self.assertEqual(freeze["plateauStatus"], "exhausted")
+        self.assertEqual(freeze["exhaustedPhase"], "liquid")
+        self.assertEqual(freeze["latentEnergyIntoBathBoundsJ"], [str(-F(budget)), str(-F(budget))])
+        self.assertEqual(freeze["remainingLiquidBoundsKg"], ["0", "0"])
+        self.assertEqual(freeze["modeledDurationBoundsS"], freeze["exhaustionTimeBoundsS"])
+        f_lo, f_hi = map(F, freeze["modeledDurationBoundsS"])
+        self.assertLessEqual(f_lo, f_hi)
+        self.assertLess(abs(f_lo - t_first_approx), F(1))
+        self.assertLess(abs(f_hi - t_first_approx), F(1))
