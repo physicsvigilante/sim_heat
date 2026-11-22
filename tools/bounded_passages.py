@@ -4,6 +4,7 @@ from pathlib import Path
 
 from qualification.h1_n4.static_physical import MAX_SOURCE_BYTES, parse_facts
 from qualification.h1_n13.conduction import prepare
+from tools.offline_provenance import verified_prepared_provenance
 
 
 def brackets(values, radius, threshold, step, directions):
@@ -47,13 +48,11 @@ def observe(study, root, facts_path, facts_sha256, *, group, name, field, thresh
 
 
 def series_passages(candidate, facts, family, key, threshold, directions):
+    provenance = verified_prepared_provenance(candidate, facts)
     series = candidate[family][key]
     scale = {"K": 10**8, "W": 10**8, "J": 10**5}[series["unit"]]
     radius = Fraction(candidate["maxErrorToBudgetBySeries"][family][key]) / scale
     analysis = facts["analysis"]
     step = Fraction(analysis["stopTime"]) / analysis["intervals"]
     passages, overlaps = brackets(series["values"], radius, threshold, step, directions)
-    provenance = {key: candidate[key] for key in ("modelSha256", "studySha256", "factsSha256",
-                                            "nativeExecuted", "nativeQualified",
-                                            "independentlyCertifiedReference", "runnerConsumable")}
     return passages, overlaps, radius, provenance

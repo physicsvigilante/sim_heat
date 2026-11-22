@@ -8,6 +8,7 @@ from h1.reference import networks
 from qualification.h1_n4.static_physical import MAX_SOURCE_BYTES, parse_facts
 from qualification.h1_n5.thermal_graph import assemble
 from qualification.h1_n13.conduction import Box, Conduction, prepare
+from tools.offline_provenance import verified_prepared_provenance
 
 
 def prepare_steady_network(study, root, facts_path, facts_sha256):
@@ -34,6 +35,7 @@ def investigate(study, root, facts_path, facts_sha256, *, include_rods=False):
 
 
 def response_from_network(facts, candidate, net, *, include_rods=False):
+    provenance = verified_prepared_provenance(candidate, facts, net)
     terminals = sorted(facts["boundaries"])
     response = {name: {} for name in terminals}
     rods = {name: {} for name in facts["rods"]} if include_rods else {}
@@ -51,9 +53,7 @@ def response_from_network(facts, candidate, net, *, include_rods=False):
             "schema": "sim_heat.offline_terminal_response/1", "terminals": terminals,
             "supplyResponseBoundsWPerK": response,
             "imposedTemperaturesK": {n: str(Fraction(facts["boundaries"][n]["T"])) for n in terminals},
-            **{k: candidate[k] for k in ("modelSha256", "studySha256", "factsSha256",
-                                         "nativeExecuted", "nativeQualified",
-                                         "independentlyCertifiedReference", "runnerConsumable")}}
+            **provenance}
 
 
 if __name__ == "__main__":

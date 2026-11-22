@@ -36,10 +36,12 @@ class ObservationPassageTests(TestCase):
         # With the same ratio, the joule error bound is 1e-5 and the watt bound is 1e-8.
         candidate = {key: False for key in ("nativeExecuted", "nativeQualified",
                                              "independentlyCertifiedReference", "runnerConsumable")}
-        candidate.update(modelSha256="test", studySha256="test", factsSha256="test",
+        digest = "0" * 64
+        candidate.update(mode="transient", modelSha256=digest, studySha256=digest, factsSha256=digest,
                          requests={"value": {"unit": "J", "values": [-1e-6, 1e-6]}},
                          maxErrorToBudgetBySeries={"requests": {"value": "1"}})
-        facts = {"analysis": {"stopTime": 1, "intervals": 1}}
+        facts = {"mode": "transient", "modelSha256": digest, "studySha256": digest,
+                 "analysis": {"stopTime": 1, "intervals": 1}}
         def read():
             return series_passages(candidate, facts, "requests", "value", 0,
                                    ("decreasing", "increasing"))

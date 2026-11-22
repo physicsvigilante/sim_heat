@@ -4,6 +4,7 @@ from fractions import Fraction
 import json
 
 from qualification.h1_n13.conduction import Box, ZERO
+from tools.offline_provenance import verified_prepared_provenance
 from tools.radiating_surface import decimal_input
 from tools.rod_temperature_profile import rod_peaks
 from tools.terminal_response import prepare_steady_network
@@ -19,6 +20,7 @@ def investigate(study, root, facts_path, facts_sha256, rod_powers, *, profiles=F
 
 
 def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False, probe=None):
+    provenance = verified_prepared_provenance(candidate, facts, net)
     sources = {}
     for name, watts in rod_powers:
         if name not in facts["rods"] or name in sources:
@@ -60,9 +62,7 @@ def generation_from_network(facts, candidate, net, rod_powers, *, profiles=False
         "unheatedBathSupplyBoundsW": {net.owner[n]: bounds(-incoming[n]) for n in net.fixed},
         "generatedPowerToBathBoundsW": {t: bounds(q) for t, q in absorbed.items()},
         "netBathSupplyBoundsW": {t: bounds(q) for t, q in supply.items()},
-        **{k: candidate[k] for k in ("modelSha256", "studySha256", "factsSha256",
-                                      "nativeExecuted", "nativeQualified",
-                                      "independentlyCertifiedReference", "runnerConsumable")},
+        **provenance,
     }
     if profiles or probe is not None:
         result["schema"] = "sim_heat.offline_heated_rod_profiles/1"
