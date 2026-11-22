@@ -12,11 +12,13 @@ OFFLINE_FLAG_KEYS = (
 
 
 def offline_provenance(law):
-    """Validate source digests and offline flags on a law mapping, stamping derived flags False.
+    """Validate source digest shape and offline flags on a law mapping, stamping derived flags False.
 
-    Refuses missing/malformed SHA-256 digests and any non-False (including forged True,
-    wrong-type, or None) provenance flags on the incoming law mapping. Always emits
-    explicit False values for all four offline flags on the derived result.
+    Refuses missing/malformed 64-lowercase-hex SHA-256 strings and any non-False
+    (including forged True, wrong-type, or None) provenance flags on the incoming law
+    mapping. Always emits explicit False values for all four offline flags on the
+    derived result. Note: checking 64-hex syntax validates digest shape only; source-byte
+    authenticity is established by pinned study/facts verification in terminal_response.
     """
     if not isinstance(law, dict):
         raise ValueError("pinned terminal law mapping required")

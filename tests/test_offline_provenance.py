@@ -1,7 +1,9 @@
+from fractions import Fraction as F
 from unittest import TestCase
 
 from tests.test_loaded_thermal_ports import LINK
 from tools.body_phase_bath_exchange import solve_from_law as solve_body_phase
+from tools.latent_heat_bath import phase_inputs, plateau_state
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS, offline_provenance
 from tools.phase_film_calibration import solve_from_law as solve_film_cal
 from tools.phase_shell_conductivity import solve_from_law as solve_shell_k
@@ -11,6 +13,7 @@ from tools.radial_phase_bath import solve_from_law as solve_radial_phase
 from tools.radial_phase_exposure import solve_from_law as solve_radial_exposure
 from tools.radial_radiation_shields import solve as solve_shields, solve_phase_dewar
 from tools.radiating_radial_layers import solve as solve_radial
+from tools.radiating_surface import exterior_balance, physical_port
 from tools.terminal_response import investigate as terminal_response
 
 
@@ -86,11 +89,18 @@ class OfflineProvenanceTests(TestCase):
             ("body_phase_bath_exchange.solve_from_law",
              lambda law: solve_body_phase(law, "hot", "cold", "273.15", "334000", "0.02", "0.03",
                                           "200", "373.15", "20")),
+            ("radiating_surface.exterior_balance",
+             lambda law: exterior_balance(law, "cold", *physical_port(law, "cold"),
+                                          F("280"), F("1"), F("0.8"), F("0.0000000567"),
+                                          air_k=None, h_w_per_m2_k=None)),
+            ("latent_heat_bath.plateau_state",
+             lambda law: plateau_state(law, "cold", phase_inputs("273.15", "334000", "0.5", "0.1", "10"),
+                                       F("10"), F("10"), {})),
         )
         omitted_flags_law = {k: v for k, v in self.law.items() if k not in OFFLINE_FLAG_KEYS}
         for name, fn in callers:
             with self.subTest(solver=name):
-                for forged in ("nativeExecuted", "nativeQualified"):
+                for forged in OFFLINE_FLAG_KEYS:
                     with self.assertRaisesRegex(ValueError, f"refuses non-False {forged}"):
                         fn({**self.law, forged: True})
                 out = fn(omitted_flags_law)
