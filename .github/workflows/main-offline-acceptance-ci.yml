@@ -1,0 +1,84 @@
+name: Main integration offline acceptance CI - ZERO OMC
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: simheat-main-offline-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  main-offline-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install pinned offline checking libraries only, never OpenModelica
+        run: >-
+          python -m pip install --only-binary=:all: -r requirements-h1-ci.txt
+      - name: Record checked-out integration tree identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p main_evidence
+          {
+            echo "event=${{ github.event_name }}"
+            echo "github_sha=${{ github.sha }}"
+            echo "head=$(git rev-parse HEAD)"
+            echo "parents=$(git rev-list --parents -n 1 HEAD)"
+          } | tee main_evidence/checkout.txt
+      - name: Run full top-level, H1, analytical and viewer offline suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s tests -v 2>&1 | tee main_evidence/tests.log
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee main_evidence/h1.log
+          python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee main_evidence/analytical.log
+          python -B -m unittest discover -s viewer/network/tests -v 2>&1 | tee main_evidence/adapter.log
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/*.test.mjs 2>&1 | tee main_evidence/viewer.log
+      - name: Run N1 pinned-context plan check and N2-N13 offline suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B tools/verify_n1_plan_maintenance.py --run-tests --out main_evidence/n1-plan-check.json 2>&1 | tee main_evidence/n1.log
+          for suite in \
+            qualification/h1_n2/tests \
+            qualification/h1_n3/tests \
+            qualification/h1_n4/tests \
+            qualification/h1_n5/tests \
+            qualification/h1_n6/tests \
+            qualification/h1_n7/tests \
+            qualification/h1_n8/tests \
+            qualification/h1_n9/tests \
+            qualification/h1_n10/tests \
+            qualification/h1_n11/tests \
+            qualification/h1_n12/tests
+          do
+            echo "=== $suite ==="
+            python -B -m unittest discover -s "$suite" -v 2>&1 | tee -a main_evidence/n2_to_n13.log
+          done
+          echo "=== qualification/h1_n13/test_conduction.py ==="
+          python -B -m unittest qualification/h1_n13/test_conduction.py -v 2>&1 | tee -a main_evidence/n2_to_n13.log
+      - name: Replay representative offline thermal CLI smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m tools.radial_exposure_sizing --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --surface-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --inner-radius-m 0.1 --coating-k 1 --radius-m 0.5 --radius-m 0.2 --radius-m 0.12 --emissivity 0 --sigma 0.0000000567 --cylinder-length-m 1 --stage day 293.15 5 280 260 --stage night 253.15 5 250 200 > main_evidence/radial-exposure-sizing.json
+          python -B -m tools.phase_shell_conductivity --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --surface-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --duration-s 120 --melted-kg 0.0095 0.0096 --inner-radius-m 0.1 --layer 0.2 ? --air-k 293.15 --h-w-per-m2-k 10 --enclosure-k 300 --emissivity 0.8 --sigma 0.0000000567 > main_evidence/phase-shell-conductivity.json
+          python -B -m tools.radial_radiation_shields --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --surface-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --duration-s 300 --inner-radius-m 0.1 --layer 0.2 2 --surface-emissivity 0.8 --shield 0.25 0.05 0.05 --shield 0.35 0.05 0.05 --enclosure-radius-m 0.5 --enclosure-emissivity 0.8 --enclosure-k 350 --sigma 0.0000000567 > main_evidence/radial-radiation-shields.json
+          python -B -m tools.body_phase_bath_exchange --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --body-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --capacity-j-per-k 200 --initial-k 373.15 --duration-s 100 > main_evidence/body-phase-bath-exchange.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: main-offline-acceptance-${{ github.sha }}
+          path: main_evidence/
+          retention-days: 90
+          if-no-files-found: error

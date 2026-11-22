@@ -2,6 +2,7 @@
 import argparse
 import json
 
+from tools.offline_provenance import offline_provenance
 from tools.radial_phase_exposure import solve_from_law as solve_exposure_from_law
 from tools.radiating_surface import decimal_input
 from tools.terminal_response import investigate as terminal_response
@@ -76,9 +77,7 @@ def select_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_p
         "requestedStages": last["requestedStages"],
         "sizes": rows,
         "smallestEstablishedSurvivingRadiusM": smallest_established_surviving(rows),
-        **{key: law[key] for key in ("studySha256", "modelSha256", "factsSha256", "nativeExecuted",
-                                     "nativeQualified", "independentlyCertifiedReference",
-                                     "runnerConsumable")},
+        **offline_provenance(law),
     }
 
 

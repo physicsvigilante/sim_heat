@@ -6,6 +6,7 @@ import json
 from qualification.h1_n13.conduction import ZERO, Box, interval
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
+from tools.offline_provenance import offline_provenance
 from tools.radiating_surface import decimal_input, physical_port
 from tools.spherical_conduction import radial_log
 from tools.terminal_response import investigate as terminal_response
@@ -390,9 +391,7 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
         "latentEnergyIntoBathBoundsJ": [str(elo), str(ehi)],
         "remainingSolidBoundsKg": [str(solid - mhi), str(solid - mlo)],
         "remainingLiquidBoundsKg": [str(liquid + mlo), str(liquid + mhi)],
-        **{k: law[k] for k in ("studySha256", "modelSha256", "factsSha256",
-                               "nativeExecuted", "nativeQualified",
-                               "independentlyCertifiedReference", "runnerConsumable")},
+        **offline_provenance(law),
     }
     return result
 
