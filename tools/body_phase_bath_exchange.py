@@ -215,13 +215,17 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                     e_box = Box.bounds(max(e_liquid, e_raw.span()[0]), max(e_liquid, e_raw.span()[1]))
                     t_final = body_temp_at_interval(ex_lo, duration)
     else:
+        melting_mono = q0_lo >= 0 and qe_lo >= 0 and (
+            q0_lo > 0 or qe_lo > 0 or (q0_hi == 0 and qi_lo > 0))
+        freezing_mono = q0_hi <= 0 and qe_hi <= 0 and (
+            q0_hi < 0 or qe_hi < 0 or (q0_lo == 0 and qi_hi < 0))
         if q0_lo == q0_hi == 0 and qi_lo == qi_hi == 0:
             process = "equilibrium"
             status = "coexisting"
             mod_lo = mod_hi = duration
             e_box = ZERO
             t_final = body_temp_at_interval(duration, duration)
-        elif q0_lo > 0 and qe_lo > 0:
+        elif melting_mono:
             process = "melting"
             e_req = energy_at(duration)
             if e_req.span()[1] < e_solid:
@@ -249,7 +253,7 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                 mod_lo, mod_hi = ex_lo, duration
                 e_box = Box.bounds(min(e_solid, e_req.span()[0]), min(e_solid, e_req.span()[1]))
                 t_final = body_temp_at_interval(ex_lo, duration)
-        elif q0_hi < 0 and qe_hi < 0:
+        elif freezing_mono:
             process = "freezing"
             e_req = energy_at(duration)
             if e_req.span()[0] > e_liquid:

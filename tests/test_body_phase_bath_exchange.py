@@ -105,8 +105,8 @@ class BodyPhaseBathExchangeTests(TestCase):
         self.assertEqual(zero_t["latentEnergyIntoBathBoundsJ"], ["0", "0"])
 
     def test_star_network_monotonic_and_reversing_regimes_against_mpmath(self):
-        # STAR network has terminals warm, cool, middle (middle imposed at 320 K).
-        # Put phase bath at warm (T_tr = 350 K -> middle at 320 K is COLDER than phase bath, so Q_inf < 0!).
+        # STAR network has terminals warm, cool, middle (middle imposed at 330 K).
+        # Put phase bath at warm (T_tr = 350 K -> middle at 330 K is COLDER than phase bath, so Q_inf < 0!).
         # Put hot body at cool (T_0 = 500 K) -> initially melts ice (Q_0 > 0), then reverses to freeze!
         case = CASES / "star"
         inputs = (case / "study.json", case, case / "facts.json", STAR)
@@ -178,6 +178,35 @@ class BodyPhaseBathExchangeTests(TestCase):
         self.assertEqual(rev_f2m["phaseProcess"], "reversing_freezing_to_melting")
         self.assertEqual(rev_f2m["plateauStatus"], "coexisting")
         self.assertIsNotNone(rev_f2m["reversalTimeBoundsS"])
+
+        # 6) Exact zero initial bath flux with definite subsequent sign (Q_p(0) == 0, Q_inf != 0):
+        # Freezing: T_tr = 350 K, T_0 = 362 K -> Q_inf = -24 W, Q_tr = +24 W, Q_p(t) = -24(1 - exp(-t/40)).
+        # Melting:  T_tr = 310 K, T_0 = 298 K -> Q_inf = +24 W, Q_tr = -24 W, Q_p(t) = +24(1 - exp(-t/40)).
+        for t_tr, t_0, expected_proc, sign in (
+            ("350", "362", "freezing", -1),
+            ("310", "298", "melting", 1),
+        ):
+            with self.subTest(t_tr=t_tr, t_0=t_0):
+                res_120 = solve_from_law(
+                    law, "warm", "cool", t_tr, "1000", "50", "50", "100", t_0, "120",
+                )
+                self.assertEqual(res_120["phaseProcess"], expected_proc)
+                self.assertEqual(res_120["plateauStatus"], "coexisting")
+                self.assertEqual(res_120["initialBathInflowBoundsW"], ["0", "0"])
+                self.assertIsNotNone(res_120["exhaustionTimeBoundsS"])
+                with mp.workdps(110):
+                    e_exact = sign * (24 * 120 - 40 * 24 * (1 - mp.exp(-3)))
+                    e_lo, e_hi = map(F, res_120["latentEnergyIntoBathBoundsJ"])
+                    self.assertTrue(e_lo <= F(mp.nstr(e_exact, 95)) <= e_hi)
+
+                res_0 = solve_from_law(
+                    law, "warm", "cool", t_tr, "1000", "50", "50", "100", t_0, "0",
+                )
+                self.assertEqual(res_0["phaseProcess"], expected_proc)
+                self.assertEqual(res_0["plateauStatus"], "coexisting")
+                self.assertEqual(res_0["latentEnergyIntoBathBoundsJ"], ["0", "0"])
+                self.assertEqual(res_0["finalBodyTemperatureBoundsK"], [t_0, t_0])
+                self.assertIsNotNone(res_0["exhaustionTimeBoundsS"])
 
     def test_refusals_for_invalid_ports_capacity_and_decoupled_network(self):
         with self.assertRaisesRegex(ValueError, "distinct phase and body ports"):
