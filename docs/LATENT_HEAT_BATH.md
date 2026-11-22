@@ -53,3 +53,15 @@ Append `--equilibrium-cp 2000 4200 --transfer-target-j 120000` to the two-bath c
 For the first 90 kJ the two temperatures stay fixed, giving 750 s at 120 W. The donor then cools as a solid, while the receiver still contains ice. The next 30 kJ takes longer per joule. The calculation gives a total time of **1083.37 s**. Both endpoint temperatures and the duration of each stage appear under `transferPassage`.
 
 If E is the energy transferred so far, conservation fixes each temperature: the hot material starts to cool after freezing its initial liquid, and the cold material starts to warm after melting its initial solid. Between these two event energies the temperature difference D(E) is affine. For an interval ΔE with terminal conductance G, the elapsed time is ΔE/(G D) for constant D. When D falls from D1 to D2 the time is ΔE ln(D1/D2)/[G(D1 − D2)]. The equilibrium transfer is approached asymptotically. Positive targets at or beyond that energy have no finite passage.
+
+## A finite heat-capacity body coupled to a two-phase bath
+
+Instead of a second maintained reservoir or a second phase bath, attach a lumped isothermal body of heat capacity $C$ at initial temperature $T_0$ to one port of the steady network (`--body-port`) while holding a coexisting two-phase mixture at `--phase-port`. While both phases coexist, the body relaxes exponentially with time constant $\tau = C R_{\text{port}}$ toward its open-port equilibrium $T_{\text{eq}}$:
+
+$$T_b(t) = T_{\text{eq}} + (T_0 - T_{\text{eq}})e^{-t/\tau}.$$
+
+For a two-terminal network ($T_{\text{eq}} = T_{\text{tr}}$), the cumulative latent energy entering the bath is $E_p(t) = C(T_0 - T_{\text{tr}})(1 - e^{-t/\tau})$. If $|C(T_0 - T_{\text{tr}})|$ does not exceed the participating phase's latent budget, the bath never exhausts and the body approaches $T_{\text{tr}}$ asymptotically; otherwise the phase exhausts at exact finite time $t_{\text{exh}} = \tau \ln\!\left(\frac{C(T_0 - T_{\text{tr}})}{C(T_0 - T_{\text{tr}}) - E_{\text{lim}}}\right)$ with the body still at $T_0 - E_{\text{lim}}/C$. In multi-reservoir networks, a third maintained bath adds a steady bias $Q_\infty$ so the phase-bath inflow $Q_{\text{in},p}(t) = Q_\infty + Q_{\text{tr}}e^{-t/\tau}$ can even reverse sign once during the exposure (melting first and then refreezing, or vice versa). The `body_phase_bath_exchange` command brackets $T_b(t)$, cumulative latent energy, remaining inventories, any reversal time $t^*$, and the first exhaustion event without fabricating post-exhaustion trajectories.
+
+~~~sh
+python -B -m tools.body_phase_bath_exchange --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --body-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --capacity-j-per-k 200 --initial-k 373.15 --duration-s 100
+~~~
