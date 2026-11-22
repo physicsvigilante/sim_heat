@@ -8,14 +8,14 @@ from pathlib import Path
 import tempfile
 from unittest import TestCase
 
-from qualification.h1_n13.conduction import ZERO, interval
+from qualification.h1_n13.conduction import interval
 from tests.test_loaded_thermal_ports import LINK
 from tests.test_terminal_response import CASES, STAR
 from tools.body_phase_bath_exchange import investigate as body_investigate
 from tools.offline_investigation import (
     CONTRACT_SCHEMA,
-    ENDPOINT_MEANING,
     EVIDENCE_CATEGORY,
+    TERMINAL_LAW_SCHEMA,
     ExteriorExchangeSpec,
     InvestigationRequest,
     LumpedBodySpec,
@@ -51,6 +51,22 @@ def _source_dict(inputs):
         "rootPath": str(inputs[1]),
         "factsPath": str(inputs[2]),
         "factsSha256": str(inputs[3]),
+    }
+
+
+def _synthetic_law(terminals, imposed, matrix, *, schema=TERMINAL_LAW_SCHEMA):
+    return {
+        "schema": schema,
+        "terminals": list(terminals),
+        "imposedTemperaturesK": dict(imposed),
+        "supplyResponseBoundsWPerK": matrix,
+        "modelSha256": "a" * 64,
+        "studySha256": "b" * 64,
+        "factsSha256": "c" * 64,
+        "nativeExecuted": False,
+        "nativeQualified": False,
+        "independentlyCertifiedReference": False,
+        "runnerConsumable": False,
     }
 
 
@@ -98,6 +114,26 @@ class OfflineInvestigationContractTests(TestCase):
                 self.assertIs(record[flag], False)
                 self.assertIs(record["evidence"][flag], False)
             self.assertIs(record["status"]["postExhaustionModeled"], False)
+
+            # P2-1: source-law reference temps are separated from active boundary conditions.
+            self.assertNotIn("imposedTemperaturesK", record["network"])
+            self.assertEqual(
+                record["network"]["sourceLawReferenceTemperaturesK"],
+                {"hot": "380", "cold": "280"},
+            )
+            self.assertEqual(record["network"]["maintainedReservoirTemperaturesK"], {})
+            self.assertEqual(
+                record["network"]["activeBoundaryConditions"]["hot"],
+                {
+                    "role": "phase_bath",
+                    "constraint": "clamped_during_coexistence",
+                    "temperatureK": direct["transitionTemperatureK"],
+                },
+            )
+            self.assertEqual(
+                record["network"]["activeBoundaryConditions"]["cold"]["constraint"],
+                "released_to_radial_shell",
+            )
             self.assertEqual(
                 record["quantities"]["bathInflowDuringPlateauW"]["signConvention"],
                 "into_phase_bath_positive",
@@ -106,7 +142,6 @@ class OfflineInvestigationContractTests(TestCase):
                 record["quantities"]["surfaceOutwardHeatRateW"]["signConvention"],
                 "outward_from_radial_surface_positive",
             )
-            # Round-trip JSON serialization must survive without flag promotion or loss.
             round_tripped = json.loads(json.dumps(record))
             self.assertTrue(validate_investigation_record(round_tripped))
 
@@ -147,6 +182,23 @@ class OfflineInvestigationContractTests(TestCase):
             record["network"]["portRoles"],
             {"warm": "radial_surface", "middle": "maintained_reservoir", "cool": "phase_bath"},
         )
+        self.assertEqual(
+            record["network"]["sourceLawReferenceTemperaturesK"],
+            {"warm": "380", "middle": "330", "cool": "280"},
+        )
+        self.assertEqual(record["network"]["maintainedReservoirTemperaturesK"], {"middle": "330"})
+        self.assertEqual(
+            record["network"]["activeBoundaryConditions"]["middle"],
+            {"role": "maintained_reservoir", "constraint": "fixed_dirichlet", "temperatureK": "330"},
+        )
+        self.assertEqual(
+            record["network"]["activeBoundaryConditions"]["cool"]["temperatureK"],
+            direct["transitionTemperatureK"],
+        )
+        self.assertEqual(
+            record["network"]["activeBoundaryConditions"]["warm"]["constraint"],
+            "released_to_radial_shell",
+        )
         self.assertEqual(record["geometry"]["kind"], "sphere")
         self.assertIsNone(record["geometry"]["cylinderLengthM"])
 
@@ -163,7 +215,7 @@ class OfflineInvestigationContractTests(TestCase):
         self.assertGreaterEqual(total.span()[1], F(0))
 
     def test_body_phase_bath_exchange_link_and_star_reversing_parity(self):
-        # 2-terminal LINK (exhausted solid)
+        # 2-terminal LINK (exhausted solid; composed temps 350/273.15 differ from source 380/280)
         direct_link = body_investigate(
             LINK, "cold", "hot", "273.15", "334000", "0.005", "0.05", "4000", "350", "50000",
         )
@@ -179,6 +231,28 @@ class OfflineInvestigationContractTests(TestCase):
         self.assertEqual(rec_link["status"]["plateauStatus"], "exhausted")
         self.assertEqual(rec_link["status"]["exhaustedPhase"], "solid")
         self.assertEqual(rec_link["geometry"]["kind"], "lumped_network_port")
+        self.assertEqual(
+            rec_link["network"]["sourceLawReferenceTemperaturesK"],
+            {"hot": "380", "cold": "280"},
+        )
+        self.assertEqual(rec_link["network"]["maintainedReservoirTemperaturesK"], {})
+        self.assertEqual(
+            rec_link["network"]["activeBoundaryConditions"]["cold"],
+            {
+                "role": "phase_bath",
+                "constraint": "clamped_during_coexistence",
+                "temperatureK": direct_link["transitionTemperatureK"],
+            },
+        )
+        self.assertEqual(
+            rec_link["network"]["activeBoundaryConditions"]["hot"],
+            {
+                "role": "lumped_body",
+                "constraint": "released_to_lumped_body",
+                "initialTemperatureK": "350",
+                "finalTemperatureBoundsK": direct_link["finalBodyTemperatureBoundsK"],
+            },
+        )
         self.assertEqual(
             rec_link["quantities"]["bodyEnergyChangeJ"]["signConvention"],
             "into_body_positive",
@@ -216,6 +290,7 @@ class OfflineInvestigationContractTests(TestCase):
             rec_star["network"]["portRoles"],
             {"warm": "lumped_body", "middle": "maintained_reservoir", "cool": "phase_bath"},
         )
+        self.assertEqual(rec_star["network"]["maintainedReservoirTemperaturesK"], {"middle": "330"})
         self.assertTrue(validate_investigation_record(json.loads(json.dumps(rec_star))))
 
     def test_cli_entry_point_for_both_compositions(self):
@@ -245,6 +320,98 @@ class OfflineInvestigationContractTests(TestCase):
             out = json.loads(buf.getvalue())
             self.assertEqual(out["schema"], CONTRACT_SCHEMA)
             self.assertTrue(validate_investigation_record(out))
+
+    def test_passive_law_validation_refuses_nonreciprocal_and_unphysical_matrices(self):
+        # P2-3 exact asymmetric two-terminal witness (nonreciprocal response: 1 vs 2 W/K).
+        asymmetric = _synthetic_law(
+            ["hot", "cold"],
+            {"hot": "320", "cold": "273.15"},
+            {
+                "hot": {"hot": ["1", "1"], "cold": ["-1", "-1"]},
+                "cold": {"hot": ["-2", "-2"], "cold": ["2", "2"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "nonreciprocal"):
+            validate_pinned_law(asymmetric)
+        with self.assertRaisesRegex(ValueError, "nonreciprocal"):
+            run_investigation({
+                "composition": "body_phase_bath_exchange",
+                "source": asymmetric,
+                "durationS": "1",
+                "phaseBath": {
+                    "port": "cold",
+                    "transitionTemperatureK": "273.15",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "0.1",
+                    "initialLiquidKg": "0.1",
+                },
+                "body": {
+                    "port": "hot",
+                    "heatCapacityJPerK": "1000",
+                    "initialBodyTemperatureK": "320",
+                },
+            })
+
+        # Wrong schema
+        bad_schema = _synthetic_law(
+            ["hot", "cold"],
+            {"hot": "320", "cold": "273.15"},
+            {
+                "hot": {"hot": ["1", "1"], "cold": ["-1", "-1"]},
+                "cold": {"hot": ["-1", "-1"], "cold": ["1", "1"]},
+            },
+            schema="sim_heat.wrong/1",
+        )
+        with self.assertRaisesRegex(ValueError, "pinned law schema"):
+            validate_pinned_law(bad_schema)
+
+        # Non-zero row sum
+        bad_row_sum = _synthetic_law(
+            ["hot", "cold"],
+            {"hot": "320", "cold": "273.15"},
+            {
+                "hot": {"hot": ["2", "2"], "cold": ["-1", "-1"]},
+                "cold": {"hot": ["-1", "-1"], "cold": ["1", "1"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "zero-sum conservation"):
+            validate_pinned_law(bad_row_sum)
+
+        # Positive off-diagonal
+        bad_offdiag = _synthetic_law(
+            ["hot", "cold"],
+            {"hot": "320", "cold": "273.15"},
+            {
+                "hot": {"hot": ["1", "1"], "cold": ["1", "1"]},
+                "cold": {"hot": ["1", "1"], "cold": ["1", "1"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "non-positive off-diagonal"):
+            validate_pinned_law(bad_offdiag)
+
+        # Disconnected 3-terminal network
+        disconnected = _synthetic_law(
+            ["a", "b", "c"],
+            {"a": "350", "b": "300", "c": "280"},
+            {
+                "a": {"a": ["1", "1"], "b": ["-1", "-1"], "c": ["0", "0"]},
+                "b": {"a": ["-1", "-1"], "b": ["1", "1"], "c": ["0", "0"]},
+                "c": {"a": ["0", "0"], "b": ["0", "0"], "c": ["1", "1"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "zero-sum conservation|disconnected"):
+            validate_pinned_law(disconnected)
+
+        # Legitimate overlapping independent interval enclosures MUST be accepted.
+        overlapping = _synthetic_law(
+            ["hot", "cold"],
+            {"hot": "320", "cold": "273.15"},
+            {
+                "hot": {"hot": ["9/10", "11/10"], "cold": ["-11/10", "-9/10"]},
+                "cold": {"hot": ["-105/100", "-95/100"], "cold": ["95/100", "105/100"]},
+            },
+        )
+        validate_pinned_law(overlapping)
 
     def test_negative_controls_malformed_ports_geometry_intervals_and_provenance(self):
         law = terminal_response(*LINK)
@@ -284,7 +451,7 @@ class OfflineInvestigationContractTests(TestCase):
                 body=LumpedBodySpec("hot", "1000", "320"),
             ))
 
-        # Malformed radial geometry: sphere with cylinder_length_m, cylinder without length, non-increasing radii
+        # Malformed radial geometry
         with self.assertRaisesRegex(ValueError, "sphere geometry"):
             RadialGeometrySpec("sphere", "0.1", (RadialLayerSpec("0.2", "2"),), cylinder_length_m="1")
         with self.assertRaisesRegex(ValueError, "cylinder geometry requires"):
@@ -309,39 +476,45 @@ class OfflineInvestigationContractTests(TestCase):
             with self.assertRaisesRegex(ValueError, "refuses non-False"):
                 validate_pinned_law(forged)
 
-        # Tampered serialized record controls
+    def test_one_field_at_a_time_serialization_tamper_controls(self):
         good = run_investigation(InvestigationRequest(
             composition="body_phase_bath_exchange",
-            source=law,
-            duration_s="100",
-            phase_bath=PhaseBathSpec("cold", "273.15", "334000", "0.1", "0.1"),
-            body=LumpedBodySpec("hot", "2000", "320"),
+            source=_source_ref(LINK),
+            duration_s="50000",
+            phase_bath=PhaseBathSpec("cold", "273.15", "334000", "0.005", "0.05"),
+            body=LumpedBodySpec("hot", "4000", "350"),
         ))
+
+        # Every offline flag refused when forged True
         for flag in OFFLINE_FLAG_KEYS:
             tampered = copy.deepcopy(good)
             tampered["evidence"][flag] = True
             with self.assertRaisesRegex(ValueError, "must be False"):
                 validate_investigation_record(tampered)
 
-        bad_post = copy.deepcopy(good)
-        bad_post["status"]["postExhaustionModeled"] = True
-        with self.assertRaisesRegex(ValueError, "postExhaustionModeled must be False"):
-            validate_investigation_record(bad_post)
-
-        bad_bounds = copy.deepcopy(good)
-        bad_bounds["quantities"]["finalBodyTemperatureK"]["bounds"] = ["400", "300"]
-        with self.assertRaisesRegex(ValueError, "inverted interval bounds"):
-            validate_investigation_record(bad_bounds)
-
-        bad_unit = copy.deepcopy(good)
-        bad_unit["quantities"]["finalBodyTemperatureK"]["unit"] = "C"
-        with self.assertRaisesRegex(ValueError, "unit must be 'K'"):
-            validate_investigation_record(bad_unit)
-
-        bad_hash = copy.deepcopy(good)
-        bad_hash["evidence"]["sourceIdentity"][SOURCE_HASH_KEYS[0]] = "0" * 64
-        with self.assertRaisesRegex(ValueError, "must match top-level"):
-            validate_investigation_record(bad_hash)
+        # P2-2 individual semantic mutations (one field at a time)
+        mutations = [
+            ("wrong_sign_convention", lambda r: r["quantities"]["bodyEnergyChangeJ"].__setitem__("signConvention", "into_phase_bath_positive"), "signConvention"),
+            ("wrong_owner", lambda r: r["quantities"]["bodyEnergyChangeJ"].__setitem__("owner", "phase_bath:cold"), "owner"),
+            ("negative_mass_domain", lambda r: r["quantities"]["remainingSolidKg"].__setitem__("bounds", ["-1", "-1"]), "nonnegative"),
+            ("duplicate_port_role", lambda r: r["network"]["portRoles"].__setitem__("hot", "phase_bath"), "exactly one"),
+            ("mismatched_phase_process", lambda r: r["status"].__setitem__("phaseProcess", "freezing"), "must match rawResult.phaseProcess"),
+            ("unconnected_bounds_tamper", lambda r: r["quantities"]["finalBodyTemperatureK"].__setitem__("bounds", ["300", "300"]), "does not match rawResult"),
+            ("inverted_bounds", lambda r: r["quantities"]["finalBodyTemperatureK"].__setitem__("bounds", ["400", "300"]), "inverted interval bounds"),
+            ("wrong_unit", lambda r: r["quantities"]["finalBodyTemperatureK"].__setitem__("unit", "C"), "unit must be 'K'"),
+            ("post_exhaustion_true", lambda r: r["status"].__setitem__("postExhaustionModeled", True), "postExhaustionModeled must be False"),
+            ("wrong_underlying_schema", lambda r: r.__setitem__("underlyingSchema", "sim_heat.wrong/1"), "underlyingSchema"),
+            ("tampered_active_bc", lambda r: r["network"]["activeBoundaryConditions"]["cold"].__setitem__("temperatureK", "280"), "activeBoundaryConditions"),
+            ("tampered_geometry", lambda r: r["geometry"].__setitem__("kind", "sphere"), "geometry"),
+            ("tampered_inputs", lambda r: r["inputs"]["body"].__setitem__("initialBodyTemperatureK", "380"), "inputs.body"),
+            ("tampered_source_hash", lambda r: r["evidence"]["sourceIdentity"].__setitem__(SOURCE_HASH_KEYS[0], "0" * 64), "must match top-level"),
+        ]
+        for label, mutate, pattern in mutations:
+            with self.subTest(mutation=label):
+                tampered = copy.deepcopy(good)
+                mutate(tampered)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    validate_investigation_record(tampered)
 
     def test_ci_workflow_map_lists_every_workflow_file(self):
         workflow_map = (REPO_ROOT / "docs" / "CI_WORKFLOW_MAP.md").read_text(encoding="utf-8")
