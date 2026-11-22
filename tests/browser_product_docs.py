@@ -36,7 +36,7 @@ def run(out: Path):
                     page.locator('#read-registry').click()
                     page.wait_for_url('**/docs/CAPABILITIES.html')
                     assert page.locator('h1').inner_text() == 'SIM_HEAT capability and evidence registry'
-                    assert page.locator('table').count() == 3
+                    assert page.locator('table').count() == 4
                     assert 'nativeQualified=false' in page.locator('main').inner_text()
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     assert page.locator('script,iframe,form').count() == 0

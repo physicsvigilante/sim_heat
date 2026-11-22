@@ -133,6 +133,13 @@ class ProductDocsTests(unittest.TestCase):
         self.assertIn('not_computed', entry)
         self.assertIn('[generic H1 source-only inspector](../viewer/source_preview/index.html)', guide)
         self.assertIn('[Generic source-only inspector](../viewer/source_preview/index.html)', registry)
+        readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+        self.assertIn('## Offline analytical thermal tools', registry)
+        self.assertIn('offline analytical Python tools', readme)
+        self.assertIn('native H1 Modelica', readme)
+        for mod in ('offline_provenance.py', 'radial_radiation_shields.py',
+                    'phase_shell_conductivity.py', 'body_phase_bath_exchange.py'):
+            self.assertIn(mod, registry)
 
     def test_documented_walkthrough_executes_only_real_admission_cli(self):
         blocks = re.findall(r'```python\n(.*?)\n```', (ROOT / 'docs/AUTHORING.md').read_text(), re.S)

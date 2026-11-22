@@ -22,7 +22,7 @@ python -m http.server 8000 --bind 127.0.0.1
 
 Open `http://127.0.0.1:8000/` for the [start page](index.html). Its primary link opens the existing [thermal explorer](viewer/network/index.html); the second opens the [saved conductivity comparison](viewer/network/compare.html). No OpenModelica installation is needed for archived playback. The server serves static files, not a solver.
 
-The [capability and evidence registry](docs/CAPABILITIES.md) is the current product inventory. It separates **archived native diagnostics**, **analytical checking data**, and **expected-only source views**, with links to the original records. The dated [November 17 audit](docs/PROJECT_AUDIT_2026_11_17.md) is preserved as history rather than silently rewritten into a new result.
+The [capability and evidence registry](docs/CAPABILITIES.md) is the current product inventory. It separates **archived native diagnostics**, **admitted authored-source previews**, **analytical checking data**, **offline analytical thermal tools**, and **expected-only source views**, with links to the original records. The dated [November 17 audit](docs/PROJECT_AUDIT_2026_11_17.md) is preserved as history rather than silently rewritten into a new result.
 
 The previous direct route still works: serve `viewer/network` with `python -m http.server 8000 --bind 127.0.0.1 --directory viewer/network` or open `/viewer/network/` from the repository-root server. The older bridge-only prototype remains at `/viewer/`.
 
@@ -30,7 +30,9 @@ The previous direct route still works: serve `viewer/network` with `python -m ht
 
 The same data-driven explorer displays six source-linked archived native diagnostic cases: D1, D2, DEV_BRIDGE, steady S1, TEACH_RING4 and D2_K2. It supports case switching, saved-time playback, temperature/flow/energy inspection, reversal markers, exact original-CSV hash checking and the saved D2 versus D2_K2 comparison. It does not launch simulations or invent readings between saved samples.
 
-The physical library supports ideal lumped heat-capacity bodies, storage-free conductive rods with area or circular cross-section, and fixed-temperature boundaries. Supported combinations are source-authoring tasks, not new apparatus-specific solver or renderer implementations. The small typed grammar checks ports, topology, explicit initial/boundary conditions, provenance and public observations. See the [H1 contract](docs/H1_IMPLEMENTATION_CONTRACT.md) and [offline amendment](docs/H1_OFFLINE_AMENDMENT.md).
+The physical library for **native H1 Modelica authoring** supports ideal lumped heat-capacity bodies, storage-free conductive rods with area or circular cross-section, and fixed-temperature boundaries. Supported combinations are source-authoring tasks, not new apparatus-specific solver or renderer implementations. The small typed grammar checks ports, topology, explicit initial/boundary conditions, provenance and public observations. See the [H1 contract](docs/H1_IMPLEMENTATION_CONTRACT.md) and [offline amendment](docs/H1_OFFLINE_AMENDMENT.md).
+
+Separately, **offline analytical Python tools** under `tools/` compose pinned steady/transient conduction networks with radial shells, diffuse-gray radiation and concentric shields, prescribed convective films, coexisting two-phase baths, multi-stage day/night schedules, lumped body-phase transients, and scoped interval inverse calibrations. These are offline analytical calculations (`nativeExecuted=false`, `nativeQualified=false`), not native OpenModelica simulations or browser-simulated cases; see the [capability registry](docs/CAPABILITIES.md) for the full breakdown.
 
 **Published results remain `diagnostic_only` and `nativeQualified=false`.** Actual archived solver execution is not independent measurement, universal numerical qualification or classroom validation. The [viewer guide](viewer/network/README.md) retains original run/artifact hashes, source provenance and operation limits. Arbitrary CSV files are not accepted as native evidence.
 
@@ -51,6 +53,7 @@ python -B -m unittest discover -s viewer/network/tests -p 'test_*.py' -v
 python -B -m unittest discover -s tests -p 'test_*.py' -v
 node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs
 python -B -m h1 h1/cases/D2/study.json --root h1/cases
+python -B tools/render_product_docs.py --check
 ```
 
 Admission prints a descriptor/topology report, not simulated temperatures. Ordinary reference preparation makes checking data, not native evidence; never regenerate a frozen/adopted C1 reference while replaying evidence. "Offline" means no native simulation, not air-gapped dependency installation.
@@ -59,7 +62,7 @@ With the existing pinned Playwright/Chromium checking environment, run `python -
 
 ## Scope and next direction
 
-No general symbolic/inverse solver, fluid flow, phase change, moving mechanics, convection/radiation library, arbitrary temperature-dependent materials, unrestricted Modelica service or autonomous natural-language-to-validated-simulation workflow is implemented. Teacher usability and blind unfamiliar-author transfer remain unproven.
+No native OpenModelica convection/radiation/phase library, browser-launched solver, fluid-flow/CFD engine, moving-boundary Stefan solver, blackbody spectral/Wien solver, general symbolic/inverse solver, moving mechanics, arbitrary temperature-dependent material law, unrestricted Modelica service, or autonomous natural-language-to-validated-simulation workflow is implemented. Teacher usability and blind unfamiliar-author transfer remain unproven.
 
 The next milestone is one unfamiliar supported composition through authored source, admission, faithful source visualization, separately authorized native execution, saved-reference checks and inspectable results. Do not substitute more mock authorization demonstrations for completing that task. Any native attempt needs a separately approved bounded plan and relevant independent review.
 
