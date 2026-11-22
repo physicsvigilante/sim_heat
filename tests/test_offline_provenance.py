@@ -4,7 +4,7 @@ from unittest import TestCase
 from qualification.h1_n13.conduction import prepare
 from tests.test_loaded_thermal_ports import LINK
 from tests.test_temperature_passages import D1, D1_PIN, ROOT
-from tests.test_terminal_response import CASES, STAR
+from tests.test_terminal_response import CASES, STAR, TRIANGLE
 from tools.body_phase_bath_exchange import solve_from_law as solve_body_phase
 from tools.bounded_passages import read_pinned_facts, series_passages
 from tools.latent_heat_bath import phase_inputs, plateau_state
@@ -152,13 +152,23 @@ class OfflineProvenanceTests(TestCase):
                 for flag in OFFLINE_FLAG_KEYS:
                     self.assertIs(out[flag], False)
 
-        # Mixed-study witnesses: genuine objects from different studies must be refused.
+        # Mixed-study witnesses: genuine objects from different studies must be refused,
+        # including Y-Delta equivalent STAR vs TRIANGLE that share identical terminal names,
+        # boundary temperatures, body inventory, and rod names but differ in graph topology.
+        tri_dir = CASES / "triangle"
+        _, _, tri_net = prepare_steady_network(
+            tri_dir / "study.json", tri_dir, tri_dir / "facts.json", TRIANGLE,
+        )
         with self.assertRaisesRegex(ValueError, "identities do not match"):
             response_from_network(star_facts, link_cand, star_net)
         with self.assertRaisesRegex(ValueError, "identities do not match"):
             generation_from_network(star_facts, link_cand, star_net, [("insert", "1")])
         with self.assertRaisesRegex(ValueError, "network does not match"):
             response_from_network(star_facts, star_cand, link_net)
+        with self.assertRaisesRegex(ValueError, "network does not match"):
+            response_from_network(star_facts, star_cand, tri_net, include_rods=True)
+        with self.assertRaisesRegex(ValueError, "network does not match"):
+            generation_from_network(star_facts, star_cand, tri_net, [("first", "1")])
         with self.assertRaisesRegex(ValueError, "identities do not match"):
             series_passages(d1_cand, link_facts, "exports", "body.T",
                             F("323.15"), ("cooling", "warming"))
