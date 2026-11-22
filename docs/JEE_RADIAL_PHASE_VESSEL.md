@@ -74,11 +74,11 @@ Now keep the Part 1 spherical vessel, air (293.15 K), and enclosure (300 K, $\va
 
 Because $0.0096 < 0.02\text{ kg}$, coexistence held for the entire 120 s, pinning the steady bath inflow to
 
-$$Q_{\text{phase}} = \frac{334000\,\Delta m}{120} \in [\mathbf{26.442,\; 26.720}]\text{ W}.$$
+$$Q_{\text{phase}} = \frac{334000\,\Delta m}{120} \in [\mathbf{26.441,\; 26.720}]\text{ W}$$
 
-Since $Q_{\text{shell}} = -Q_{\text{phase}}$, the outer surface temperature lies in $T_s = 273.15 + R_{\text{tot}} Q_{\text{phase}} \in [\mathbf{291.631,\; 291.826}]\text{ K}$—strictly below 293.15 K air. Subtracting the radiative inflow $A\varepsilon\sigma(300^4 - T_s^4)$ and dividing by $A(293.15 - T_s)$ bounds the unknown film coefficient to
+(outward-rounded from $26.44166\ldots\text{ W}$ and exact $26.72\text{ W}$). Since $Q_{\text{shell}} = -Q_{\text{phase}}$, the outer surface temperature lies in $T_s = 273.15 + R_{\text{tot}} Q_{\text{phase}} \in [\mathbf{291.631,\; 291.826}]\text{ K}$—strictly below 293.15 K air. Subtracting the radiative inflow $A\varepsilon\sigma(300^4 - T_s^4)$ and dividing by $A(293.15 - T_s)$ bounds the unknown film coefficient (outward-rounded from $[8.7507\ldots, 11.1161\ldots]$) to
 
-$$h \in [\mathbf{8.751,\; 11.116}]\text{ W/(m}^2\text{ K)},$$
+$$h \in [\mathbf{8.750,\; 11.117}]\text{ W/(m}^2\text{ K)},$$
 
 cleanly enclosing the true `10 W/(m² K)` from Part 1 without needing an outer surface thermometer. Had the measurement reached 0.02 kg (all ice melted), the tool refuses to infer $h$: an exhausted bath leaves the 273.15 K plateau at an unknown earlier instant, so $\Delta m / \Delta t$ no longer equals the steady plateau rate.
 
