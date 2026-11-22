@@ -12,6 +12,8 @@ Solve [whether a bath can freeze inside a warmer enclosure](docs/JEE_SUPPORTED_R
 
 Find the contact temperature jump and radiating surface temperature in a [worked furnace-wall problem](docs/JEE_FURNACE_WALL.md).
 
+Test [whether adding insulation can melt ice faster](docs/JEE_RADIAL_PHASE_VESSEL.md) across a radial shell's critical radius, day/night cycles, and inverse film calibration from melted mass.
+
 From the repository root:
 
 ```bash

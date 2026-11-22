@@ -145,6 +145,53 @@ class RadialPhaseExposureTests(TestCase):
         self.assertEqual(uncertain["stages"][0]["phaseProcess"], "unresolved")
         self.assertEqual(uncertain["finalPlateauStatus"], "exhaustion_time_uncertain")
 
+        # Dual-phase unresolved-direction exhaustion: both solid and liquid are tiny
+        # enough that worst-case positive or negative flow could exhaust either phase.
+        dual_uncertain = investigate(
+            LINK, "hot", "cold", "300", "1",
+            "0.000000000000000001", "0.000000000000000001",
+            "0.1", [("0.2", "2")], "1", "0.00000005",
+            [
+                ("near_zero_both", "351.359500000000000001", "1", "290", "100"),
+                ("later", "352", "1", "290", "50"),
+            ],
+        )
+        self.assertFalse(dual_uncertain["completedAllStages"])
+        self.assertEqual(len(dual_uncertain["stages"]), 1)
+        self.assertEqual(dual_uncertain["stages"][0]["phaseProcess"], "unresolved")
+        self.assertEqual(dual_uncertain["finalPlateauStatus"], "exhaustion_time_uncertain")
+        tlo, thi = map(F, dual_uncertain["modeledDurationBoundsS"])
+        self.assertTrue(0 < tlo <= thi == F(100))
+
+    def test_resolved_sign_exhaustion_time_uncertain_halts_schedule(self):
+        # First measure the exhaustion time bracket for a large spherical bath with
+        # nonzero radiation, then place the stage duration strictly inside [first, last).
+        probe = investigate(
+            LINK, "hot", "cold", "273.15", "334000", "10", "10",
+            "0.1", [("0.15", "0.4")], "0.8", "0.0000000567",
+            [("warm", "260", "5", "340", "1000000")],
+        )
+        self.assertEqual(probe["finalPlateauStatus"], "exhausted")
+        t_lo, t_hi = map(F, probe["modeledDurationBoundsS"])
+        self.assertLess(t_lo, t_hi)
+        scale = 10**18
+        mid_tick = int(((t_lo + t_hi) / 2) * scale)
+        dur_str = f"{mid_tick // scale}.{mid_tick % scale:018d}"
+        self.assertTrue(t_lo <= F(dur_str) < t_hi)
+
+        res = investigate(
+            LINK, "hot", "cold", "273.15", "334000", "10", "10",
+            "0.1", [("0.15", "0.4")], "0.8", "0.0000000567",
+            [("warm_edge", "260", "5", "340", dur_str), ("after", "250", "5", "250", "100")],
+        )
+        self.assertFalse(res["completedAllStages"])
+        self.assertEqual(len(res["stages"]), 1)
+        self.assertEqual(res["stages"][0]["phaseProcess"], "melting")
+        self.assertEqual(res["finalPlateauStatus"], "exhaustion_time_uncertain")
+        slo, shi = map(F, res["finalSolidMassBoundsKg"])
+        self.assertEqual(slo, F(0))
+        self.assertGreater(shi, F(0))
+
     def test_multi_reservoir_star_cycle_and_refusals(self):
         case = CASES / "star"
         inputs = (case / "study.json", case, case / "facts.json", STAR)

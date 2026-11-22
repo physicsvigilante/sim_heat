@@ -177,3 +177,52 @@ class PhaseFilmCalibrationTests(TestCase):
         with self.assertRaisesRegex(ValueError, "not thermally coupled"):
             solve_from_law(decoupled, "hot", "cold", "273.15", "334000", "0.02", "0.03", "120",
                            ("0.005", "0.005"), "0.1", [("0.2", "2")], "293.15", "300", "0.8", "0.0000000567")
+
+    def test_multilayer_round_trip_and_nonzero_flow_near_boundary_refusals(self):
+        # Two-layer shells in both spherical and cylindrical geometries.
+        layers = [("0.18", "2"), ("0.3", "0.8")]
+        for length, air, h_true, enc, dur in (
+            (None, "293.15", "10", "310", "100"),
+            ("1", "310", "4", "240", "150"),
+        ):
+            with self.subTest(length=length):
+                fwd = forward_phase(
+                    LINK, "hot", "cold", "273.15", "334000", "0.02", "0.03", dur,
+                    "0.1", layers, enc, "0.8", "0.0000000567",
+                    cylinder_length_m=length, air_k=air, h_w_per_m2_k=h_true,
+                )
+                self.assertEqual(fwd["plateauStatus"], "coexisting")
+                slo, shi = map(F, fwd["remainingSolidBoundsKg"])
+                m_band = outward_decimal_band(F("0.02") - shi, F("0.02") - slo, digits=12)
+                inv = investigate(
+                    LINK, "hot", "cold", "273.15", "334000", "0.02", "0.03", dur, m_band,
+                    "0.1", layers, air, enc, "0.8", "0.0000000567", cylinder_length_m=length,
+                )
+                h_lo, h_hi = map(F, inv["convectionCoefficientBoundsWPerM2K"])
+                self.assertTrue(h_lo <= F(h_true) <= h_hi)
+                self.assertLess(h_hi - h_lo, F(1, 10**6))
+                self.assertEqual(len(inv["layers"]), 2)
+
+        # Nonzero-flow radiation-only (true h = 0): an outward finite decimal band
+        # bracketing the irrational radiative melt rate straddles h = 0 and must
+        # refuse conservatively rather than claiming h >= 0 without proof.
+        fwd_rad = forward_phase(
+            LINK, "hot", "cold", "273.15", "334000", "0.02", "0.03", "100",
+            "0.1", [("0.2", "2")], "320", "0.8", "0.0000000567",
+            air_k="350", h_w_per_m2_k="0",
+        )
+        slo, shi = map(F, fwd_rad["remainingSolidBoundsKg"])
+        rad_band = outward_decimal_band(F("0.02") - shi, F("0.02") - slo, digits=12)
+        with self.assertRaisesRegex(ValueError, "nonnegative convection coefficient"):
+            investigate(
+                LINK, "hot", "cold", "273.15", "334000", "0.02", "0.03", "100", rad_band,
+                "0.1", [("0.2", "2")], "350", "320", "0.8", "0.0000000567",
+            )
+
+        # Wide melted-mass band whose implied outer surface temperature straddles T_air
+        # must also refuse conservatively.
+        with self.assertRaisesRegex(ValueError, "nonzero difference from air"):
+            investigate(
+                LINK, "hot", "cold", "273.15", "334000", "0.02", "0.03", "120",
+                ("0.009", "0.011"), "0.1", [("0.2", "2")], "292", "300", "0.8", "0.0000000567",
+            )
