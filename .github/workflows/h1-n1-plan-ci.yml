@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - qualification/h1_n1/**
+      - tools/verify_n1_plan_maintenance.py
       - .github/workflows/h1-n1-plan-ci.yml
 permissions:
   contents: read
@@ -80,6 +81,8 @@ jobs:
           assert a['staticExports']==14 and a['physical100xFailures']==['T02.G','T06.A','T06.G','T07.G','T08.G','T10.G','T_Plug.C']
           assert all(x['witnessAdopted'] is False and x['nativeObserved'] is False for x in a['rows'])
           PY
+          else
+            python -B tools/verify_n1_plan_maintenance.py --run-tests --out n1_plan_evidence/plan-check.json 2>&1 | tee n1_plan_evidence/plan-tests.log
           fi
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee n1_plan_evidence/h1-baseline-tests.log
           python -B tools/render_product_docs.py --check 2>&1 | tee n1_plan_evidence/docs-parity.log

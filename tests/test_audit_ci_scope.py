@@ -1,11 +1,16 @@
 """Preserve first-introduction scope gates without forbidding future maintenance."""
+from hashlib import sha256
+import json
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+
+from tools.verify_n1_plan_maintenance import BASELINE_COMMIT, verify as verify_n1
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,6 +56,8 @@ class AuditCIScopeTests(unittest.TestCase):
         n1 = (ROOT / '.github/workflows/h1-n1-plan-ci.yml').read_text(encoding='utf-8')
         self.assertIn('SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}', n1)
         self.assertIn('if [ "$SOURCE_BRANCH" = "planning/h1-n1-t1t" ]; then', n1)
+        # On non-introduction branches (including main), N1 plan + negative controls MUST execute.
+        self.assertIn('else\n            python -B tools/verify_n1_plan_maintenance.py --run-tests', n1)
         self.assertIn('unittest discover -s h1/tests', n1)
         self.assertIn('tools/render_product_docs.py --check', n1)
 
@@ -64,6 +71,77 @@ class AuditCIScopeTests(unittest.TestCase):
                          'node --test', 'replay_published_archives.py',
                          'browser_product_docs.py', 'tools/render_product_docs.py --check'):
             self.assertIn(required, prod)
+
+        qual = (ROOT / '.github/workflows/qualification-offline-ci.yml').read_text(encoding='utf-8')
+        self.assertIn('branches: [main]', qual)
+        self.assertIn('tools/verify_n1_plan_maintenance.py --run-tests', qual)
+        for idx in range(2, 13):
+            self.assertIn(f'qualification/h1_n{idx}/tests', qual)
+        self.assertIn('qualification/h1_n13/test_conduction.py', qual)
+        self.assertNotIn('apt-get', qual.lower())
+        self.assertNotIn('docker', qual.lower())
+
+    def test_n1_maintenance_verifier_accepts_valid_plan_and_refuses_mutations(self):
+        pins = json.loads((ROOT / 'qualification/h1_n1/SOURCE-PINS.json').read_text(encoding='utf-8'))
+        git_agents = subprocess.run(
+            ['git', '-C', str(ROOT), 'show', f'{BASELINE_COMMIT}:AGENTS.md'],
+            capture_output=True, check=False,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            mirror = Path(tmp)
+            shutil.copytree(ROOT / 'h1', mirror / 'h1')
+            shutil.copytree(ROOT / 'qualification/h1_n1', mirror / 'qualification/h1_n1')
+            for rel in pins['readonlySha256']:
+                if rel == 'AGENTS.md':
+                    continue
+                dst = mirror / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                # Normalize CRLF to LF for Windows checkouts so pinned LF hashes match.
+                dst.write_bytes((ROOT / rel).read_bytes().replace(b'\r\n', b'\n'))
+            for rel in pins['inputSha256']:
+                dst = mirror / rel
+                dst.write_bytes((ROOT / rel).read_bytes().replace(b'\r\n', b'\n'))
+
+            if git_agents.returncode == 0:
+                agents_bytes = git_agents.stdout
+            else:
+                # Shallow CI clones without baseline history still exercise all live
+                # plan, negative-control, and non-AGENTS source-pin checks.
+                agents_bytes = b'historical AGENTS.md fixture\n'
+                mirror_pins = mirror / 'qualification/h1_n1/SOURCE-PINS.json'
+                updated = json.loads(mirror_pins.read_text(encoding='utf-8'))
+                updated['readonlySha256']['AGENTS.md'] = sha256(agents_bytes).hexdigest()
+                mirror_pins.write_text(json.dumps(updated, indent=2) + '\n', encoding='utf-8')
+
+            if os.name == 'posix':
+                ok = verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                self.assertEqual(ok['planStructuralChecks'], 'PASS')
+                self.assertFalse(ok['nativeExecuted'])
+                self.assertFalse(ok['nativeQualified'])
+                self.assertTrue(ok['maintenanceVerification']['livePlanAndNonAgentsPinsVerified'])
+
+            plan_path = mirror / 'qualification/h1_n1/plan.json'
+            original_plan = plan_path.read_bytes()
+            for label, mutate, expected_err in (
+                ('native_permission', lambda p: p['authority'].__setitem__('nativeExecutionApproved', True),
+                 'only planning authorized'),
+                ('missing_blocker', lambda p: p['executionBlockers'].pop(), 'unresolved gates omitted'),
+                ('weakened_margin', lambda p: p['acceptance'].__setitem__('referenceErrorFractionMaximum', 0.02),
+                 'numerical bounds'),
+            ):
+                with self.subTest(mutation=label):
+                    data = json.loads(original_plan.decode('utf-8'))
+                    mutate(data)
+                    plan_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+                    with self.assertRaisesRegex(ValueError, expected_err):
+                        verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                    plan_path.write_bytes(original_plan)
+
+            # Mutating any non-AGENTS pinned file must fail closed with source drift.
+            c1 = mirror / 'qualification/h1_c1/FREEZE.md'
+            c1.write_bytes(c1.read_bytes() + b'tamper\n')
+            with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_c1/FREEZE.md'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
 
 
 if __name__ == '__main__':
