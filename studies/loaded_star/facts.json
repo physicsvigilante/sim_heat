@@ -1,0 +1,65 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "LoadedStar",
+  "mode": "transient",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 500,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "modelSha256": "04ba0105657df297fb3c5c9931195f68f4a7c34e50090ee75af60ff685e74531",
+  "studySha256": "bcebc7e3986bfdf8cae52d269767d3ee40e851854a5497ff967aa344377076eb",
+  "nodes": [
+    "warm",
+    "middle",
+    "cool",
+    "joint"
+  ],
+  "bodies": {
+    "middle": {
+      "node": "middle",
+      "m": 0.5,
+      "c": 420,
+      "T_initial": 350
+    }
+  },
+  "boundaries": {
+    "warm": {
+      "node": "warm",
+      "T": 380
+    },
+    "cool": {
+      "node": "cool",
+      "T": 280
+    }
+  },
+  "rods": {
+    "first": {
+      "kind": "RodArea",
+      "a": "warm",
+      "b": "joint",
+      "k": 20,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "second": {
+      "kind": "RodArea",
+      "a": "middle",
+      "b": "joint",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "third": {
+      "kind": "RodArea",
+      "a": "cool",
+      "b": "joint",
+      "k": 50,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author SI transcription of the loaded star exercise."
+}

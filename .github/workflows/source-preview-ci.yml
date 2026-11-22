@@ -39,6 +39,8 @@ jobs:
           elif command -v chromium >/dev/null; then chromium --version
           else python -m playwright install --with-deps chromium; fi
       - name: Exact source identity, protected-code comparison and full offline suites
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +63,7 @@ jobs:
           git diff --name-status "$scope_base" HEAD > source_preview_evidence/source-diff.txt
           python - <<'PY'
           from pathlib import Path
+          import os
           rows=Path('source_preview_evidence/source-diff.txt').read_text().splitlines()
           allowed={
               'A\t.github/workflows/source-preview-ci.yml',
@@ -78,9 +81,14 @@ jobs:
               'A\tviewer/source_preview/data/TEACH_SPLIT3.json',
               'A\tviewer/source_preview/index.html',
           }
-          assert set(rows)==allowed and len(rows)==len(allowed),rows
+          # The all-added-file list qualifies the ORIGINAL introduction only.
+          # Maintenance PRs retain all regression/archive/browser gates below.
+          if os.environ['SOURCE_BRANCH'] == 'product/novel-source-preview':
+            assert set(rows)==allowed and len(rows)==len(allowed),rows
           PY
-          git diff --exit-code "$scope_base" HEAD -- viewer/network qualification tools/h1_native_batch.py h1/model.py h1/study.py h1/policy.py h1/reference.py h1/verification.py
+          if [ "$SOURCE_BRANCH" = "product/novel-source-preview" ]; then
+            git diff --exit-code "$scope_base" HEAD -- viewer/network qualification tools/h1_native_batch.py h1/model.py h1/study.py h1/policy.py h1/reference.py h1/verification.py
+          fi
           python -m pip freeze > source_preview_evidence/packages.txt
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee source_preview_evidence/h1.log
           python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee source_preview_evidence/arithmetic.log

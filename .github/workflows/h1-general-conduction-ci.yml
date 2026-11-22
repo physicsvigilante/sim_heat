@@ -1,0 +1,139 @@
+name: H1 general conduction offline replay
+on:
+  pull_request:
+    branches: [numerics/h1-n12-triple-case-reference-staging, codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure, codex/three-reading-cooling, codex/calibrated-wall-cooling, codex/powered-wall-surface, codex/infer-rod-power, codex/two-heater-calorimetry]
+
+permissions:
+  contents: read
+
+jobs:
+  twin-bridge:
+    if: |
+      (github.base_ref == 'numerics/h1-n12-triple-case-reference-staging' && github.head_ref == 'codex/general-h1-reference') ||
+      (github.base_ref == 'codex/terminal-resistance' && github.head_ref == 'codex/series-equivalence') ||
+      (github.base_ref == 'codex/series-equivalence' && github.head_ref == 'codex/steady-bridge') ||
+      (github.base_ref == 'codex/steady-bridge' && github.head_ref == 'codex/temperature-crossing') ||
+      (github.base_ref == 'codex/temperature-crossing' && github.head_ref == 'codex/heat-flow-reversal') ||
+      (github.base_ref == 'codex/heat-flow-reversal' && github.head_ref == 'codex/network-calorimetry') ||
+      (github.base_ref == 'codex/network-calorimetry' && github.head_ref == 'codex/study-observation-passages') ||
+      (github.base_ref == 'codex/study-observation-passages' && github.head_ref == 'codex/thermal-terminal-response') ||
+      (github.base_ref == 'codex/thermal-terminal-response' && github.head_ref == 'codex/join-thermal-networks') ||
+      (github.base_ref == 'codex/join-thermal-networks' && github.head_ref == 'codex/thermal-port-relaxation') ||
+      (github.base_ref == 'codex/thermal-port-relaxation' && github.head_ref == 'codex/rod-resistance-sensitivity') ||
+      (github.base_ref == 'codex/rod-resistance-sensitivity' && github.head_ref == 'codex/finite-conductivity-bounds') ||
+      (github.base_ref == 'codex/finite-conductivity-bounds' && github.head_ref == 'codex/isolated-pair-exchange') ||
+      (github.base_ref == 'codex/isolated-pair-exchange' && github.head_ref == 'codex/two-contact-join') ||
+      (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports') ||
+      (github.base_ref == 'codex/conduction-walkthrough' && github.head_ref == 'codex/radiating-surface') ||
+      (github.base_ref == 'codex/radiating-surface' && github.head_ref == 'codex/radiative-gap') ||
+      (github.base_ref == 'codex/radiative-gap' && github.head_ref == 'codex/radiation-shield') ||
+      (github.base_ref == 'codex/radiation-shield' && github.head_ref == 'codex/radiation-power-bounds') ||
+      (github.base_ref == 'codex/radiation-power-bounds' && github.head_ref == 'codex/conducting-vacuum-support') ||
+      (github.base_ref == 'codex/conducting-vacuum-support' && github.head_ref == 'codex/spherical-conduction') ||
+      (github.base_ref == 'codex/spherical-conduction' && github.head_ref == 'codex/cylindrical-conduction') ||
+      (github.base_ref == 'codex/cylindrical-conduction' && github.head_ref == 'codex/radiating-radial-layers') ||
+      (github.base_ref == 'codex/radiating-radial-layers' && github.head_ref == 'codex/insulation-radius') ||
+      (github.base_ref == 'codex/insulation-radius' && github.head_ref == 'codex/insulation-turning-radius') ||
+      (github.base_ref == 'codex/insulation-turning-radius' && github.head_ref == 'codex/latent-heat-bath') ||
+      (github.base_ref == 'codex/latent-heat-bath' && github.head_ref == 'codex/phase-bath-target') ||
+      (github.base_ref == 'codex/phase-bath-target' && github.head_ref == 'codex/coupled-phase-baths') ||
+      (github.base_ref == 'codex/coupled-phase-baths' && github.head_ref == 'codex/phase-bath-equilibrium') ||
+      (github.base_ref == 'codex/phase-bath-equilibrium' && github.head_ref == 'codex/phase-transfer-time') ||
+      (github.base_ref == 'codex/phase-transfer-time' && github.head_ref == 'codex/phase-state-at-time') ||
+      (github.base_ref == 'codex/phase-state-at-time' && github.head_ref == 'codex/phase-branch-flows') ||
+      (github.base_ref == 'codex/phase-branch-flows' && github.head_ref == 'codex/phase-short-interval') ||
+      (github.base_ref == 'codex/phase-short-interval' && github.head_ref == 'codex/phase-wall-investigation') ||
+      (github.base_ref == 'codex/phase-wall-investigation' && github.head_ref == 'codex/radiating-phase-wall') ||
+      (github.base_ref == 'codex/radiating-phase-wall' && github.head_ref == 'codex/supported-phase-bath') ||
+      (github.base_ref == 'codex/supported-phase-bath' && github.head_ref == 'codex/phase-balance-temperature') ||
+      (github.base_ref == 'codex/phase-balance-temperature' && github.head_ref == 'codex/timed-phase-target') ||
+      (github.base_ref == 'codex/timed-phase-target' && github.head_ref == 'codex/local-review-workflow') ||
+      (github.base_ref == 'codex/local-review-workflow' && github.head_ref == 'codex/phase-exposure-sequence') ||
+      (github.base_ref == 'codex/phase-exposure-sequence' && github.head_ref == 'codex/phase-recovery-time') ||
+      (github.base_ref == 'codex/phase-recovery-time' && github.head_ref == 'codex/phase-reservoir-energy') ||
+      (github.base_ref == 'codex/phase-reservoir-energy' && github.head_ref == 'codex/phase-entropy') ||
+      (github.base_ref == 'codex/phase-entropy' && github.head_ref == 'codex/supported-wall-lesson') ||
+      (github.base_ref == 'codex/supported-wall-lesson' && github.head_ref == 'codex/variable-conductivity') ||
+      (github.base_ref == 'codex/variable-conductivity' && github.head_ref == 'codex/dissimilar-conductors') ||
+      (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson') ||
+      (github.base_ref == 'codex/wall-reversal-lesson' && github.head_ref == 'codex/nonlinear-radiating-wall') ||
+      (github.base_ref == 'codex/nonlinear-radiating-wall' && github.head_ref == 'codex/radiating-body-time') ||
+      (github.base_ref == 'codex/radiating-body-time' && github.head_ref == 'codex/wall-lesson-flows') ||
+      (github.base_ref == 'codex/wall-lesson-flows' && github.head_ref == 'codex/radiating-body-energy') ||
+      (github.base_ref == 'codex/radiating-body-energy' && github.head_ref == 'codex/body-exposure-temperature') ||
+      (github.base_ref == 'codex/body-exposure-temperature' && github.head_ref == 'codex/body-exposure-sequence') ||
+      (github.base_ref == 'codex/body-exposure-sequence' && github.head_ref == 'codex/timed-specific-heat') ||
+      (github.base_ref == 'codex/timed-specific-heat' && github.head_ref == 'codex/two-mass-calorimeter') ||
+      (github.base_ref == 'codex/two-mass-calorimeter' && github.head_ref == 'codex/resistive-thermal-contact') ||
+      (github.base_ref == 'codex/resistive-thermal-contact' && github.head_ref == 'codex/composite-layer-stack') ||
+      (github.base_ref == 'codex/composite-layer-stack' && github.head_ref == 'codex/radiating-layer-stack') ||
+      (github.base_ref == 'codex/radiating-layer-stack' && github.head_ref == 'codex/furnace-wall-lesson') ||
+      (github.base_ref == 'codex/furnace-wall-lesson' && github.head_ref == 'codex/infer-wall-contact') ||
+      (github.base_ref == 'codex/infer-wall-contact' && github.head_ref == 'codex/furnace-material-controls') ||
+      (github.base_ref == 'codex/furnace-material-controls' && github.head_ref == 'codex/infer-layer-conductivity') ||
+      (github.base_ref == 'codex/infer-layer-conductivity' && github.head_ref == 'codex/probed-wall-contacts') ||
+      (github.base_ref == 'codex/probed-wall-contacts' && github.head_ref == 'codex/radiation-shield-stack') ||
+      (github.base_ref == 'codex/radiation-shield-stack' && github.head_ref == 'codex/windows-offline-replay') ||
+      (github.base_ref == 'codex/windows-offline-replay' && github.head_ref == 'codex/shield-count-design') ||
+      (github.base_ref == 'codex/shield-count-design' && github.head_ref == 'codex/shielded-body-cooling') ||
+      (github.base_ref == 'codex/shielded-body-cooling' && github.head_ref == 'codex/rod-generation-calorimetry') ||
+      (github.base_ref == 'codex/rod-generation-calorimetry' && github.head_ref == 'codex/rod-generation-hotspots') ||
+      (github.base_ref == 'codex/rod-generation-hotspots' && github.head_ref == 'codex/convecting-radiating-surface') ||
+      (github.base_ref == 'codex/convecting-radiating-surface' && github.head_ref == 'codex/newton-cooling-energy') ||
+      (github.base_ref == 'codex/newton-cooling-energy' && github.head_ref == 'codex/air-film-exposure') ||
+      (github.base_ref == 'codex/air-film-exposure' && github.head_ref == 'codex/three-reading-cooling') ||
+      (github.base_ref == 'codex/three-reading-cooling' && github.head_ref == 'codex/calibrated-wall-cooling') ||
+      (github.base_ref == 'codex/calibrated-wall-cooling' && github.head_ref == 'codex/powered-wall-surface') ||
+      (github.base_ref == 'codex/powered-wall-surface' && github.head_ref == 'codex/infer-rod-power') ||
+      (github.base_ref == 'codex/infer-rod-power' && github.head_ref == 'codex/two-heater-calorimetry') ||
+      (github.base_ref == 'codex/two-heater-calorimetry' && github.head_ref == 'codex/calorimetry-predictions')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install pinned offline checking dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          -r requirements-h1-ci.txt
+      - name: Verify frozen implementation and original held-out evidence
+        run: |
+          git diff --exit-code f05f6a8fbdfd5ac177a5441d22b40dda6bf8e0d4 HEAD -- h1 qualification ':!qualification/h1_n13/heldout'
+          git diff --exit-code 954cf65e1dffd04c706654418f30d891d1ccba57 HEAD -- qualification/h1_n13/heldout
+          git diff --exit-code 892e9e47e138b5ffd040e952d1ffa6598d2a052d HEAD -- qualification/h1_n13/heldout/{model.mo,study.json,facts.json,oracle.py,GIVENS.md}
+      - name: Run offline development regressions
+        run: python -B -m unittest -v qualification.h1_n13.test_conduction tests.test_twinbridge_ratios
+      - name: Generate and independently check fresh TwinBridge output
+        shell: bash
+        run: |
+          set -euo pipefail
+          case_dir=qualification/h1_n13/heldout
+          evidence="$RUNNER_TEMP/twin-bridge"
+          mkdir "$evidence"
+          git rev-parse HEAD > "$evidence/source-head.txt"
+          python -B -m qualification.h1_n13.conduction --root "$case_dir" --study "$case_dir/study.json" \
+            --facts "$case_dir/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 \
+            | gzip -n > "$evidence/fresh-output.json.gz"
+          python -B -m tools.verify_twinbridge "$evidence/fresh-output.json.gz" > "$evidence/oracle-results.json"
+          python -B -m qualification.h1_n13.heldout.controls > "$evidence/control-results.json"
+          python - "$case_dir" "$evidence" <<'PY'
+          import gzip, json, sys
+          from pathlib import Path
+          original, fresh = map(Path, sys.argv[1:])
+          with gzip.open(original / "first-output.json.gz", "rt") as a, gzip.open(fresh / "fresh-output.json.gz", "rt") as b:
+              assert json.load(a) == json.load(b), "replay differs from first output"
+          for name in ("oracle-results.json", "control-results.json"):
+              assert json.loads((original / name).read_bytes()) == json.loads((fresh / name).read_bytes()), name
+          print("Fresh output matches the first attempt; 49,241 analytical comparisons and seven controls passed.")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: twin-bridge-offline-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/twin-bridge
+          if-no-files-found: error

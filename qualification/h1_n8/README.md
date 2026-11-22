@@ -1,0 +1,45 @@
+# H1-N8 — independent corner replay for the reviewed N7 interval proof
+
+**Offline validation-only candidate; no new physical solver or native reference.** N8 is a separate layer on top of independently reviewed N7 (`4f4bbabc1083f2e1f8a6ced66c00b95fea1a5128`). The numerical method under test is unchanged.
+
+Its source-only checker `replay(raw, expected_sha256=..., body_node_temperatures=..., reported=...)` independently derives conductor magnitudes from original exact-decimal facts and a separately coded rigorous 40-term Machin `π` enclosure. It does **not** adopt N7's own source-derived G values as its independent physical input. It then selects **all 2^m independent corners** of up to four uncertain circular conductances, and solves every corner's unknown-junction Dirichlet system with exact-rational **permutation determinants / Cramer's rule**, not N6's Gauss–Jordan method.
+
+The cross-check explicitly reassembles and verifies the **exact midpoint linear equations** from independently parsed source conductances, then requires the published output interval to **contain the entire independently reconstructed certified envelope** (the proof radius intersected with the known-source passive range). A forged interval that merely contains the nominal midpoint, or a near-but-not-exact midpoint proof centre, is refused. This prevents a cross-verifier from itself endorsing improperly narrowed mathematical claims.
+
+For each corner it checks independent temperatures and every rod's signed heat flow against actual N7 API output; it also checks each row's bound `|b(g)-A(g)x0| <= r` and `A(g)v >= r`. Crucially, independent endpoint replay by itself proves only tested endpoints, **not** universal conductance uncertainty. A distinct proof check independently recomputes N7's `r` from all source physical interval widths and its **universal signed lower row** `Σ (G_lo if v_i-v_j>=0 else G_hi)(v_i-v_j)`. It requires each such bound to dominate `r`, and respects the positive anchored Dirichlet inverse premise. A report with a forged enclosure, missing rod or improperly chosen negative-gradient coefficient must refuse.
+
+The primary challenging fixture comes from independent Chat B PR68 review #01: a new four-junction/eleven-conductor thermal network with four circular rods (all sharing the same physical Pi), a parallel branch, loop, two separately anchored connected components and an isolated body. Each circular G is constructed using **terminating decimal source values** (for example, `k=800,d=0.1,L=3` to obtain exactly `2π/3`); no rounded `800/3` source conductivity is invented. It exercises all **16** independent circular endpoint selections, a conservative superset of the physical common-Pi case. The fixture is a source-level extension, not an actual newly native/Modelica-executed composition or separately frozen future LLM-authorability challenge.
+
+A separate original T1-T regression emphasizes that `T06` connects known body nodes B and P: the true junction intervals are singleton rational values even though T06's body-to-body heat-flow interval has nonzero width. This prevents a false claim that N7's successful T1 source run by itself tested nonzero uncertain-junction propagation.
+
+**Scope constraints:** N8 refuses larger unknown/uncertain inventories instead of claiming exhaustive replay, does not produce new source trajectory states, does not verify full 77 exports/eight requests/five integrals at every sample, does not certify external provenance, owner manifest, real native compiler behavior, elapsed resource peak or H1 user visualization. Its successes are checking-only *additional evidence*; all native/certification/adoption flags remain false. The original seven old 100x physical-reference failures/eight native blockers and all draft/unmerged source PRs are unchanged. No OpenModelica/version/install/build/launch, reference adoption, merge or C1 evidence rewrite.
+
+This independent replay implementation itself requires an R2 scoped evidence-semantic review before becoming an accepted verification aid. It must not be represented as an independent human or native certificate.
+
+## Reviewed evidence-semantics boundary (corrections to N8-F01 and N8-F02)
+
+Independent Chat B review-01 **CHANGES REQUESTED** at old HEAD cccbc8dca8acc65e17054babbb9e5558063c0d4b because the original cross-verifier would PASS correctly enclosed numeric values even when other fields of the **untrusted N7 report** falsely claimed independent/native/owner certification or reported contradictory rod direction/conductance labels. The original reviewer report and genuinely red tests-only CI remain historical.
+
+The corrected N8 verifier now requires the exact, explicit N7/1 **source-only** schema/version/stage/status and expected physical/evidence fields. It refuses an omitted or true native/owner/source/certificate/trajectory flag, including nested proof-native flags; an unexpected added claim cannot silently ride along. The source SHA is still only caller-supplied byte integrity, not an authenticated owner signature.
+
+Independently re-parsed source facts now anchor every reported model/study hash string, body assumption, prescribed source boundary Kelvin, source geometry, oriented conductor endpoint, sign convention and **full rational conductance interval**. The cross-verifier reconstructs each full physical flux interval and each node's outward ledger, conditional body rate and boundary supply and checks the N7 report's signed physical labels and qualification notes. It confirms every all-node temperature enclosure matches the junction proof or source-exact known value and checks the source proof rows' published intervals. This is **semantic verification of the N7/1 report supplied to N8**; it does NOT certify the external Modelica source, authorize the old native runner, or qualify a dynamic trajectory.
+
+Malformed/missing nested report structures refuse as \`CornerRefusal\`, not arbitrary Python errors. The exact source Pi and independent Cramer-corner/universal-barrier methods remain unchanged, and all previously frozen N1–N7 code is untouched. Further independent R2 correction review is required at the NEW N8 HEAD before accepting this cross-verifier.
+
+## Independent review-02: reported precision versus proof containment
+
+A second Chat B report (CHANGES REQUESTED on prior HEAD 23172ce2)
+confirmed the original false authority flags and rod direction/G metadata
+findings were repaired, but exposed a missing **declared precision** check.
+N8 can independently prove a physically valid interval yet must not certify
+a claimed N7/1 result whose **published temperature enclosure** is wider than
+the proof's maximumPermittedEnclosureWidthK (exactly 1/1000000 K). A
+coordinated report forgery widened an exact-area junction from a singleton
+1010/3 K to 300..410 K, correctly updating its three duplicated interval
+aliases, both signed rod fluxes and all node ledgers. The old N8 returned
+PASS because containment of the true temperature alone is insufficient
+for **N7 report fidelity**. The new exact-rational width guard rejects that
+report; legitimate zero-junction N7 reports, which have no width field, are
+still admitted. The mathematical N7 proof, source facts, native runner,
+and older historical reports remain unchanged. A new narrow independent
+R2 correction review is required for this repaired N8 evidence contract.

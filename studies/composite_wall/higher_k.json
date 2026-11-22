@@ -1,0 +1,114 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "CompositeWallHigherK",
+  "model": {
+    "path": "higher_k.mo",
+    "sha256": "70e1f1263afad389243ec5e551397711d181093ec8e1dd814c8f4f9b6ed1c9c2"
+  },
+  "mode": "steady",
+  "requests": [
+    {
+      "id": "interfaceT",
+      "op": "temperature",
+      "target": "facing.port_b"
+    },
+    {
+      "id": "facingRate",
+      "op": "heatFlow",
+      "target": "facing"
+    },
+    {
+      "id": "stripRate",
+      "op": "heatFlow",
+      "target": "strip"
+    },
+    {
+      "id": "insertRate",
+      "op": "heatFlow",
+      "target": "insert"
+    }
+  ],
+  "analysis": {},
+  "provenance": [
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Ideal isothermal interface, constant properties, insulated sides and perfect contacts at steady state."
+    },
+    {
+      "target": "hot.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "cold.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "facing.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "strip.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.k",
+      "kind": "illustrative",
+      "locator": "CONDUCTIVITY.md",
+      "note": "Hypothetical replacement material with conductivity 70 W/(m.K)."
+    },
+    {
+      "target": "insert.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    },
+    {
+      "target": "insert.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI given for the composite wall investigation."
+    }
+  ],
+  "revision": {
+    "parentStudyPath": "study.json",
+    "parentStudySha256": "3ddc9873ec055709ce27a2a2cd302a663e71dbcbbac939a96d4a17d252f5f418",
+    "parentModelSha256": "e6b0edff0f0274bad86736d07aa938be3e4ba8766b134776f8f9b8c2e74c6fe9",
+    "target": "insert.k",
+    "reason": "Investigate whether improving one path also increases heat through its parallel neighbour.",
+    "origin": "hypothetical"
+  }
+}

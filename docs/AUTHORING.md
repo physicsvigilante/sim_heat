@@ -36,7 +36,7 @@ root = Path.cwd()
 original = root / "h1/cases/D1"
 
 with TemporaryDirectory(prefix="simheat-authoring-") as temporary:
-    draft = Path(temporary)
+    draft = Path(temporary).resolve(strict=True)
     model_path = draft / "model.mo"
     study_path = draft / "study.json"
     model_path.write_bytes((original / "model.mo").read_bytes())
@@ -54,7 +54,7 @@ with TemporaryDirectory(prefix="simheat-authoring-") as temporary:
         return run.returncode, result
 
     code, result = admit()
-    assert code == 0 and result["admitted"] is True
+    assert code == 0 and result["admitted"] is True, result
 
     text = model_path.read_text(encoding="utf-8")
     assert "T_initial=293.15" in text
@@ -74,7 +74,7 @@ with TemporaryDirectory(prefix="simheat-authoring-") as temporary:
                           note="Chosen 298.15 K for this scratch draft, not a textbook given.")
     study_path.write_text(json.dumps(study, indent=2) + "\n", encoding="utf-8")
     code, result = admit()
-    assert code == 0 and result["admitted"] is True
+    assert code == 0 and result["admitted"] is True, result
     assert all(item["status"] == "not_computed" for item in result["requests"])
     print("PASS: attributed scratch edit admitted; all readings not_computed")
 

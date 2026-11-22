@@ -1,0 +1,128 @@
+name: H1-N9 original N1-N4 static full-grid crosscheck - OFFLINE only
+on:
+  push:
+    branches: [numerics/h1-n9-static-trace-crosscheck]
+  pull_request:
+    branches: [checking/h1-n8-independent-corner-replay]
+    paths:
+      - qualification/h1_n9/**
+      - .github/workflows/h1-n9-static-trace-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n9-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-source-crosscheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install mathematical checker dependencies only - NEVER OpenModelica
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Pin N8 parent, four-file N9 diff and original author fact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1_n9"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/checkout-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$evidence/checkout-tree.txt"
+          base=3e7a8434880cc197d54cd02377e4bd69c15d1717
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git cat-file -e "${base}^{commit}"
+          git diff --name-status "$base" HEAD > "$evidence/diff-paths.txt"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          evidence=Path(os.environ["RUNNER_TEMP"])/"h1_n9"
+          expected={
+            "A\t.github/workflows/h1-n9-static-trace-ci.yml",
+            "A\tqualification/h1_n9/static_trace_crosscheck.py",
+            "A\tqualification/h1_n9/tests/test_static_trace_crosscheck.py",
+            "A\tqualification/h1_n9/README.md",
+          }
+          actual=set((evidence/"diff-paths.txt").read_text().splitlines())
+          assert actual==expected,(actual,expected)
+          folder=Path("qualification/h1_n1")
+          facts={
+            "reference-facts.json":"39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf",
+            "inputs/T/model.mo":"2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae",
+            "inputs/T/study.json":"12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a",
+          }
+          assert all(sha256((folder/name).read_bytes()).hexdigest()==v for name,v in facts.items())
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments docs viewer qualification/h1_c1 qualification/h1_n1 qualification/h1_n2 qualification/h1_n3 qualification/h1_n4 qualification/h1_n5 qualification/h1_n6 qualification/h1_n7 qualification/h1_n8
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Run NEW negative static-bit/unit/status controls plus inherited mathematical suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1_n9"
+          python -B -m unittest qualification.h1_n9.tests.test_static_trace_crosscheck -v 2>&1 | tee "$evidence/n9-unit.log"
+          python -B -m unittest qualification.h1_n8.tests.test_corner_replay -v 2>&1 | tee "$evidence/n8-unit.log"
+          python -B -m unittest qualification.h1_n7.tests.test_verified_junctions -v 2>&1 | tee "$evidence/n7-unit.log"
+          python -B -m unittest qualification.h1_n6.tests.test_exact_junctions -v 2>&1 | tee "$evidence/n6-unit.log"
+          python -B -m unittest qualification.h1_n5.tests.test_thermal_graph -v 2>&1 | tee "$evidence/n5-unit.log"
+          python -B -m unittest qualification.h1_n4.tests.test_static_physical -v 2>&1 | tee "$evidence/n4-unit.log"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$evidence/n3-unit.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$evidence/n2-unit.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$evidence/n1-reference-unit.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$evidence/n1-plan-unit.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1-unit.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+      - name: Reproduce original seven legacy refusals and eight native blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1_n9"
+          python -B qualification/h1_n1/check_plan.py --out "$evidence/old-plan.json" > "$evidence/old-plan.stdout.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          x=json.loads((Path(os.environ["RUNNER_TEMP"])/"h1_n9"/"old-plan.json").read_text())
+          assert x["nativeCallsThisCheck"]==0 and not x["nativeExecutionReady"]
+          assert not x["referenceAccuracyCertified"] and len(x["executionBlockers"])==8
+          assert x["constantArithmetic"]["physical100xFailures"]==[
+              "T02.G","T06.A","T06.G","T07.G","T08.G","T10.G","T_Plug.C"]
+          PY
+      - name: Actually replay BOTH unchanged N1 traces and 100828 static N4 bit comparisons
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1_n9"
+          python -B -m qualification.h1_n9.static_trace_crosscheck --out "$evidence/crosscheck" 2>&1 | tee "$evidence/n9-run.log"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"h1_n9"/"crosscheck"/"n9-static-trace-crosscheck.json").read_text())
+          assert r["staticPhysicalAgreement"]=="PASS_CHECKING_CANDIDATES_ONLY"
+          assert r["staticSampleComparisons"]==100828
+          assert [x["samples"] for x in r["originalN1Grids"]]==[2401,4801]
+          assert all(x["staticPhysical100xBitAgreement"] for x in r["originalN1Grids"])
+          assert not r["independentFullGridPhysicalCertificate"]
+          assert not r["referenceAccuracyCertified"] and not r["runtimeReady"]
+          assert not r["independentlyCertifiedReference"]
+          assert not r["nativeExecuted"] and not r["nativeQualified"]
+          assert not r["referenceBundleWritten"] and not r["externalOwnerApprovalVerified"]
+          PY
+      - name: Upload exact source, full regression and conditional-failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: h1-n9-static-original-crosscheck-${{ github.sha }}
+          path: ${{ runner.temp }}/h1_n9/
+          retention-days: 90
+          if-no-files-found: error

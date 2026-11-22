@@ -1,0 +1,692 @@
+name: Series extension of a two-terminal wall
+on:
+  pull_request:
+    branches: [codex/terminal-resistance, codex/series-equivalence, codex/steady-bridge, codex/temperature-crossing, codex/heat-flow-reversal, codex/network-calorimetry, codex/study-observation-passages, codex/thermal-terminal-response, codex/join-thermal-networks, codex/thermal-port-relaxation, codex/rod-resistance-sensitivity, codex/finite-conductivity-bounds, codex/isolated-pair-exchange, codex/two-contact-join, codex/loaded-thermal-ports, codex/conduction-walkthrough, codex/radiating-surface, codex/radiative-gap, codex/radiation-shield, codex/radiation-power-bounds, codex/conducting-vacuum-support, codex/spherical-conduction, codex/cylindrical-conduction, codex/radiating-radial-layers, codex/insulation-radius, codex/insulation-turning-radius, codex/latent-heat-bath, codex/phase-bath-target, codex/coupled-phase-baths, codex/phase-bath-equilibrium, codex/phase-transfer-time, codex/phase-state-at-time, codex/phase-branch-flows, codex/phase-short-interval, codex/phase-wall-investigation, codex/radiating-phase-wall, codex/supported-phase-bath, codex/phase-balance-temperature, codex/timed-phase-target, codex/local-review-workflow, codex/phase-exposure-sequence, codex/phase-recovery-time, codex/phase-reservoir-energy, codex/phase-entropy, codex/supported-wall-lesson, codex/variable-conductivity, codex/dissimilar-conductors, codex/wall-reversal-lesson, codex/nonlinear-radiating-wall, codex/radiating-body-time, codex/wall-lesson-flows, codex/radiating-body-energy, codex/body-exposure-temperature, codex/body-exposure-sequence, codex/timed-specific-heat, codex/two-mass-calorimeter, codex/resistive-thermal-contact, codex/composite-layer-stack, codex/radiating-layer-stack, codex/furnace-wall-lesson, codex/infer-wall-contact, codex/furnace-material-controls, codex/infer-layer-conductivity, codex/probed-wall-contacts, codex/radiation-shield-stack, codex/windows-offline-replay, codex/shield-count-design, codex/shielded-body-cooling, codex/rod-generation-calorimetry, codex/rod-generation-hotspots, codex/convecting-radiating-surface, codex/newton-cooling-energy, codex/air-film-exposure, codex/three-reading-cooling, codex/calibrated-wall-cooling, codex/powered-wall-surface, codex/infer-rod-power, codex/two-heater-calorimetry]
+permissions:
+  contents: read
+jobs:
+  wall:
+    if: |
+      (github.base_ref == 'codex/terminal-resistance' && github.head_ref == 'codex/series-equivalence') ||
+      (github.base_ref == 'codex/series-equivalence' && github.head_ref == 'codex/steady-bridge') ||
+      (github.base_ref == 'codex/steady-bridge' && github.head_ref == 'codex/temperature-crossing') ||
+      (github.base_ref == 'codex/temperature-crossing' && github.head_ref == 'codex/heat-flow-reversal') ||
+      (github.base_ref == 'codex/heat-flow-reversal' && github.head_ref == 'codex/network-calorimetry') ||
+      (github.base_ref == 'codex/network-calorimetry' && github.head_ref == 'codex/study-observation-passages') ||
+      (github.base_ref == 'codex/study-observation-passages' && github.head_ref == 'codex/thermal-terminal-response') ||
+      (github.base_ref == 'codex/thermal-terminal-response' && github.head_ref == 'codex/join-thermal-networks') ||
+      (github.base_ref == 'codex/join-thermal-networks' && github.head_ref == 'codex/thermal-port-relaxation') ||
+      (github.base_ref == 'codex/thermal-port-relaxation' && github.head_ref == 'codex/rod-resistance-sensitivity') ||
+      (github.base_ref == 'codex/rod-resistance-sensitivity' && github.head_ref == 'codex/finite-conductivity-bounds') ||
+      (github.base_ref == 'codex/finite-conductivity-bounds' && github.head_ref == 'codex/isolated-pair-exchange') ||
+      (github.base_ref == 'codex/isolated-pair-exchange' && github.head_ref == 'codex/two-contact-join') ||
+      (github.base_ref == 'codex/two-contact-join' && github.head_ref == 'codex/loaded-thermal-ports') ||
+      (github.base_ref == 'codex/loaded-thermal-ports' && github.head_ref == 'codex/conduction-walkthrough') ||
+      (github.base_ref == 'codex/conduction-walkthrough' && github.head_ref == 'codex/radiating-surface') ||
+      (github.base_ref == 'codex/radiating-surface' && github.head_ref == 'codex/radiative-gap') ||
+      (github.base_ref == 'codex/radiative-gap' && github.head_ref == 'codex/radiation-shield') ||
+      (github.base_ref == 'codex/radiation-shield' && github.head_ref == 'codex/radiation-power-bounds') ||
+      (github.base_ref == 'codex/radiation-power-bounds' && github.head_ref == 'codex/conducting-vacuum-support') ||
+      (github.base_ref == 'codex/conducting-vacuum-support' && github.head_ref == 'codex/spherical-conduction') ||
+      (github.base_ref == 'codex/spherical-conduction' && github.head_ref == 'codex/cylindrical-conduction') ||
+      (github.base_ref == 'codex/cylindrical-conduction' && github.head_ref == 'codex/radiating-radial-layers') ||
+      (github.base_ref == 'codex/radiating-radial-layers' && github.head_ref == 'codex/insulation-radius') ||
+      (github.base_ref == 'codex/insulation-radius' && github.head_ref == 'codex/insulation-turning-radius') ||
+      (github.base_ref == 'codex/insulation-turning-radius' && github.head_ref == 'codex/latent-heat-bath') ||
+      (github.base_ref == 'codex/latent-heat-bath' && github.head_ref == 'codex/phase-bath-target') ||
+      (github.base_ref == 'codex/phase-bath-target' && github.head_ref == 'codex/coupled-phase-baths') ||
+      (github.base_ref == 'codex/coupled-phase-baths' && github.head_ref == 'codex/phase-bath-equilibrium') ||
+      (github.base_ref == 'codex/phase-bath-equilibrium' && github.head_ref == 'codex/phase-transfer-time') ||
+      (github.base_ref == 'codex/phase-transfer-time' && github.head_ref == 'codex/phase-state-at-time') ||
+      (github.base_ref == 'codex/phase-state-at-time' && github.head_ref == 'codex/phase-branch-flows') ||
+      (github.base_ref == 'codex/phase-branch-flows' && github.head_ref == 'codex/phase-short-interval') ||
+      (github.base_ref == 'codex/phase-short-interval' && github.head_ref == 'codex/phase-wall-investigation') ||
+      (github.base_ref == 'codex/phase-wall-investigation' && github.head_ref == 'codex/radiating-phase-wall') ||
+      (github.base_ref == 'codex/radiating-phase-wall' && github.head_ref == 'codex/supported-phase-bath') ||
+      (github.base_ref == 'codex/supported-phase-bath' && github.head_ref == 'codex/phase-balance-temperature') ||
+      (github.base_ref == 'codex/phase-balance-temperature' && github.head_ref == 'codex/timed-phase-target') ||
+      (github.base_ref == 'codex/timed-phase-target' && github.head_ref == 'codex/local-review-workflow') ||
+      (github.base_ref == 'codex/local-review-workflow' && github.head_ref == 'codex/phase-exposure-sequence') ||
+      (github.base_ref == 'codex/phase-exposure-sequence' && github.head_ref == 'codex/phase-recovery-time') ||
+      (github.base_ref == 'codex/phase-recovery-time' && github.head_ref == 'codex/phase-reservoir-energy') ||
+      (github.base_ref == 'codex/phase-reservoir-energy' && github.head_ref == 'codex/phase-entropy') ||
+      (github.base_ref == 'codex/phase-entropy' && github.head_ref == 'codex/supported-wall-lesson') ||
+      (github.base_ref == 'codex/supported-wall-lesson' && github.head_ref == 'codex/variable-conductivity') ||
+      (github.base_ref == 'codex/variable-conductivity' && github.head_ref == 'codex/dissimilar-conductors') ||
+      (github.base_ref == 'codex/dissimilar-conductors' && github.head_ref == 'codex/wall-reversal-lesson') ||
+      (github.base_ref == 'codex/wall-reversal-lesson' && github.head_ref == 'codex/nonlinear-radiating-wall') ||
+      (github.base_ref == 'codex/nonlinear-radiating-wall' && github.head_ref == 'codex/radiating-body-time') ||
+      (github.base_ref == 'codex/radiating-body-time' && github.head_ref == 'codex/wall-lesson-flows') ||
+      (github.base_ref == 'codex/wall-lesson-flows' && github.head_ref == 'codex/radiating-body-energy') ||
+      (github.base_ref == 'codex/radiating-body-energy' && github.head_ref == 'codex/body-exposure-temperature') ||
+      (github.base_ref == 'codex/body-exposure-temperature' && github.head_ref == 'codex/body-exposure-sequence') ||
+      (github.base_ref == 'codex/body-exposure-sequence' && github.head_ref == 'codex/timed-specific-heat') ||
+      (github.base_ref == 'codex/timed-specific-heat' && github.head_ref == 'codex/two-mass-calorimeter') ||
+      (github.base_ref == 'codex/two-mass-calorimeter' && github.head_ref == 'codex/resistive-thermal-contact') ||
+      (github.base_ref == 'codex/resistive-thermal-contact' && github.head_ref == 'codex/composite-layer-stack') ||
+      (github.base_ref == 'codex/composite-layer-stack' && github.head_ref == 'codex/radiating-layer-stack') ||
+      (github.base_ref == 'codex/radiating-layer-stack' && github.head_ref == 'codex/furnace-wall-lesson') ||
+      (github.base_ref == 'codex/furnace-wall-lesson' && github.head_ref == 'codex/infer-wall-contact') ||
+      (github.base_ref == 'codex/infer-wall-contact' && github.head_ref == 'codex/furnace-material-controls') ||
+      (github.base_ref == 'codex/furnace-material-controls' && github.head_ref == 'codex/infer-layer-conductivity') ||
+      (github.base_ref == 'codex/infer-layer-conductivity' && github.head_ref == 'codex/probed-wall-contacts') ||
+      (github.base_ref == 'codex/probed-wall-contacts' && github.head_ref == 'codex/radiation-shield-stack') ||
+      (github.base_ref == 'codex/radiation-shield-stack' && github.head_ref == 'codex/windows-offline-replay') ||
+      (github.base_ref == 'codex/windows-offline-replay' && github.head_ref == 'codex/shield-count-design') ||
+      (github.base_ref == 'codex/shield-count-design' && github.head_ref == 'codex/shielded-body-cooling') ||
+      (github.base_ref == 'codex/shielded-body-cooling' && github.head_ref == 'codex/rod-generation-calorimetry') ||
+      (github.base_ref == 'codex/rod-generation-calorimetry' && github.head_ref == 'codex/rod-generation-hotspots') ||
+      (github.base_ref == 'codex/rod-generation-hotspots' && github.head_ref == 'codex/convecting-radiating-surface') ||
+      (github.base_ref == 'codex/convecting-radiating-surface' && github.head_ref == 'codex/newton-cooling-energy') ||
+      (github.base_ref == 'codex/newton-cooling-energy' && github.head_ref == 'codex/air-film-exposure') ||
+      (github.base_ref == 'codex/air-film-exposure' && github.head_ref == 'codex/three-reading-cooling') ||
+      (github.base_ref == 'codex/three-reading-cooling' && github.head_ref == 'codex/calibrated-wall-cooling') ||
+      (github.base_ref == 'codex/calibrated-wall-cooling' && github.head_ref == 'codex/powered-wall-surface') ||
+      (github.base_ref == 'codex/powered-wall-surface' && github.head_ref == 'codex/infer-rod-power') ||
+      (github.base_ref == 'codex/infer-rod-power' && github.head_ref == 'codex/two-heater-calorimetry') ||
+      (github.base_ref == 'codex/two-heater-calorimetry' && github.head_ref == 'codex/calorimetry-predictions')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all: -r requirements-h1-ci.txt
+      - name: Verify full top-level suite on Linux
+        if: github.head_ref == 'codex/windows-offline-replay'
+        run: python -B -m unittest discover -s tests -v
+      - name: Run inherited H1 offline baseline
+        run: python -B -m unittest discover -s h1/tests -v
+      - run: python -B -m unittest -v tests.test_composite_wall tests.test_wall_revision tests.test_terminal_resistance tests.test_series_extension
+      - name: Replay through the general conduction CLI
+        run: |
+          python -B -m tools.terminal_resistance --root h1/cases/S1 --study h1/cases/S1/study.json --facts h1/reference_cases/S1.json --facts-sha256 47b1d9035230cb252a992a3fdcdbdf6fbefd350f901aacaaae9dae37b561635a > series-output.json
+          python -B -m qualification.h1_n13.conduction --root studies/series_extension --study studies/series_extension/study.json --facts studies/series_extension/facts.json --facts-sha256 1a60624f561e9edbf0e2457c127b06e9425bc9c6a0b6b576945f40413cd71d44 > full-network.json
+          dir=studies/composite_wall
+          python -B -m tools.terminal_resistance --root "$dir" --study "$dir/study.json" --facts "$dir/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b > wall-output.json
+          python -B -m tools.terminal_resistance --root "$dir" --study "$dir/higher_k.json" --facts "$dir/higher_k_facts.json" --facts-sha256 7b266f98ac5952ddc385e1555b6238fa775ef453c2eac4c899ff2e4a283b9e79 > revised-wall-output.json
+      - name: Verify steady bridge and replay both configurations
+        if: github.head_ref == 'codex/steady-bridge' || github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports' || github.head_ref == 'codex/conduction-walkthrough'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_steady_bridge
+          dir=studies/steady_bridge
+          mkdir bridge
+          replay() {
+            local label="$1" prefix="$2" pin="$3"
+            local args=(--root "$dir" --study "$dir/${prefix}study.json" --facts "$dir/${prefix}facts.json" --facts-sha256 "$pin")
+            python -B -m qualification.h1_n13.conduction "${args[@]}" > "bridge/$label.json"
+            python -B -m tools.terminal_resistance "${args[@]}" > "bridge/$label-resistance.json"
+          }
+          replay balanced '' 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf
+          replay revised changed_ 9e62ef107a7499beb80406ac8b54b35e084830eb17f8d370ce96888884ba9f1f
+      - name: Run threshold regressions and archive observed passages
+        if: github.head_ref == 'codex/temperature-crossing' || github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        run: |
+          python -B -m unittest -v tests.test_temperature_passages
+          mkdir passages
+          d=qualification/h1_n13/heldout
+          python -B -m tools.temperature_passages --study "$d/study.json" --root "$d" --facts "$d/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 --body blue --threshold-k 307 > passages/blue.json
+          d=h1/cases/D1
+          python -B -m tools.temperature_passages --study "$d/study.json" --root "$d" --facts h1/reference_cases/D1.json --facts-sha256 92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7 --body body --threshold-k 323.15 > passages/single.json
+      - name: Exercise rod reversal observations
+        if: github.head_ref == 'codex/heat-flow-reversal' || github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        run: |
+          python -B -m unittest -v tests.test_heat_flow_reversals
+          d=qualification/h1_n13/heldout
+          python -B -m tools.heat_flow_reversals --root "$d" --study "$d/study.json" --facts "$d/facts.json" --facts-sha256 57c393f2b11bf658a378b6fa6ab96425b14116b8c2fc519e4bedba1e883d1783 --rod lower > passages/lower-reversal.json
+      - name: Verify isolated equilibrium and compare the pinned conductivity revision
+        if: github.head_ref == 'codex/network-calorimetry' || github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        run: |
+          python -B -m unittest -v tests.test_network_calorimetry
+          mkdir calorimetry
+          python -B -m tools.network_calorimetry --root h1/cases/D2 --study h1/cases/D2/study.json --facts h1/reference_cases/D2.json --facts-sha256 befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a > calorimetry/original.json
+          python -B -m tools.network_calorimetry --root h1/cases --study h1/cases/D2_K2/study.json --facts h1/reference_cases/D2_K2.json --facts-sha256 d4da4597c01cb175d6b0b02c10ec055a9653a9e56e2ffc6e0d74a6335a150b6f > calorimetry/revision.json
+          python - <<'PY'
+          import json
+          from decimal import Decimal, getcontext
+          from fractions import Fraction
+          from pathlib import Path
+          getcontext().prec = 70
+          for name, exponent in (("original", -5), ("revision", -10)):
+              result = json.loads(Path("calorimetry", name + ".json").read_bytes())
+              component, = result["components"]
+              assert Fraction(component["equilibriumTemperatureK"]) == Fraction("308.15")
+              assert result["finalTimeSeconds"] == "9375"
+              lo, hi = map(Fraction, component["finalSpreadBoundsK"])
+              expected = Fraction(60 * Decimal(exponent).exp())
+              guard = Fraction(1, 10**68)
+              assert lo <= expected - guard <= expected + guard <= hi
+              assert hi - lo < Fraction(1, 10**10)
+          PY
+      - name: Verify passages of authored observations
+        if: github.head_ref == 'codex/study-observation-passages' || github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        run: |
+          python -B -m unittest -v tests.test_observation_passages
+          python -B -m tools.observation_passages --root h1/cases/D2 --study h1/cases/D2/study.json --facts h1/reference_cases/D2.json --facts-sha256 befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a --request-id difference --threshold 1 --unit K > passages/request-difference.json
+          python -B -m tools.observation_passages --root h1/cases/D1 --study h1/cases/D1/study.json --facts h1/reference_cases/D1.json --facts-sha256 92c913bd9a59fee7af14170f459f0959deee8da7d6876e4be222d3c3e94b71c7 --request-id energy --threshold 15000 --unit J > passages/request-energy.json
+      - name: Verify three-terminal response and archive both networks
+        if: github.head_ref == 'codex/thermal-terminal-response' || github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_terminal_response
+          mkdir terminal-response
+          replay() {
+            local topology="$1" pin="$2" dir="studies/three_terminal/$1"
+            local args=(--root "$dir" --study "$dir/study.json" --facts "$dir/facts.json" --facts-sha256 "$pin")
+            python -B -m tools.terminal_response "${args[@]}" > "terminal-response/$topology.json"
+            python -B -m qualification.h1_n13.conduction "${args[@]}" > "terminal-response/$topology-direct.json"
+          }
+          replay star 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0
+          replay triangle 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924
+      - name: Compare joined laws to the explicitly connected six rods
+        if: github.head_ref == 'codex/join-thermal-networks' || github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_join_thermal_networks
+          mkdir joined
+          l=studies/three_terminal/star
+          r=studies/three_terminal/triangle
+          f=studies/joined_terminals
+          python -B -m tools.join_thermal_networks --left-study "$l/study.json" --left-root "$l" --left-facts "$l/facts.json" --left-facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --left-port middle --right-study "$r/study.json" --right-root "$r" --right-facts "$r/facts.json" --right-facts-sha256 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924 --right-port warm > joined/composition.json
+          args=(--root "$f" --study "$f/study.json" --facts "$f/facts.json" --facts-sha256 bf8bebb43189f2034ce3be32e3441f14c8b684eaf9e3a19876a2361a0f0482a9)
+          python -B -m qualification.h1_n13.conduction "${args[@]}" > joined/direct.json
+          python -B -m tools.terminal_response "${args[@]}" > joined/direct-response.json
+      - name: Verify the loaded-body thermal relaxation law
+        if: github.head_ref == 'codex/thermal-port-relaxation' || github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_body_relaxation
+          mkdir relaxation
+          f=studies/loaded_star
+          args=(--root "$f" --study "$f/study.json" --facts "$f/facts.json" --facts-sha256 1fccce839e69c67230819498fb1da973ac614264378ada75ae7d0b13b7816ff8)
+          python -B -m tools.body_relaxation "${args[@]}" > relaxation/law.json
+          python -B -m qualification.h1_n13.conduction "${args[@]}" > relaxation/full-history.json
+      - name: Verify resistance sensitivities and replay bridge balance
+        if: github.head_ref == 'codex/rod-resistance-sensitivity' || github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_resistance_sensitivity
+          mkdir sensitivities
+          replay() {
+            local dir="$1" prefix="$2" pin="$3" label="$4"
+            python -B -m tools.resistance_sensitivity --root "$dir" --study "$dir/${prefix}study.json" --facts "$dir/${prefix}facts.json" --facts-sha256 "$pin" > "sensitivities/$label.json"
+          }
+          replay studies/composite_wall '' f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b wall
+          replay studies/steady_bridge '' 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf balanced
+          replay studies/steady_bridge changed_ 9e62ef107a7499beb80406ac8b54b35e084830eb17f8d370ce96888884ba9f1f revised
+      - name: Bound a finite conductivity change and compare with the revised study
+        if: github.head_ref == 'codex/finite-conductivity-bounds' || github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_conductivity_change_bounds
+          f=studies/composite_wall
+          python -B -m tools.conductivity_change_bounds --root "$f" --study "$f/study.json" --facts "$f/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --rod insert --conductivity-multiplier 7/3 > wall-change-bounds.json
+      - name: Verify insulated two-body exchange and its transient history
+        if: github.head_ref == 'codex/isolated-pair-exchange' || github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports' || github.head_ref == 'codex/conduction-walkthrough'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_isolated_pair_exchange
+          args=(--root h1/cases/D2 --study h1/cases/D2/study.json --facts h1/reference_cases/D2.json --facts-sha256 befcb977a08bdb4d3f15d903ebafccf910d83675f8d1a92f1988bca74a8a547a)
+          mkdir pair
+          python -B -m tools.isolated_pair_exchange "${args[@]}" > pair/exchange.json
+          python -B -m qualification.h1_n13.conduction "${args[@]}" > pair/full-history.json
+      - name: Join two networks at two contacts and replay the six-rod assembly
+        if: github.head_ref == 'codex/two-contact-join' || github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_two_contact_join
+          mkdir two-contacts
+          l=studies/three_terminal/star
+          r=studies/three_terminal/triangle
+          f=studies/two_contacts
+          python -B -m tools.two_contact_join --left-study "$l/study.json" --left-root "$l" --left-facts "$l/facts.json" --left-facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --right-study "$r/study.json" --right-root "$r" --right-facts "$r/facts.json" --right-facts-sha256 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924 --first-contact middle warm --second-contact cool middle > two-contacts/law.json
+          python -B -m qualification.h1_n13.conduction --study "$f/study.json" --root "$f" --facts "$f/facts.json" --facts-sha256 76cbdba2b79184ef560b7cb74d336fedd459492d499216221267b3b1a36c2329 > two-contacts/direct.json
+      - name: Compare loaded thermal ports with the nine-rod assembly
+        if: github.head_ref == 'codex/loaded-thermal-ports'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_loaded_thermal_ports
+          mkdir loaded-ports
+          l=studies/three_terminal/star
+          r=studies/three_terminal/triangle
+          w=studies/composite_wall
+          f=studies/loaded_thermal_ports
+          python -B -m tools.loaded_thermal_ports --left-study "$l/study.json" --left-root "$l" --left-facts "$l/facts.json" --left-facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --link-study "$w/study.json" --link-root "$w" --link-facts "$w/facts.json" --link-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-study "$r/study.json" --right-root "$r" --right-facts "$r/facts.json" --right-facts-sha256 14e792903c1a8fc7c8d8ebb1c9e11e09a1a4474ff7e716de47d770df13177924 --left-port middle --right-port warm > loaded-ports/reduced.json
+          python -B -m qualification.h1_n13.conduction --study "$f/study.json" --root "$f" --facts "$f/facts.json" --facts-sha256 137e707179de334e72df970facb62c5eb29c46e49a8462985f0660c6d7d2c476 > loaded-ports/direct.json
+      - name: Verify and replay steady surface radiation
+        if: github.head_ref == 'codex/radiating-surface' || github.head_ref == 'codex/radiative-gap' || github.head_ref == 'codex/radiation-shield' || github.head_ref == 'codex/radiation-power-bounds' || github.head_ref == 'codex/conducting-vacuum-support'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_radiating_surface tests.test_loaded_thermal_ports
+          mkdir radiation
+          w=studies/composite_wall
+          for temp in 280 450; do
+            python -B -m tools.radiating_surface --root "$w" --study "$w/study.json" --facts "$w/facts.json" --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --enclosure-k "$temp" --area-m2 0.020 --emissivity 0.8 --sigma 0.0000000567 > "radiation/wall-$temp.json"
+          done
+      - name: Compare two-plate exchange with four independent radiosity and wall balances
+        if: github.head_ref == 'codex/radiative-gap' || github.head_ref == 'codex/radiation-shield' || github.head_ref == 'codex/radiation-power-bounds' || github.head_ref == 'codex/conducting-vacuum-support'
+        run: |
+          python -B -m unittest -v tests.test_radiative_gap
+          python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 0.8 --right-emissivity 0.5 --sigma 0.0000000567 > radiation/gap.json
+      - name: Check floating shield balance and replay distinct face coatings
+        if: github.head_ref == 'codex/radiation-shield' || github.head_ref == 'codex/radiation-power-bounds' || github.head_ref == 'codex/conducting-vacuum-support'
+        run: |
+          python -B -m unittest -v tests.test_radiation_shield
+          python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 0.8 --right-emissivity 0.5 --sigma 0.0000000567 --shield-emissivities 0.6 0.3 > radiation/shield.json
+      - name: Replay extreme single-surface power enclosure
+        if: github.head_ref == 'codex/radiation-power-bounds' || github.head_ref == 'codex/conducting-vacuum-support'
+        run: python -B -m tools.radiating_surface --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --enclosure-k 999999999999 --area-m2 1 --emissivity 1 --sigma 0.0000000567 > radiation/extreme-wall.json
+      - name: Verify conductive and radiative heat sharing
+        if: github.head_ref == 'codex/conducting-vacuum-support'
+        run: |
+          python -B -m unittest -v tests.test_supported_radiative_gap tests.test_loaded_thermal_ports
+          python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 0.8 --right-emissivity 0.5 --sigma 0.0000000567 --support studies/steady_bridge/study.json studies/steady_bridge studies/steady_bridge/facts.json 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf > radiation/support.json
+      - name: Verify concentric layers and replay radial flux
+        if: github.head_ref == 'codex/spherical-conduction' || github.head_ref == 'codex/cylindrical-conduction' || github.head_ref == 'codex/radiating-radial-layers' || github.head_ref == 'codex/insulation-radius' || github.head_ref == 'codex/insulation-turning-radius'
+        run: |
+          python -B -m unittest -v tests.test_spherical_conduction tests.test_loaded_thermal_ports
+          python -B -m tools.spherical_conduction --inner-root studies/composite_wall --inner-study studies/composite_wall/study.json --inner-facts studies/composite_wall/facts.json --inner-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --outer-root studies/composite_wall --outer-study studies/composite_wall/study.json --outer-facts studies/composite_wall/facts.json --outer-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --inner-port cold --outer-port hot --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 > spherical-shell.json
+      - name: Verify cylindrical log enclosures and replay layered pipe
+        if: github.head_ref == 'codex/cylindrical-conduction' || github.head_ref == 'codex/radiating-radial-layers' || github.head_ref == 'codex/insulation-radius' || github.head_ref == 'codex/insulation-turning-radius'
+        run: |
+          python -B -m unittest -v tests.test_cylindrical_conduction
+          python -B -m tools.spherical_conduction --inner-root studies/composite_wall --inner-study studies/composite_wall/study.json --inner-facts studies/composite_wall/facts.json --inner-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --outer-root studies/composite_wall --outer-study studies/composite_wall/study.json --outer-facts studies/composite_wall/facts.json --outer-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --inner-port cold --outer-port hot --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 --cylinder-length-m 1 > cylindrical-pipe.json
+      - name: Balance radial conduction and exterior radiation
+        if: github.head_ref == 'codex/radiating-radial-layers' || github.head_ref == 'codex/insulation-radius' || github.head_ref == 'codex/insulation-turning-radius'
+        run: |
+          python -B -m unittest -v tests.test_radiating_radial_layers tests.test_radiating_surface
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 > radial-emission.json
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.2 2 --layer 0.4 1 --emissivity 0.8 --sigma 0.0000000567 --cylinder-length-m 1 --enclosure-k 450 > radial-absorption.json
+      - name: Verify insulation radius derivatives and opposite trends
+        if: github.head_ref == 'codex/insulation-radius' || github.head_ref == 'codex/insulation-turning-radius'
+        run: |
+          python -B -m unittest -v tests.test_insulation_radius
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.12 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --radius-sensitivity > radius-increasing.json
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 1.4 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --radius-sensitivity > radius-decreasing.json
+      - name: Verify insulation turning brackets for sphere and pipe
+        if: github.head_ref == 'codex/insulation-turning-radius'
+        run: |
+          python -B -m unittest -v tests.test_turning_radius
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.12 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --bracket-to-radius-m 1.4 > turning-sphere.json
+          python -B -m tools.radiating_radial_layers --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --inner-radius-m 0.1 --layer 0.12 2 --emissivity 0.8 --sigma 0.0000000567 --enclosure-k 280 --bracket-to-radius-m 1.4 --cylinder-length-m 1 > turning-pipe.json
+      - name: Check latent heat and finite phase inventory
+        if: github.head_ref == 'codex/latent-heat-bath' || github.head_ref == 'codex/phase-bath-target' || github.head_ref == 'codex/coupled-phase-baths' || github.head_ref == 'codex/phase-bath-equilibrium' || github.head_ref == 'codex/phase-transfer-time' || github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_latent_heat_bath tests.test_terminal_response
+          python -B -m tools.latent_heat_bath --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --duration-s 600 > melting-600.json
+          python -B -m tools.latent_heat_bath --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --duration-s 1000 > melting-1000.json
+      - name: Verify phase change followed by sensible heating or cooling
+        if: github.head_ref == 'codex/phase-bath-target' || github.head_ref == 'codex/coupled-phase-baths' || github.head_ref == 'codex/phase-bath-equilibrium' || github.head_ref == 'codex/phase-transfer-time' || github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_phase_bath_target
+          python -B -m tools.phase_bath_target --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --final-specific-heat-j-per-kg-k 4200 --target-k 293.15 > meltwater-target.json
+      - name: Check opposite phase transfers and shared exhaustion event
+        if: github.head_ref == 'codex/coupled-phase-baths' || github.head_ref == 'codex/phase-bath-equilibrium' || github.head_ref == 'codex/phase-transfer-time' || github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_coupled_phase_baths
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 300 > coupled-300.json
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 > coupled-1000.json
+      - name: Verify closed phase-reservoir equilibrium and energy ledgers
+        if: github.head_ref == 'codex/phase-bath-equilibrium' || github.head_ref == 'codex/phase-transfer-time' || github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_phase_bath_equilibrium
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 > phase-equilibrium.json
+      - name: Replay passage across latent and sensible heat-transfer stages
+        if: github.head_ref == 'codex/phase-transfer-time' || github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_phase_transfer_time
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 --transfer-target-j 120000 > phase-transfer-time.json
+      - name: Check bath states at elapsed time
+        if: github.head_ref == 'codex/phase-state-at-time' || github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_phase_state_at_time
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 --track-duration > phase-state-at-time.json
+      - name: Replay the signed heat through each rod
+        if: github.head_ref == 'codex/phase-branch-flows' || github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m unittest -v tests.test_phase_branch_flows tests.test_terminal_response
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 --track-rod-flows > phase-branch-flows.json
+      - name: Replay the one-second high-capacity review case
+        if: github.head_ref == 'codex/phase-short-interval'
+        run: |
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 331 1 999999999999 0.1 --right-bath cold 301 1 0.1 999999999999 --duration-s 1 --equilibrium-cp 999999999999 999999999999 --track-duration > phase-short-interval.json
+      - name: Replay the JEE phase-wall investigation with both ice inventories
+        if: github.head_ref == 'codex/phase-wall-investigation'
+        run: |
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.5 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 --track-rod-flows > wall-original-ice.json
+          python -B -m tools.coupled_phase_baths --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-bath hot 333.15 200000 0.1 0.45 --right-bath cold 273.15 334000 0.2 0.1 --duration-s 1000 --equilibrium-cp 2000 4200 --track-rod-flows > wall-reduced-ice.json
+      - name: Check the radiating wall coupled to a finite phase bath
+        if: github.head_ref == 'codex/radiating-phase-wall'
+        run: |
+          python -B -m unittest -v tests.test_radiating_phase_wall tests.test_radiating_surface tests.test_latent_heat_bath tests.test_phase_bath_target
+          python -B -m tools.latent_heat_bath --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port hot --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.5 --liquid-kg 0.1 --duration-s 1000 --radiating-exterior 350 0.8 0.7 0.0000000567 > radiating-phase-wall.json
+      - name: Replay freezing and melting with an irradiated face and a cold support
+        if: github.head_ref == 'codex/supported-phase-bath'
+        run: |
+          python -B -m unittest -v tests.test_supported_phase_bath tests.test_radiating_phase_wall tests.test_radiating_surface tests.test_latent_heat_bath tests.test_phase_bath_target
+          python -B -m tools.latent_heat_bath --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --surface-port warm --transition-k 300 --latent-heat-j-per-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --duration-s 1000 --radiating-exterior 310 1 0.8 0.0000000567 > supported-freezing.json
+          python -B -m tools.latent_heat_bath --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --surface-port warm --transition-k 300 --latent-heat-j-per-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --duration-s 1000 --radiating-exterior 420 1 0.8 0.0000000567 > supported-melting.json
+      - name: Solve for the enclosure temperature that balances the phase bath
+        if: github.head_ref == 'codex/phase-balance-temperature'
+        run: |
+          python -B -m unittest -v tests.test_phase_balance_temperature tests.test_supported_phase_bath tests.test_radiating_phase_wall tests.test_radiating_surface
+          python -B -m tools.phase_balance_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 > phase-balance-enclosure.json
+      - name: Check finite-time melting and freezing targets
+        if: github.head_ref == 'codex/timed-phase-target'
+        run: |
+          python -B -m unittest -v tests.test_timed_phase_target tests.test_phase_balance_temperature tests.test_supported_phase_bath tests.test_radiating_phase_wall
+          python -B -m tools.phase_balance_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --phase-target melt 0.1 1000 200000 0.1 0.3 > timed-melting.json
+          python -B -m tools.phase_balance_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --phase-target freeze 0.1 1000 200000 0.1 0.3 > timed-freezing.json
+      - name: Replay successive enclosure exposures and first phase depletion
+        if: github.head_ref == 'codex/phase-exposure-sequence'
+        run: |
+          python -B -m unittest -v tests.test_phase_exposure_sequence tests.test_latent_heat_bath tests.test_supported_phase_bath tests.test_radiating_phase_wall tests.test_phase_bath_target
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --stage 310 1000 --stage 310 3000 --stage 420 1 > phase-exposure-sequence.json
+      - name: Replay return to the initial phase inventory
+        if: github.head_ref == 'codex/phase-recovery-time'
+        run: |
+          python -B -m unittest -v tests.test_phase_recovery_time tests.test_phase_exposure_sequence tests.test_supported_phase_bath
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 > phase-recovery-time.json
+      - name: Replay reservoir energy over a complete phase recovery
+        if: github.head_ref == 'codex/phase-reservoir-energy'
+        run: |
+          python -B -m unittest -v tests.test_phase_reservoir_energy tests.test_phase_recovery_time tests.test_phase_exposure_sequence
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 --track-reservoir-energy > phase-reservoir-energy.json
+      - name: Check entropy generated during thermal exchange
+        if: github.head_ref == 'codex/phase-entropy'
+        run: |
+          python -B -m unittest -v tests.test_phase_entropy tests.test_phase_reservoir_energy tests.test_phase_recovery_time tests.test_phase_exposure_sequence
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 --track-entropy > phase-entropy.json
+      - name: Replay both supported-wall lesson investigations
+        if: github.head_ref == 'codex/supported-wall-lesson'
+        run: |
+          python -B -m tools.phase_balance_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 > lesson-balance.json
+          python -B -m tools.phase_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --bath-port middle --surface-port warm --transition-k 300 --latent-j-kg 200000 --solid-kg 0.2 --liquid-kg 0.3 --area-m2 1 --emissivity 0.8 --sigma 0.0000000567 --stage 420 1000 --recover-at-k 310 --track-entropy > lesson-cycle.json
+      - name: Replay temperature-dependent rod conductivity
+        if: github.head_ref == 'codex/variable-conductivity'
+        run: |
+          python -B -m unittest -v tests.test_variable_conductivity tests.test_terminal_response tests.test_phase_branch_flows
+          python -B -m tools.variable_conductivity --root studies/composite_wall --study studies/composite_wall/study.json --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --reference-k 280 --slope-per-k 0.01 > variable-conductivity.json
+      - name: Replay joined dissimilar composite walls
+        if: github.head_ref == 'codex/dissimilar-conductors'
+        run: |
+          python -B -m unittest -v tests.test_join_variable_conductors tests.test_variable_conductivity tests.test_join_thermal_networks
+          python -B -m tools.join_variable_conductors --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --left-reference-k 280 --left-slope-per-k 0.00625 --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-port hot --right-reference-k 280 --right-slope-per-k 0 > dissimilar-walls.json
+      - name: Replay the JEE composite-wall reversal exercise
+        if: github.head_ref == 'codex/wall-reversal-lesson'
+        run: python -B -m tools.wall_reversal_lesson > wall-reversal-lesson.json
+      - name: Replay conduction with a nonlinear radiating surface
+        if: github.head_ref == 'codex/nonlinear-radiating-wall'
+        run: |
+          python -B -m unittest -v tests.test_nonlinear_radiating_wall tests.test_radiating_surface tests.test_join_variable_conductors
+          python -B -m tools.nonlinear_radiating_wall --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 200 --slope-per-k 0.0025 --enclosure-k 0 --area-m2 5.5125 --emissivity 1 --sigma 0.00000005 > nonlinear-radiating-wall.json
+      - name: Replay finite-body arrival time with nonlinear rods and radiation
+        if: github.head_ref == 'codex/radiating-body-time'
+        run: |
+          python -B -m unittest -v tests.test_radiating_body_time tests.test_nonlinear_radiating_wall
+          python -B -m tools.radiating_body_time --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --reference-k 300 --slope-per-k 0.002 --enclosure-k 400 --area-m2 0.5 --emissivity 0.8 --sigma 0.00000005 --capacity-j-per-k 200 --initial-k 300 --target-k 320 > radiating-body-time.json
+      - name: Reject incorrect wall-lesson branch and reservoir flows
+        if: github.head_ref == 'codex/wall-lesson-flows'
+        run: |
+          python -B -m unittest -v tests.test_wall_reversal_lesson tests.test_join_variable_conductors
+          python -B -m tools.wall_reversal_lesson > wall-reversal-lesson.json
+      - name: Replay signed energy exchange over finite-body heating
+        if: github.head_ref == 'codex/radiating-body-energy'
+        run: |
+          python -B -m unittest -v tests.test_radiating_body_energy tests.test_radiating_body_time
+          python -B -m tools.radiating_body_time --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --reference-k 300 --slope-per-k 0.002 --enclosure-k 400 --area-m2 0.5 --emissivity 0.8 --sigma 0.00000005 --capacity-j-per-k 200 --initial-k 300 --target-k 320 --track-energy > radiating-body-energy.json
+      - name: Replay body temperature after a 15-second exposure
+        if: github.head_ref == 'codex/body-exposure-temperature'
+        run: |
+          python -B -m unittest -v tests.test_body_exposure_temperature tests.test_radiating_body_time tests.test_radiating_body_energy
+          python -B -m tools.body_exposure_temperature --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --reference-k 300 --slope-per-k 0.002 --enclosure-k 400 --area-m2 0.5 --emissivity 0.8 --sigma 0.00000005 --capacity-j-per-k 200 --initial-k 300 --duration-s 15 > body-exposure-temperature.json
+      - name: Replay successive hot and cold exposures
+        if: github.head_ref == 'codex/body-exposure-sequence'
+        run: |
+          python -B -m unittest -v tests.test_body_exposure_sequence tests.test_body_exposure_temperature
+          python -B -m tools.body_exposure_sequence --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --port middle --reference-k 300 --slope-per-k 0.002 --area-m2 0.5 --emissivity 0.8 --sigma 0.00000005 --capacity-j-per-k 200 --initial-k 300 --stage 430 15 --stage 250 21 --stage 390 6 > body-exposure-sequence.json
+      - name: Infer sample specific heat from a timed calorimeter exposure
+        if: github.head_ref == 'codex/timed-specific-heat'
+        run: |
+          python -B -m unittest -v tests.test_timed_specific_heat tests.test_radiating_body_time
+          python -B -m tools.timed_specific_heat --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 280 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0 --sigma 0.00000005 --initial-k 280 --target-k 330 --time-low-s 34.65 --time-high-s 34.67 --calorimeter-j-per-k 20 --sample-kg 0.2 > timed-specific-heat.json
+      - name: Calibrate a calorimeter using two timed sample masses
+        if: github.head_ref == 'codex/two-mass-calorimeter'
+        run: |
+          python -B -m unittest -v tests.test_two_mass_calorimeter tests.test_timed_specific_heat
+          python -B -m tools.two_mass_calorimeter --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 280 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0 --sigma 0.00000005 --initial-k 280 --target-k 330 --trial 0.2 34.65 34.67 --trial 0.5 76.24 76.26 > two-mass-calorimeter.json
+      - name: Replay dissimilar walls with a finite contact resistance
+        if: github.head_ref == 'codex/resistive-thermal-contact'
+        run: |
+          python -B -m unittest -v tests.test_resistive_thermal_contact tests.test_join_variable_conductors tests.test_wall_reversal_lesson
+          python -B -m tools.join_variable_conductors --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --left-reference-k 360 --left-slope-per-k 0.01 --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-port hot --right-reference-k 280 --right-slope-per-k 0 --contact-resistance-k-per-w 0.25 > resistive-contact.json
+      - name: Replay three dissimilar walls with two imperfect contacts
+        if: github.head_ref == 'codex/composite-layer-stack'
+        run: |
+          python -B -m unittest -v tests.test_composite_layer_stack tests.test_resistive_thermal_contact
+          python -B -m tools.composite_layer_stack --left-k 380 --right-k 280 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 370 0.002 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 340 -0.003 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 290 0.005 --contact 0.25 --contact 0.75 > composite-layer-stack.json
+      - name: Balance an imperfect multilayer wall against a radiating exterior
+        if: github.head_ref == 'codex/radiating-layer-stack'
+        run: |
+          python -B -m unittest -v tests.test_radiating_layer_stack tests.test_composite_layer_stack
+          python -B -m tools.composite_layer_stack --left-k 380 --right-k 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 350 0.001 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 230 -0.001 --contact 0.5 --radiation 1.5 1 0.00000005 > radiating-layer-stack.json
+      - name: Replay the furnace-wall lesson and contact repair
+        if: github.head_ref == 'codex/furnace-wall-lesson'
+        run: |
+          python -B -m unittest -v tests.test_furnace_wall_lesson tests.test_radiating_layer_stack
+          python -B -m tools.furnace_wall_lesson > furnace-wall-lesson.json
+      - name: Infer a buried thermal contact from a measured heat rate
+        if: github.head_ref == 'codex/infer-wall-contact'
+        run: |
+          python -B -m unittest -v tests.test_infer_wall_contact tests.test_composite_layer_stack tests.test_radiating_layer_stack
+          python -B -m tools.infer_wall_contact --left-k 380 --right-k 280 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 370 0.002 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 340 -0.003 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 290 0.005 --contact 0.25 --contact '?' --min-w 40 --max-w 40 > inferred-wall-contact.json
+      - name: Verify the furnace materials and detect falsified panel laws
+        if: github.head_ref == 'codex/furnace-material-controls'
+        run: |
+          python -B -m unittest -v tests.test_furnace_wall_lesson tests.test_radiating_layer_stack
+          python -B -m tools.furnace_wall_lesson > furnace-wall-lesson.json
+      - name: Infer buried-panel conductivity from steady heat flow
+        if: github.head_ref == 'codex/infer-layer-conductivity'
+        run: |
+          python -B -m unittest -v tests.test_infer_layer_conductivity tests.test_infer_wall_contact
+          python -B -m tools.infer_layer_conductivity --left-k 380 --right-k 280 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 370 0.002 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 335 -0.003 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 290 0.005 --contact 0.5 --contact 0.75 --min-w 40 --max-w 40 --unknown-layer 2 > inferred-layer-conductivity.json
+      - name: Locate two unknown contacts with an ideal thermometer
+        if: github.head_ref == 'codex/probed-wall-contacts'
+        run: |
+          python -B -m unittest -v tests.test_probed_wall_contacts tests.test_infer_wall_contact
+          python -B -m tools.probed_wall_contacts --left-k 420 --right-k 270 --probe-after 2 --probe-k 360 --min-w 40 --max-w 40 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b hot 300 0 --layer studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b cold 300 0 --contact '?' --contact 0 --contact '?' > probed-wall-contacts.json
+      - name: Replay ordered radiation shields on conducting walls
+        if: github.head_ref == 'codex/radiation-shield-stack'
+        run: |
+          python -B -m unittest -v tests.test_shield_stack tests.test_supported_radiative_gap tests.test_radiation_shield tests.test_radiative_gap
+          python -B -m tools.radiative_gap --left-root studies/composite_wall --left-study studies/composite_wall/study.json --left-facts studies/composite_wall/facts.json --left-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right-root studies/composite_wall --right-study studies/composite_wall/study.json --right-facts studies/composite_wall/facts.json --right-facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.020 --left-emissivity 1 --right-emissivity 1 --sigma 0.0000000567 --shield 1 1 --shield 1 1 > shield-stack.json
+      - name: Size black shields for a measured heat-leak limit
+        if: github.head_ref == 'codex/shield-count-design'
+        run: |
+          python -B -m unittest -v tests.test_shield_count_design tests.test_shield_stack
+          python -B -m tools.shield_count_design --left studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --right studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --left-port cold --right-port hot --area-m2 0.02 --left-emissivity 1 --right-emissivity 1 --sigma 0.0000000567 --shield 1 1 --max-heat-w 7 > shield-count-design.json
+      - name: Replay shielded-body cooling with heat exchange reversal
+        if: github.head_ref == 'codex/shielded-body-cooling'
+        run: |
+          python -B -m unittest -v tests.test_shielded_body tests.test_radiating_body_time tests.test_radiating_body_energy tests.test_shield_stack tests.test_radiation_shield
+          python -B -m tools.radiating_body_time --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 300 --slope-per-k 0 --enclosure-k 400 --area-m2 1 --emissivity 0.8 --sigma 0.00000005 --capacity-j-per-k 100 --initial-k 450 --target-k 390 --shield 0.5 0.2 --shield 0.75 0.6 --track-energy > shielded-body.json
+      - name: Partition rod heat generation between maintained baths
+        if: github.head_ref == 'codex/rod-generation-calorimetry'
+        run: |
+          python -B -m unittest -v tests.test_rod_generation tests.test_terminal_response
+          python -B -m tools.rod_generation --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --generate facing 320 --generate insert 80 > generated-rod-heat.json
+      - name: Locate the temperature maximum on a heated bridge link
+        if: github.head_ref == 'codex/rod-generation-hotspots'
+        run: |
+          python -B -m unittest -v tests.test_rod_temperature_profile tests.test_rod_generation tests.test_terminal_response
+          python -B -m tools.rod_generation --study studies/steady_bridge/study.json --root studies/steady_bridge --facts studies/steady_bridge/facts.json --facts-sha256 4cc763729e8d71b0abfc0eb5d1c3cc4d08185225104af8640541adcfdbf10bbf --generate link 28 --profiles > heated-bridge-profile.json
+      - name: Balance wall conduction with convection and radiation
+        if: github.head_ref == 'codex/convecting-radiating-surface'
+        run: |
+          python -B -m unittest -v tests.test_convecting_surface tests.test_radiating_surface
+          python -B -m tools.radiating_surface --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --enclosure-k 300 --air-k 450 --h-w-per-m2-k 21.5 --area-m2 0.2 --emissivity 1 --sigma 0.00000005 > mixed-surface.json
+      - name: Integrate transient convection, conduction and shielded radiation
+        if: github.head_ref == 'codex/newton-cooling-energy'
+        run: |
+          python -B -m unittest -v tests.test_newton_cooling tests.test_shielded_body tests.test_radiating_body_energy tests.test_radiating_body_time
+          python -B -m tools.radiating_body_time --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 300 --slope-per-k 0 --enclosure-k 410 --area-m2 0.2 --emissivity 1 --sigma 0.00000005 --capacity-j-per-k 100 --initial-k 430 --target-k 400 --shield 1 1 --shield 1 1 --air-film 400 0.5 4 --track-energy > mixed-body-energy.json
+      - name: Replay a timed sequence of heating, withdrawal and cooling
+        if: github.head_ref == 'codex/air-film-exposure'
+        run: |
+          python -B -m unittest -v tests.test_mixed_body_exposure tests.test_body_exposure_sequence tests.test_body_exposure_temperature tests.test_newton_cooling tests.test_shielded_body
+          python -B -m tools.body_exposure_sequence --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --reference-k 300 --slope-per-k 0 --area-m2 0.2 --emissivity 0 --sigma 0.00000005 --capacity-j-per-k 100 --initial-k 360 --air-stage 300 500 0.5 8 20 --stage 300 10 --air-stage 300 280 1 2 15 > air-film-exposure.json
+      - name: Infer a thermal air film from three equally spaced temperatures
+        if: github.head_ref == 'codex/three-reading-cooling'
+        run: |
+          python -B -m unittest -v tests.test_three_reading_cooling tests.test_newton_cooling
+          python -B -m tools.three_reading_cooling --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --capacity-j-per-k 100 --area-m2 0.5 --spacing-s 20 --readings-k 430 410 400 > three-reading-cooling.json
+      - name: Predict a changed wall experiment from the fitted air film
+        if: github.head_ref == 'codex/calibrated-wall-cooling'
+        run: |
+          python -B -m unittest -v tests.test_calibrated_wall_cooling tests.test_three_reading_cooling
+          python -B -m tools.calibrated_wall_cooling --original studies/composite_wall/study.json studies/composite_wall studies/composite_wall/facts.json f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --original-port cold --original-capacity 100 --original-area 0.5 --spacing-s 20 --readings-k 430 410 400 --new studies/three_terminal/star/study.json studies/three_terminal/star studies/three_terminal/star/facts.json 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --new-port middle --new-capacity 150 --new-area 1 --initial-k 430 --duration-s 60 > calibrated-wall-cooling.json
+      - name: Replay a powered wall with surface exchange and an interior hotspot
+        if: github.head_ref == 'codex/powered-wall-surface'
+        run: |
+          python -B -m unittest -v tests.test_powered_wall_surface tests.test_rod_generation tests.test_rod_temperature_profile tests.test_convecting_surface tests.test_terminal_response
+          python -B -m tools.powered_wall_surface --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --generate facing 320 --enclosure-k 300 --area-m2 0.2 --emissivity 1 --sigma 0.00000005 --air-k 450 --h-w-per-m2-k 13.5 --profiles > powered-wall-surface.json
+      - name: Infer a buried heat source from a measured surface temperature
+        if: github.head_ref == 'codex/infer-rod-power'
+        run: |
+          python -B -m unittest -v tests.test_infer_rod_power tests.test_powered_wall_surface tests.test_rod_generation
+          python -B -m tools.infer_rod_power --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --port cold --unknown-rod facing --generate insert 80 --surface-k 400 400 --enclosure-k 300 --area-m2 0.2 --emissivity 1 --sigma 0.00000005 --air-k 450 --h-w-per-m2-k 13.5 > inferred-rod-power.json
+      - name: Infer two buried rod powers from signed bath calorimetry
+        if: github.head_ref == 'codex/two-heater-calorimetry'
+        run: |
+          python -B -m unittest -v tests.test_two_heater_calorimetry tests.test_rod_generation tests.test_infer_rod_power
+          python -B -m tools.two_heater_calorimetry --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --heaters facing insert --generate strip 40 --bath hot -11 -9 --bath cold -351 -349 > two-heater-calorimetry.json
+      - name: Predict the unmeasured bath and rod peaks from two calorimeters
+        if: github.head_ref == 'codex/calorimetry-predictions'
+        run: |
+          python -B -m unittest -v tests.test_calorimetry_predictions tests.test_two_heater_calorimetry tests.test_rod_temperature_profile
+          python -B -m tools.two_heater_calorimetry --study studies/three_terminal/star/study.json --root studies/three_terminal/star --facts studies/three_terminal/star/facts.json --facts-sha256 16c414cf443e389560056bb782ac3dea0ac75c40cf2ba103fa0de25bef18def0 --heaters first second --bath warm 22 22 --bath middle -57 -57 --predict > calorimetry-predictions.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: series-extension-${{ github.event.pull_request.head.sha }}
+          path: |
+            wall-output.json
+            revised-wall-output.json
+            series-output.json
+            full-network.json
+            bridge/*.json
+            passages/*.json
+            calorimetry/*.json
+            terminal-response/*.json
+            joined/*.json
+            relaxation/*.json
+            sensitivities/*.json
+            wall-change-bounds.json
+            pair/*.json
+            two-contacts/*.json
+            loaded-ports/*.json
+            radiation/*.json
+            spherical-shell.json
+            cylindrical-pipe.json
+            radial-emission.json
+            radial-absorption.json
+            radius-increasing.json
+            radius-decreasing.json
+            turning-sphere.json
+            turning-pipe.json
+            melting-600.json
+            melting-1000.json
+            meltwater-target.json
+            coupled-300.json
+            coupled-1000.json
+            phase-equilibrium.json
+            phase-transfer-time.json
+            phase-state-at-time.json
+            phase-branch-flows.json
+            phase-short-interval.json
+            wall-original-ice.json
+            wall-reduced-ice.json
+            radiating-phase-wall.json
+            supported-freezing.json
+            supported-melting.json
+            phase-balance-enclosure.json
+            timed-melting.json
+            timed-freezing.json
+            phase-exposure-sequence.json
+            phase-recovery-time.json
+            phase-reservoir-energy.json
+            phase-entropy.json
+            lesson-balance.json
+            lesson-cycle.json
+            variable-conductivity.json
+            dissimilar-walls.json
+            wall-reversal-lesson.json
+            nonlinear-radiating-wall.json
+            radiating-body-time.json
+            radiating-body-energy.json
+            body-exposure-temperature.json
+            body-exposure-sequence.json
+            timed-specific-heat.json
+            two-mass-calorimeter.json
+            resistive-contact.json
+            composite-layer-stack.json
+            radiating-layer-stack.json
+            furnace-wall-lesson.json
+            inferred-wall-contact.json
+            inferred-layer-conductivity.json
+            probed-wall-contacts.json
+            shield-stack.json
+            shield-count-design.json
+            shielded-body.json
+            generated-rod-heat.json
+            heated-bridge-profile.json
+            mixed-surface.json
+            mixed-body-energy.json
+            air-film-exposure.json
+            three-reading-cooling.json
+            calibrated-wall-cooling.json
+            powered-wall-surface.json
+            inferred-rod-power.json
+            two-heater-calorimetry.json
+            calorimetry-predictions.json
+
+  windows-replay:
+    if: github.base_ref == 'codex/radiation-shield-stack' && github.head_ref == 'codex/windows-offline-replay'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all: -r requirements-h1-ci.txt
+      - name: Verify Windows checkout bytes and offline conduction and radiation
+        run: |
+          git rev-parse HEAD > windows-source-head.txt
+          python -B -m unittest -v tests.test_product_entry tests.test_product_docs tests.test_infer_wall_contact tests.test_infer_layer_conductivity tests.test_probed_wall_contacts tests.test_radiative_gap tests.test_shield_stack tests.test_supported_radiative_gap tests.test_furnace_wall_lesson 2>&1 | Tee-Object windows-offline.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B -m unittest -v tests.test_source_preview.SourcePreviewTests.test_original_native_diagnostic_catalog_never_changed 2>&1 | Tee-Object -Append windows-offline.txt
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-offline-replay-${{ github.event.pull_request.head.sha }}
+          path: |
+            windows-source-head.txt
+            windows-offline.txt

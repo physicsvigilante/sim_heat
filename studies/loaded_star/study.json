@@ -1,0 +1,120 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "LoadedStar",
+  "model": {
+    "path": "model.mo",
+    "sha256": "04ba0105657df297fb3c5c9931195f68f4a7c34e50090ee75af60ff685e74531"
+  },
+  "mode": "transient",
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 500,
+    "intervals": 1000,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "requests": [
+    {
+      "id": "temperature",
+      "op": "temperature",
+      "target": "middle.port"
+    },
+    {
+      "id": "energy",
+      "op": "energyChange",
+      "target": "middle"
+    }
+  ],
+  "provenance": [
+    {
+      "target": "warm.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "cool.T",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "first.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "first.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "first.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "second.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "second.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "second.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "third.k",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "third.L",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "third.A",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative SI data for the loaded star."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "README.md",
+      "note": "Storage-free rods, ideal junction, two maintained baths and one finite body."
+    },
+    {
+      "target": "middle.m",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative finite-body datum."
+    },
+    {
+      "target": "middle.c",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative finite-body datum."
+    },
+    {
+      "target": "middle.T_initial",
+      "kind": "illustrative",
+      "locator": "README.md",
+      "note": "Illustrative finite-body datum."
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schema": "sim_heat.reference/1",
+  "id": "LoadedThermalPorts",
+  "mode": "steady",
+  "analysis": {},
+  "modelSha256": "bff0356d20bd8c37e75177db1ee7990c81ed47be5b2d253bde7b8486d3199733",
+  "studySha256": "002163677af72ee5de6a96e06bea8daa44ab74ba24480bd0116815c5e029b73f",
+  "nodes": [
+    "warmL",
+    "coolL",
+    "middleR",
+    "coolR",
+    "centre",
+    "contact",
+    "rightPort",
+    "interface"
+  ],
+  "bodies": {},
+  "boundaries": {
+    "warmL": {
+      "node": "warmL",
+      "T": 380
+    },
+    "coolL": {
+      "node": "coolL",
+      "T": 280
+    },
+    "middleR": {
+      "node": "middleR",
+      "T": 330
+    },
+    "coolR": {
+      "node": "coolR",
+      "T": 280
+    }
+  },
+  "rods": {
+    "legA": {
+      "kind": "RodArea",
+      "a": "warmL",
+      "b": "centre",
+      "k": 20,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legB": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "centre",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "legC": {
+      "kind": "RodArea",
+      "a": "coolL",
+      "b": "centre",
+      "k": 50,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideA": {
+      "kind": "RodArea",
+      "a": "rightPort",
+      "b": "middleR",
+      "k": 6,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideB": {
+      "kind": "RodArea",
+      "a": "rightPort",
+      "b": "coolR",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "sideC": {
+      "kind": "RodArea",
+      "a": "middleR",
+      "b": "coolR",
+      "k": 15,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "facing": {
+      "kind": "RodArea",
+      "a": "rightPort",
+      "b": "interface",
+      "k": 20,
+      "A": 0.02,
+      "L": 0.1
+    },
+    "strip": {
+      "kind": "RodArea",
+      "a": "interface",
+      "b": "contact",
+      "k": 10,
+      "A": 0.01,
+      "L": 0.1
+    },
+    "insert": {
+      "kind": "RodArea",
+      "a": "contact",
+      "b": "interface",
+      "k": 30,
+      "A": 0.01,
+      "L": 0.1
+    }
+  },
+  "provenance": "Same-author SI facts for an explicit wall between two thermal networks."
+}

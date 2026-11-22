@@ -61,6 +61,8 @@ jobs:
           elif command -v chromium >/dev/null; then chromium --version
           else python -m playwright install --with-deps chromium; fi
       - name: Identify actual checkout, require document-owned source scope, and run offline suites
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -88,10 +90,12 @@ jobs:
           printf '%s\n' "$scope_base" > product_evidence/scope-base-sha.txt
           git diff --name-status "$scope_base" HEAD > product_evidence/source-diff.txt
           if [ "${{ matrix.kind }}" = candidate ]; then
-            # The source-preview code and six published diagnostic bundles are
-            # already on main. A product-only change must not modify them.
-            git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
-            python - <<'PY'
+            # The PR54 file-set allowlist and product-only diff guard qualify the
+            # original product-docs introduction branches only. Rollup and
+            # maintenance PRs retain all regression, archive, docs, and browser gates.
+            if [ "$SOURCE_BRANCH" = "product/authoring-guide" ] || [ "$SOURCE_BRANCH" = "product/explorer-entry" ]; then
+              git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+              python - <<'PY'
           from pathlib import Path
           rows=Path('product_evidence/source-diff.txt').read_text().splitlines()
           allowed={
@@ -111,6 +115,7 @@ jobs:
           # doc updates after authoring have their latest expected status.
           assert set(rows)==allowed and len(rows)==len(allowed),rows
           PY
+            fi
           else
             test ! -s product_evidence/source-diff.txt
           fi

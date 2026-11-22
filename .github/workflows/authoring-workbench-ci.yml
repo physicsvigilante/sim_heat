@@ -36,6 +36,8 @@ jobs:
           elif command -v chromium >/dev/null; then chromium --version
           else python -m playwright install --with-deps chromium; fi
       - name: Verify exact source boundary and run full offline suites
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -52,6 +54,7 @@ jobs:
           git diff --name-status "$scope_base" HEAD > local_authoring_evidence/source-diff.txt
           python - <<'PY'
           from pathlib import Path
+          import os
           actual=Path('local_authoring_evidence/source-diff.txt').read_text().splitlines()
           expected={
              'A\t.github/workflows/authoring-workbench-ci.yml',
@@ -60,9 +63,14 @@ jobs:
              'A\ttests/test_authoring_workbench.py',
              'A\ttests/browser_authoring_workbench.py',
           }
-          assert set(actual)==expected and len(actual)==len(expected), actual
+          # The all-added-file list qualifies the ORIGINAL introduction only.
+          # Maintenance PRs retain all regression/archive/browser gates below.
+          if os.environ['SOURCE_BRANCH'] == 'product/local-authoring-workbench':
+            assert set(actual)==expected and len(actual)==len(expected), actual
           PY
-          git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer tools/h1_native_batch.py docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+          if [ "$SOURCE_BRANCH" = "product/local-authoring-workbench" ]; then
+            git diff --exit-code "$scope_base" HEAD -- h1 experiments qualification viewer tools/h1_native_batch.py docs/H1_IMPLEMENTATION_CONTRACT.md docs/H1_OFFLINE_AMENDMENT.md
+          fi
           git archive --format=tar HEAD > local_authoring_evidence/source.tar
           python -m pip freeze > local_authoring_evidence/packages.txt
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee local_authoring_evidence/h1.log

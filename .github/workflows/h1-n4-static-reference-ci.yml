@@ -1,0 +1,105 @@
+name: H1-N4 generic static physical reference - NEVER native
+on:
+  push:
+    branches: [checking/h1-n4-generic-static-physical]
+  pull_request:
+    branches: [planning/h1-n3-versioned-reference-migration]
+    paths:
+      - qualification/h1_n4/**
+      - .github/workflows/h1-n4-static-reference-ci.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: simheat-h1-n4-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checking-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.5'
+      - name: Install inherited offline checking libraries ONLY
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Validate exact new component diff and immutable original facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n4_static"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head-sha.txt"
+          git rev-parse HEAD^{tree} > "$evidence/head-tree.txt"
+          base=0cf275241e718fbcd2b2d2c1f7761565c7c06a92
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            test "$(git rev-parse HEAD^1)" = "$base"
+            test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git diff --name-status "$base" HEAD > "$evidence/source-diff.txt"
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          d=Path(os.environ["RUNNER_TEMP"])/"h1n4_static"
+          actual=set((d/"source-diff.txt").read_text().splitlines())
+          expected={
+            "A\tqualification/h1_n4/static_physical.py",
+            "A\tqualification/h1_n4/README.md",
+            "A\tqualification/h1_n4/tests/test_static_physical.py",
+            "A\t.github/workflows/h1-n4-static-reference-ci.yml",
+          }
+          assert actual==expected,(actual,expected)
+          p=Path("qualification/h1_n1")
+          assert sha256((p/"inputs/T/model.mo").read_bytes()).hexdigest()=="2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae"
+          assert sha256((p/"inputs/T/study.json").read_bytes()).hexdigest()=="12ad51f59d2bd6c6561d4059f68b4263e7d4e39cdf5493f353a7affee6929d2a"
+          assert sha256((p/"reference-facts.json").read_bytes()).hexdigest()=="39f18db09fa618bc73bbe75ca40f33d41ded70a1c73865b2a0e376973d9adfbf"
+          PY
+          git diff --exit-code "$base" HEAD -- h1 tools experiments viewer docs qualification/h1_c1 qualification/h1_n1 qualification/h1_n2 qualification/h1_n3
+          git archive --format=tar HEAD > "$evidence/source.tar"
+          python -m pip freeze > "$evidence/packages.txt"
+      - name: Generic static candidates, old refusals and full inherited offline regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/h1n4_static"
+          python -B -m unittest qualification.h1_n4.tests.test_static_physical -v 2>&1 | tee "$evidence/n4-physical-tests.log"
+          python -B -m unittest qualification.h1_n3.tests.test_migration_plan -v 2>&1 | tee "$evidence/n3-design-tests.log"
+          python -B -m unittest qualification.h1_n2.tests.test_compare -v 2>&1 | tee "$evidence/n2-comparator-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_certified_reference -v 2>&1 | tee "$evidence/n1-interval-tests.log"
+          python -B -m unittest qualification.h1_n1.tests.test_plan -v 2>&1 | tee "$evidence/n1-plan-tests.log"
+          python -B -m unittest discover -s h1/tests -v 2>&1 | tee "$evidence/h1-tests.log"
+          python -B tools/render_product_docs.py --check 2>&1 | tee "$evidence/docs-parity.log"
+          python -B qualification/h1_n1/check_plan.py --out "$evidence/original-n1-refusals.json" > "$evidence/original-n1-refusals.stdout.json"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from hashlib import sha256
+          import os
+          from qualification.h1_n4.static_physical import create_static_candidate
+          folder=Path(os.environ["RUNNER_TEMP"])/"h1n4_static"
+          facts=Path("qualification/h1_n1/reference-facts.json").read_bytes()
+          report=create_static_candidate(facts,expected_sha256=sha256(facts).hexdigest())
+          assert report["staticExports"]==14 and not report["nativeQualified"]
+          assert report["candidateValuesOnly"] and not report["referenceBundleWritten"]
+          assert not report["referenceAccuracyCertified"] and not report["runtimeReady"]
+          assert all(x["physical100x"]=="PASS_CANDIDATE_NOT_NATIVE_QUALIFIED" for x in report["exports"].values())
+          (folder/"static-t1-source-only-candidate.json").write_text(
+            json.dumps(report,sort_keys=True,separators=(",",":"),allow_nan=False)+"\n")
+          old=json.loads((folder/"original-n1-refusals.json").read_text())
+          assert old["nativeCallsThisCheck"]==0 and old["nativeExecutionReady"] is False
+          assert old["referenceAccuracyCertified"] is False and len(old["executionBlockers"])==8
+          assert old["constantArithmetic"]["physical100xFailures"]==[
+            "T02.G","T06.A","T06.G","T07.G","T08.G","T10.G","T_Plug.C"]
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: h1-n4-offline-${{ github.sha }}
+          path: ${{ runner.temp }}/h1n4_static/
+          retention-days: 90
+          if-no-files-found: error

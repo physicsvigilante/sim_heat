@@ -4,6 +4,16 @@ A compositional **heat-transfer teaching sandbox**, with a read-only thermal-net
 
 ## Start exploring
 
+Work through three [JEE-style conduction problems](docs/JEE_CONDUCTION_WALKTHROUGH.md) with predictions, hand calculations and runnable offline checks for a composite wall, a thermal bridge and two insulated bodies.
+
+Investigate [when a composite wall stops carrying 120 W](docs/JEE_PHASE_WALL.md) as a finite hot bath freezes and ice melts. Follow the heat through each rod, then change the ice mass to reverse the order of phase depletion.
+
+Solve [whether a bath can freeze inside a warmer enclosure](docs/JEE_SUPPORTED_RADIATING_WALL.md) by balancing radiation at a face and conduction into a cold support.
+
+Find the contact temperature jump and radiating surface temperature in a [worked furnace-wall problem](docs/JEE_FURNACE_WALL.md).
+
+Test [whether adding insulation can melt ice faster](docs/JEE_RADIAL_PHASE_VESSEL.md) across a radial shell's critical radius, day/night cycles, and inverse film calibration from melted mass.
+
 From the repository root:
 
 ```bash
