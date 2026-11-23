@@ -125,17 +125,66 @@ def validate_interval_quantity(
     return low, high
 
 
-def _lp_feasible_nonnegative(rows, rhs):
+def _simplex_pivot(tableau, basis, obj, p_row, p_col):
+    piv = tableau[p_row][p_col]
+    n_cols = len(tableau[p_row])
+    tableau[p_row] = [v / piv for v in tableau[p_row]]
+    for r in range(len(tableau)):
+        if r != p_row:
+            factor = tableau[r][p_col]
+            if factor != 0:
+                tableau[r] = [tableau[r][c] - factor * tableau[p_row][c] for c in range(n_cols)]
+    factor = obj[p_col]
+    if factor != 0:
+        for c in range(n_cols):
+            obj[c] -= factor * tableau[p_row][c]
+    basis[p_row] = p_col
+
+
+def _simplex_minimize(tableau, basis, obj):
+    """Run exact rational simplex with Bland's rule to minimize objective row."""
+    n_cols = len(obj) - 1
+    while True:
+        enter = None
+        for c in range(n_cols):
+            if obj[c] < 0:
+                enter = c
+                break
+        if enter is None:
+            return True
+        leave = None
+        best_ratio = None
+        for r in range(len(tableau)):
+            coeff = tableau[r][enter]
+            if coeff > 0:
+                ratio = tableau[r][-1] / coeff
+                if leave is None or ratio < best_ratio or (ratio == best_ratio and basis[r] < basis[leave]):
+                    best_ratio = ratio
+                    leave = r
+        if leave is None:
+            return False
+        _simplex_pivot(tableau, basis, obj, leave, enter)
+
+
+def _lp_feasible_basis(rows, rhs):
     """Exact rational Phase-I simplex (Bland's rule) for A x <= b, x >= 0.
 
-    Returns an exact list of Fraction values for x if feasible, else None.
+    Returns (tableau, basis, n_vars) for a feasible basic solution (with auxiliary
+    variable eliminated), or None if infeasible.
     """
     n_rows = len(rows)
     n_vars = len(rows[0]) if n_rows else 0
     if n_rows == 0:
-        return [Fraction(0)] * n_vars
+        return [], [], n_vars
     if all(b >= 0 for b in rhs):
-        return [Fraction(0)] * n_vars
+        tableau = []
+        basis = []
+        for r in range(n_rows):
+            row = [Fraction(v) for v in rows[r]] + [Fraction(0)] * n_rows + [Fraction(rhs[r])]
+            row[n_vars + r] = Fraction(1)
+            tableau.append(row)
+            basis.append(n_vars + r)
+        return tableau, basis, n_vars
 
     # Variables: x_0..x_{n_vars-1}, slacks s_0..s_{n_rows-1}, auxiliary a (index n_vars + n_rows).
     aux = n_vars + n_rows
@@ -147,61 +196,52 @@ def _lp_feasible_nonnegative(rows, rhs):
         row[n_vars + r] = Fraction(1)
         tableau.append(row)
         basis.append(n_vars + r)
-    # Objective row: maximize -a (i.e. z + a = 0 -> reduced cost of a is -1; we minimize a).
     obj = [Fraction(0)] * (total_cols + 1)
     obj[aux] = Fraction(1)
 
-    def pivot(p_row, p_col):
-        piv = tableau[p_row][p_col]
-        tableau[p_row] = [v / piv for v in tableau[p_row]]
-        for r in range(n_rows):
-            if r != p_row:
-                factor = tableau[r][p_col]
-                if factor != 0:
-                    tableau[r] = [tableau[r][c] - factor * tableau[p_row][c] for c in range(total_cols + 1)]
-        factor = obj[p_col]
-        if factor != 0:
-            for c in range(total_cols + 1):
-                obj[c] -= factor * tableau[p_row][c]
-        basis[p_row] = p_col
-
-    # Initial pivot: bring auxiliary variable into the most negative RHS row.
     leave = min(range(n_rows), key=lambda r: (tableau[r][-1], basis[r]))
-    pivot(leave, aux)
-
-    # Minimize a: enter smallest index with negative reduced cost (Bland's rule).
-    while True:
-        enter = None
-        for c in range(total_cols):
-            if obj[c] < 0:
-                enter = c
-                break
-        if enter is None:
-            break
-        leave = None
-        best_ratio = None
-        for r in range(n_rows):
-            coeff = tableau[r][enter]
-            if coeff > 0:
-                ratio = tableau[r][-1] / coeff
-                if leave is None or ratio < best_ratio or (ratio == best_ratio and basis[r] < basis[leave]):
-                    best_ratio = ratio
-                    leave = r
-        if leave is None:
-            return None
-        pivot(leave, enter)
-
-    # Optimal value of a is -obj[-1]; feasible iff a == 0.
-    if -obj[-1] > 0:
+    _simplex_pivot(tableau, basis, obj, leave, aux)
+    if not _simplex_minimize(tableau, basis, obj) or -obj[-1] > 0:
         return None
-    sol = [Fraction(0)] * total_cols
+
+    # Eliminate auxiliary variable from basis (if degenerate at 0) and drop its column.
+    if aux in basis:
+        r_aux = basis.index(aux)
+        pivot_col = next((c for c in range(aux) if tableau[r_aux][c] != 0), None)
+        if pivot_col is not None:
+            _simplex_pivot(tableau, basis, obj, r_aux, pivot_col)
+        else:
+            tableau.pop(r_aux)
+            basis.pop(r_aux)
+    clean_tableau = [row[:aux] + [row[-1]] for row in tableau]
+    return clean_tableau, basis, n_vars
+
+
+def _lp_extract(tableau, basis, n_vars):
+    n_cols = (len(tableau[0]) - 1) if tableau else n_vars
+    sol = [Fraction(0)] * n_cols
     for r, col in enumerate(basis):
         sol[col] = tableau[r][-1]
     return sol[:n_vars]
 
 
+def _lp_maximize_var(base_tableau, base_basis, n_vars, target_col):
+    """Exact rational Phase-II simplex maximizing x[target_col] from a feasible basis."""
+    tableau = [list(row) for row in base_tableau]
+    basis = list(base_basis)
+    n_cols = len(tableau[0]) - 1
+    obj = [Fraction(0)] * (n_cols + 1)
+    obj[target_col] = Fraction(-1)
+    if target_col in basis:
+        r_t = basis.index(target_col)
+        for c in range(n_cols + 1):
+            obj[c] += tableau[r_t][c]
+    _simplex_minimize(tableau, basis, obj)
+    return _lp_extract(tableau, basis, n_vars)
+
+
 def _verify_joint_passive_feasibility(terminals, parsed):
-    """Verify exact joint feasibility of a reciprocal passive zero-sum matrix inside parsed intervals."""
+    """Verify exact joint feasibility of a CONNECTED reciprocal passive zero-sum matrix."""
     edges = []
     g_lo = {}
     g_hi = {}
@@ -220,23 +260,6 @@ def _verify_joint_passive_feasibility(terminals, parsed):
             edges.append(edge)
             g_lo[edge] = lo
             g_hi[edge] = hi
-
-    # Graph connectivity over reciprocally feasible positive-conductance edges (g_hi > 0).
-    adj = {t: set() for t in terminals}
-    for i, j in edges:
-        if g_hi[(i, j)] > 0:
-            adj[i].add(j)
-            adj[j].add(i)
-    visited = {terminals[0]}
-    stack = [terminals[0]]
-    while stack:
-        cur = stack.pop()
-        for nxt in adj[cur]:
-            if nxt not in visited:
-                visited.add(nxt)
-                stack.append(nxt)
-    if visited != set(terminals):
-        raise ValueError("passive terminal response network is disconnected")
 
     # Parameterize g_e = g_lo[e] + x_e with 0 <= x_e <= u_e for free edges (u_e > 0).
     free_edges = [e for e in edges if g_hi[e] > g_lo[e]]
@@ -277,11 +300,29 @@ def _verify_joint_passive_feasibility(terminals, parsed):
             rows.append([-v for v in up_row])
             rhs.append(-low_req)
 
-    sol = _lp_feasible_nonnegative(rows, rhs)
-    if sol is None:
+    feasible = _lp_feasible_basis(rows, rhs)
+    if feasible is None:
         raise ValueError("no jointly consistent passive reciprocal zero-sum response matrix exists")
-    # Self-certify exact rational witness.
-    g_val = {e: g_lo[e] + (sol[free_idx[e]] if e in free_idx else Fraction(0)) for e in edges}
+    base_tableau, base_basis, _ = feasible
+    witnesses = [_lp_extract(base_tableau, base_basis, n_free)]
+
+    # For every free edge with g_lo == 0, test whether a jointly feasible realization
+    # can make it strictly positive by maximizing x_e. By convexity, averaging all
+    # feasible witnesses yields a single feasible realization whose positive edges are
+    # the exact union of all feasible-positive edges.
+    for e in free_edges:
+        if g_lo[e] == 0:
+            col = free_idx[e]
+            if all(w[col] == 0 for w in witnesses):
+                sol_e = _lp_maximize_var(base_tableau, base_basis, n_free, col)
+                if sol_e[col] > 0:
+                    witnesses.append(sol_e)
+
+    n_w = len(witnesses)
+    avg_sol = [sum((w[k] for w in witnesses), Fraction(0)) / n_w for k in range(n_free)]
+    g_val = {e: g_lo[e] + (avg_sol[free_idx[e]] if e in free_idx else Fraction(0)) for e in edges}
+
+    # Self-certify the single combined rational witness for bounds AND connectivity.
     for e in edges:
         if not (g_lo[e] <= g_val[e] <= g_hi[e]):
             raise ValueError("passive feasibility witness out of edge bounds")
@@ -290,6 +331,22 @@ def _verify_joint_passive_feasibility(terminals, parsed):
         d_lo, d_hi = parsed[i][i]
         if not (d_lo <= diag <= d_hi):
             raise ValueError("passive feasibility witness out of diagonal bounds")
+
+    adj = {t: set() for t in terminals}
+    for i, j in edges:
+        if g_val[(i, j)] > 0:
+            adj[i].add(j)
+            adj[j].add(i)
+    visited = {terminals[0]}
+    stack = [terminals[0]]
+    while stack:
+        cur = stack.pop()
+        for nxt in adj[cur]:
+            if nxt not in visited:
+                visited.add(nxt)
+                stack.append(nxt)
+    if visited != set(terminals):
+        raise ValueError("passive terminal response network is disconnected in every feasible realization")
 
 
 def validate_pinned_law(law):

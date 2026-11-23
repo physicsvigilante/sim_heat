@@ -454,6 +454,29 @@ class OfflineInvestigationContractTests(TestCase):
         )
         validate_pinned_law(overlapping_three)
 
+        # Forced-zero bridge four-terminal witness: g_hi(ac)=1 looks connected
+        # individually, but fixed diagonals d_a=1, d_c=1 with g_ab=g_cd=1 force
+        # g_ac=0 in every feasible realization, leaving {a,b} and {c,d} disjoint.
+        forced_zero_bridge = _synthetic_law(
+            ["a", "b", "c", "d"],
+            {"a": "350", "b": "330", "c": "300", "d": "280"},
+            {
+                "a": {"a": ["1", "1"], "b": ["-1", "-1"], "c": ["-1", "0"], "d": ["0", "0"]},
+                "b": {"a": ["-1", "-1"], "b": ["1", "1"], "c": ["0", "0"], "d": ["0", "0"]},
+                "c": {"a": ["-1", "0"], "b": ["0", "0"], "c": ["1", "1"], "d": ["-1", "-1"]},
+                "d": {"a": ["0", "0"], "b": ["0", "0"], "c": ["-1", "-1"], "d": ["1", "1"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "disconnected"):
+            validate_pinned_law(forced_zero_bridge)
+
+        # Widening diagonals a and c to [1, 2] permits g_ac > 0 (e.g. 1/2) while
+        # Phase-I zero-vector extreme point still has g_ac = 0; MUST be accepted!
+        widened_bridge = copy.deepcopy(forced_zero_bridge)
+        widened_bridge["supplyResponseBoundsWPerK"]["a"]["a"] = ["1", "2"]
+        widened_bridge["supplyResponseBoundsWPerK"]["c"]["c"] = ["1", "2"]
+        validate_pinned_law(widened_bridge)
+
     def test_negative_controls_malformed_ports_geometry_intervals_and_provenance(self):
         law = terminal_response(*LINK)
 
