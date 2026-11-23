@@ -15,6 +15,7 @@ from tests.test_terminal_response import CASES, STAR, TRIANGLE
 from tools.body_phase_bath_exchange import investigate as single_body_investigate
 from tools.multibody_phase_network import (
     EVIDENCE_CATEGORY,
+    MAX_INITIAL_STEPS,
     MULTIBODY_SCHEMA,
     investigate,
     main as cli_main,
@@ -170,8 +171,25 @@ class MultibodyPhaseNetworkTests(TestCase):
         self.assertEqual(res["ports"]["cool"]["remainingSolidBoundsKg"], ["0", "0"])
         self.assertEqual(res["ports"]["cool"]["latentEnergyIntoBathBoundsJ"], ["2000", "2000"])
         mod_lo, mod_hi = map(F, res["modeledDurationBoundsS"])
-        self.assertGreater(mod_lo, F(0))
-        self.assertLess(mod_hi, F(100))
+        # Independent 110-digit mpmath.expm oracle for the exact FIRST E_cool(t) = 2000 J crossing.
+        with mp.workdps(110):
+            w_wm, w_wc, w_mc = mp.mpf("0.6"), mp.mpf("1.0"), mp.mpf("1.5")
+            c1, c2 = mp.mpf("200"), mp.mpf("10000")
+            tp = mp.mpf("300")
+            m = mp.matrix([
+                [-(w_wm + w_wc) / c1, w_wm / c1],
+                [w_wm / c2, -(w_wm + w_mc) / c2],
+            ])
+            z0 = mp.matrix([mp.mpf("500") - tp, mp.mpf("220") - tp])
+
+            def e_cool(t):
+                zt = mp.expm(m * t) * z0
+                return -(c1 * (zt[0] - z0[0]) + c2 * (zt[1] - z0[1]))
+
+            t_first = mp.findroot(lambda t: e_cool(t) - mp.mpf("2000"), mp.mpf("46"))
+            _assert_encloses(self, res["modeledDurationBoundsS"], t_first, max_width=F(1, 10**5))
+        self.assertGreater(mod_lo, F("46.37"))
+        self.assertLess(mod_hi, F("46.38"))
 
     def test_two_isolated_bodies_on_link_and_two_competing_phase_baths_on_triangle(self):
         # 1. Two isolated bodies on LINK (0 phase baths, 0 maintained reservoirs)
@@ -296,6 +314,36 @@ class MultibodyPhaseNetworkTests(TestCase):
                 },
                 "100",
             )
+        # Positive boundary (initial_steps = MAX_INITIAL_STEPS) accepted; oversized/invalid refused.
+        link_body_phase = {
+            "hot": {
+                "kind": "lumped_body",
+                "heatCapacityJPerK": "1000",
+                "initialBodyTemperatureK": "400",
+            },
+            "cold": {
+                "kind": "phase_bath",
+                "transitionTemperatureK": "273.15",
+                "specificLatentHeatJPerKg": "334000",
+                "initialSolidKg": "1",
+                "initialLiquidKg": "1",
+            },
+        }
+        ok_max = solve_from_law(law, link_body_phase, "10", initial_steps=MAX_INITIAL_STEPS)
+        self.assertEqual(ok_max["phaseSystem"]["plateauStatus"], "coexisting")
+        for bad_steps in (0, -1, True, MAX_INITIAL_STEPS + 1, 10**9):
+            with self.assertRaisesRegex(ValueError, "initial_steps must be an integer"):
+                solve_from_law(law, link_body_phase, "10", initial_steps=bad_steps)
+
+        # CLI oversized initialSteps rejected BEFORE any grid allocation.
+        bad_cli = copy.deepcopy(payload)
+        bad_cli["initialSteps"] = 10**9
+        with tempfile.TemporaryDirectory() as tmp:
+            req_path = Path(tmp) / "oversized.json"
+            req_path.write_text(json.dumps(bad_cli), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "initial_steps must be an integer"):
+                cli_main(["--request", str(req_path)])
+
         # Forged provenance flag -> refused
         for flag in OFFLINE_FLAG_KEYS:
             forged = copy.deepcopy(law)

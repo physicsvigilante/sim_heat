@@ -31,6 +31,13 @@ from tools.terminal_response import investigate as terminal_response
 MULTIBODY_SCHEMA = "sim_heat.offline_multibody_phase_network/1"
 EVIDENCE_CATEGORY = "offline_analytical_calculation"
 VALID_PORT_KINDS = ("lumped_body", "phase_bath", "maintained")
+MAX_INITIAL_STEPS = 256
+
+
+def _validate_initial_steps(initial_steps):
+    if isinstance(initial_steps, bool) or not isinstance(initial_steps, int) or not (1 <= initial_steps <= MAX_INITIAL_STEPS):
+        raise ValueError(f"initial_steps must be an integer in [1, {MAX_INITIAL_STEPS}]")
+    return initial_steps
 
 
 def _box_union(boxes):
@@ -406,8 +413,7 @@ def _locate_first_exhaustion(evo, phase_ports, parsed, duration, *, initial_step
 
 def solve_from_law(law, ports, duration_s, *, initial_steps=16):
     """Compose and solve a coupled multi-body + phase-bath transient over a validated pinned law."""
-    if isinstance(initial_steps, bool) or not isinstance(initial_steps, int) or initial_steps < 1:
-        raise ValueError("initial_steps must be a positive integer")
+    _validate_initial_steps(initial_steps)
     provenance = validate_pinned_law(law)
     terminals = list(law["terminals"])
     parsed, body_ports, phase_ports, maintained_ports = _parse_ports(terminals, ports)
@@ -571,6 +577,7 @@ def solve_from_law(law, ports, duration_s, *, initial_steps=16):
 
 def investigate(inputs, ports, duration_s, *, initial_steps=16):
     """Resolve a pinned file-backed source tuple/PinnedSourceRef and solve the coupled multi-body ODE."""
+    _validate_initial_steps(initial_steps)
     law = inputs.resolve_law() if isinstance(inputs, PinnedSourceRef) else terminal_response(*inputs)
     return solve_from_law(law, ports, duration_s, initial_steps=initial_steps)
 
@@ -587,7 +594,7 @@ def main(argv=None):
         label="request",
     )
     src = payload["source"]
-    steps = payload.get("initialSteps", 16)
+    steps = _validate_initial_steps(payload.get("initialSteps", 16))
     if isinstance(src, dict) and "studyPath" in src:
         _expect_exact_keys(
             src,
