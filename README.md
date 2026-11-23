@@ -56,7 +56,7 @@ python -B -m h1 h1/cases/D2/study.json --root h1/cases
 python -B tools/render_product_docs.py --check
 ```
 
-Admission prints a descriptor/topology report, not simulated temperatures. Ordinary reference preparation makes checking data, not native evidence; never regenerate a frozen/adopted C1 reference while replaying evidence. "Offline" means no native simulation, not air-gapped dependency installation.
+Admission prints a descriptor/topology report, not simulated temperatures. Ordinary reference preparation makes checking data, not native evidence; never regenerate a frozen/adopted C1 reference while replaying evidence. "Offline" means no native simulation, not air-gapped dependency installation. See the [CI workflow map](docs/CI_WORKFLOW_MAP.md) for which GitHub workflow covers source admission, offline physics, qualification maintenance, and product behavior.
 
 With the existing pinned Playwright/Chromium checking environment, run `python -B tests/browser_product_entry.py --out /tmp/simheat-entry-smoke` for start-page navigation, and `python -B viewer/network/tests/browser_smoke.py --out /tmp/simheat-explorer-smoke` for the full existing explorer checks. These run a static local HTTP server, not OpenModelica.
 
