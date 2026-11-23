@@ -402,7 +402,37 @@ class OfflineInvestigationContractTests(TestCase):
         with self.assertRaisesRegex(ValueError, "zero-sum conservation|disconnected"):
             validate_pinned_law(disconnected)
 
-        # Legitimate overlapping independent interval enclosures MUST be accepted.
+        # P2-B exact three-terminal impossible matrix: passes pairwise reciprocity,
+        # individual row/column zero-sum checks, and connectivity, yet has NO
+        # jointly consistent passive reciprocal zero-sum matrix (M_aa=5 > 2+2=4).
+        impossible_three = _synthetic_law(
+            ["a", "b", "c"],
+            {"a": "350", "b": "300", "c": "280"},
+            {
+                "a": {"a": ["5", "5"], "b": ["-10", "-1"], "c": ["-2", "-1"]},
+                "b": {"a": ["-2", "-1"], "b": ["2", "3"], "c": ["-1", "-1"]},
+                "c": {"a": ["-10", "-1"], "b": ["-1", "-1"], "c": ["2", "3"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "jointly consistent"):
+            validate_pinned_law(impossible_three)
+
+        # Sneakier three-terminal jointly infeasible matrix where every individual
+        # vertex's reciprocal-edge sum [2, 4] contains its diagonal, yet row a
+        # forces g_ab = 2 while row b forces g_ab = 1.
+        coupled_infeasible = _synthetic_law(
+            ["a", "b", "c"],
+            {"a": "350", "b": "300", "c": "280"},
+            {
+                "a": {"a": ["4", "4"], "b": ["-2", "-1"], "c": ["-2", "-1"]},
+                "b": {"a": ["-2", "-1"], "b": ["2", "2"], "c": ["-2", "-1"]},
+                "c": {"a": ["-2", "-1"], "b": ["-2", "-1"], "c": ["2", "4"]},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "jointly consistent"):
+            validate_pinned_law(coupled_infeasible)
+
+        # Legitimate overlapping independent interval enclosures (2- and 3-terminal) MUST be accepted.
         overlapping = _synthetic_law(
             ["hot", "cold"],
             {"hot": "320", "cold": "273.15"},
@@ -412,6 +442,17 @@ class OfflineInvestigationContractTests(TestCase):
             },
         )
         validate_pinned_law(overlapping)
+
+        overlapping_three = _synthetic_law(
+            ["a", "b", "c"],
+            {"a": "350", "b": "300", "c": "280"},
+            {
+                "a": {"a": ["3", "7/2"], "b": ["-2", "-1"], "c": ["-2", "-1"]},
+                "b": {"a": ["-11/5", "-9/10"], "b": ["2", "3"], "c": ["-3/2", "-1/2"]},
+                "c": {"a": ["-2", "-1"], "b": ["-3/2", "-1/2"], "c": ["2", "3"]},
+            },
+        )
+        validate_pinned_law(overlapping_three)
 
     def test_negative_controls_malformed_ports_geometry_intervals_and_provenance(self):
         law = terminal_response(*LINK)
@@ -514,6 +555,46 @@ class OfflineInvestigationContractTests(TestCase):
                 tampered = copy.deepcopy(good)
                 mutate(tampered)
                 with self.assertRaisesRegex(ValueError, pattern):
+                    validate_investigation_record(tampered)
+
+        # P2-A: radial exterior input tamper controls (non-convecting STAR + convecting LINK).
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_radial = run_investigation(InvestigationRequest(
+            composition="radial_phase_bath",
+            source=_source_ref(star_inputs),
+            duration_s="600",
+            phase_bath=PhaseBathSpec("cool", "273.15", "334000", "0.05", "0.05"),
+            radial_shell=RadialShellPortSpec(
+                surface_port="warm",
+                geometry=RadialGeometrySpec("sphere", "0.1", (RadialLayerSpec("0.2", "2"),)),
+                exterior=ExteriorExchangeSpec("290", "0.8", "0.0000000567"),
+            ),
+        ))
+        link_conv_radial = run_investigation(InvestigationRequest(
+            composition="radial_phase_bath",
+            source=_source_ref(LINK),
+            duration_s="5000",
+            phase_bath=PhaseBathSpec("hot", "273.15", "334000", "0.02", "0.03"),
+            radial_shell=RadialShellPortSpec(
+                surface_port="cold",
+                geometry=RadialGeometrySpec("cylinder", "0.1", (RadialLayerSpec("0.20", "2"),), cylinder_length_m="1"),
+                exterior=ExteriorExchangeSpec("293.15", "0", "0.0000000567", air_k="293.15", h_w_per_m2_k="10"),
+            ),
+        ))
+        radial_mutations = [
+            ("star_emissivity_3", star_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("emissivity", "3")),
+            ("star_enclosure_0", star_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("enclosureTemperatureK", "0")),
+            ("star_sigma_1", star_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("sigmaWPerM2K4", "1")),
+            ("star_spurious_air", star_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("airTemperatureK", "300")),
+            ("link_air_tamper", link_conv_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("airTemperatureK", "350")),
+            ("link_h_tamper", link_conv_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("convectionCoefficientWPerM2K", "25")),
+            ("link_h_null", link_conv_radial, lambda r: r["inputs"]["radialShell"]["exterior"].__setitem__("convectionCoefficientWPerM2K", None)),
+        ]
+        for label, base_rec, mutate in radial_mutations:
+            with self.subTest(mutation=label):
+                tampered = copy.deepcopy(base_rec)
+                mutate(tampered)
+                with self.assertRaisesRegex(ValueError, "inputs.radialShell.exterior"):
                     validate_investigation_record(tampered)
 
     def test_ci_workflow_map_lists_every_workflow_file(self):

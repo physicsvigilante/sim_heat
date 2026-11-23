@@ -125,6 +125,173 @@ def validate_interval_quantity(
     return low, high
 
 
+def _lp_feasible_nonnegative(rows, rhs):
+    """Exact rational Phase-I simplex (Bland's rule) for A x <= b, x >= 0.
+
+    Returns an exact list of Fraction values for x if feasible, else None.
+    """
+    n_rows = len(rows)
+    n_vars = len(rows[0]) if n_rows else 0
+    if n_rows == 0:
+        return [Fraction(0)] * n_vars
+    if all(b >= 0 for b in rhs):
+        return [Fraction(0)] * n_vars
+
+    # Variables: x_0..x_{n_vars-1}, slacks s_0..s_{n_rows-1}, auxiliary a (index n_vars + n_rows).
+    aux = n_vars + n_rows
+    total_cols = aux + 1
+    tableau = []
+    basis = []
+    for r in range(n_rows):
+        row = [Fraction(v) for v in rows[r]] + [Fraction(0)] * n_rows + [Fraction(-1), Fraction(rhs[r])]
+        row[n_vars + r] = Fraction(1)
+        tableau.append(row)
+        basis.append(n_vars + r)
+    # Objective row: maximize -a (i.e. z + a = 0 -> reduced cost of a is -1; we minimize a).
+    obj = [Fraction(0)] * (total_cols + 1)
+    obj[aux] = Fraction(1)
+
+    def pivot(p_row, p_col):
+        piv = tableau[p_row][p_col]
+        tableau[p_row] = [v / piv for v in tableau[p_row]]
+        for r in range(n_rows):
+            if r != p_row:
+                factor = tableau[r][p_col]
+                if factor != 0:
+                    tableau[r] = [tableau[r][c] - factor * tableau[p_row][c] for c in range(total_cols + 1)]
+        factor = obj[p_col]
+        if factor != 0:
+            for c in range(total_cols + 1):
+                obj[c] -= factor * tableau[p_row][c]
+        basis[p_row] = p_col
+
+    # Initial pivot: bring auxiliary variable into the most negative RHS row.
+    leave = min(range(n_rows), key=lambda r: (tableau[r][-1], basis[r]))
+    pivot(leave, aux)
+
+    # Minimize a: enter smallest index with negative reduced cost (Bland's rule).
+    while True:
+        enter = None
+        for c in range(total_cols):
+            if obj[c] < 0:
+                enter = c
+                break
+        if enter is None:
+            break
+        leave = None
+        best_ratio = None
+        for r in range(n_rows):
+            coeff = tableau[r][enter]
+            if coeff > 0:
+                ratio = tableau[r][-1] / coeff
+                if leave is None or ratio < best_ratio or (ratio == best_ratio and basis[r] < basis[leave]):
+                    best_ratio = ratio
+                    leave = r
+        if leave is None:
+            return None
+        pivot(leave, enter)
+
+    # Optimal value of a is -obj[-1]; feasible iff a == 0.
+    if -obj[-1] > 0:
+        return None
+    sol = [Fraction(0)] * total_cols
+    for r, col in enumerate(basis):
+        sol[col] = tableau[r][-1]
+    return sol[:n_vars]
+
+
+def _verify_joint_passive_feasibility(terminals, parsed):
+    """Verify exact joint feasibility of a reciprocal passive zero-sum matrix inside parsed intervals."""
+    edges = []
+    g_lo = {}
+    g_hi = {}
+    for idx_i, i in enumerate(terminals):
+        for j in terminals[idx_i + 1:]:
+            ij_lo, ij_hi = parsed[i][j]
+            ji_lo, ji_hi = parsed[j][i]
+            # Symmetric conductance g_ij = -M_ij = -M_ji >= 0 must lie in both intervals.
+            lo = max(Fraction(0), -min(ij_hi, ji_hi))
+            hi = -max(ij_lo, ji_lo)
+            if lo > hi:
+                raise ValueError(
+                    f"nonreciprocal passive terminal response between {i!r} and {j!r}"
+                )
+            edge = (i, j)
+            edges.append(edge)
+            g_lo[edge] = lo
+            g_hi[edge] = hi
+
+    # Graph connectivity over reciprocally feasible positive-conductance edges (g_hi > 0).
+    adj = {t: set() for t in terminals}
+    for i, j in edges:
+        if g_hi[(i, j)] > 0:
+            adj[i].add(j)
+            adj[j].add(i)
+    visited = {terminals[0]}
+    stack = [terminals[0]]
+    while stack:
+        cur = stack.pop()
+        for nxt in adj[cur]:
+            if nxt not in visited:
+                visited.add(nxt)
+                stack.append(nxt)
+    if visited != set(terminals):
+        raise ValueError("passive terminal response network is disconnected")
+
+    # Parameterize g_e = g_lo[e] + x_e with 0 <= x_e <= u_e for free edges (u_e > 0).
+    free_edges = [e for e in edges if g_hi[e] > g_lo[e]]
+    free_idx = {e: k for k, e in enumerate(free_edges)}
+    n_free = len(free_edges)
+    rows = []
+    rhs = []
+    # Upper bounds: x_e <= u_e
+    for e in free_edges:
+        row = [Fraction(0)] * n_free
+        row[free_idx[e]] = Fraction(1)
+        rows.append(row)
+        rhs.append(g_hi[e] - g_lo[e])
+    # Vertex diagonal bounds: d_lo[i] <= sum_{e incident i} g_e <= d_hi[i]
+    for i in terminals:
+        d_lo, d_hi = parsed[i][i]
+        incident = [e for e in edges if i in e]
+        base = sum((g_lo[e] for e in incident), Fraction(0))
+        low_req = d_lo - base
+        high_req = d_hi - base
+        if high_req < 0:
+            raise ValueError(
+                f"no jointly consistent passive reciprocal response exists at terminal {i!r}"
+            )
+        inc_free = [e for e in incident if e in free_idx]
+        if not inc_free:
+            if low_req > 0:
+                raise ValueError(
+                    f"no jointly consistent passive reciprocal response exists at terminal {i!r}"
+                )
+            continue
+        up_row = [Fraction(0)] * n_free
+        for e in inc_free:
+            up_row[free_idx[e]] = Fraction(1)
+        rows.append(up_row)
+        rhs.append(high_req)
+        if low_req > 0:
+            rows.append([-v for v in up_row])
+            rhs.append(-low_req)
+
+    sol = _lp_feasible_nonnegative(rows, rhs)
+    if sol is None:
+        raise ValueError("no jointly consistent passive reciprocal zero-sum response matrix exists")
+    # Self-certify exact rational witness.
+    g_val = {e: g_lo[e] + (sol[free_idx[e]] if e in free_idx else Fraction(0)) for e in edges}
+    for e in edges:
+        if not (g_lo[e] <= g_val[e] <= g_hi[e]):
+            raise ValueError("passive feasibility witness out of edge bounds")
+    for i in terminals:
+        diag = sum((g_val[e] for e in edges if i in e), Fraction(0))
+        d_lo, d_hi = parsed[i][i]
+        if not (d_lo <= diag <= d_hi):
+            raise ValueError("passive feasibility witness out of diagonal bounds")
+
+
 def validate_pinned_law(law):
     """Validate a prebuilt pinned terminal-response law mapping for schema, provenance, and passivity."""
     provenance = offline_provenance(law)
@@ -160,7 +327,7 @@ def validate_pinned_law(law):
                 row[col_name], f"supplyResponseBoundsWPerK[{row_name}][{col_name}]"
             )
 
-    # Interval-compatible passive conduction checks (allows overlapping independent enclosures):
+    # Interval-compatible passive conduction checks:
     # 1. Diagonal positivity and off-diagonal non-positivity.
     for i in terminals:
         d_lo, _ = parsed[i][i]
@@ -172,7 +339,7 @@ def validate_pinned_law(law):
                     f"passive terminal response requires non-positive off-diagonal at ({i!r}, {j!r})"
                 )
 
-    # 2. Interval reciprocity: M[i][j] and M[j][i] must overlap for every off-diagonal pair.
+    # 2. Pairwise interval reciprocity: M[i][j] and M[j][i] must overlap.
     for idx_i, i in enumerate(terminals):
         for j in terminals[idx_i + 1:]:
             ij_lo, ij_hi = parsed[i][j]
@@ -182,7 +349,7 @@ def validate_pinned_law(law):
                     f"nonreciprocal passive terminal response between {i!r} and {j!r}"
                 )
 
-    # 3. Conservation of steady heat flow: every row sum and column sum must contain 0.
+    # 3. Necessary row/column zero-sum conservation checks.
     for i in terminals:
         row_lo = sum((parsed[i][j][0] for j in terminals), Fraction(0))
         row_hi = sum((parsed[i][j][1] for j in terminals), Fraction(0))
@@ -193,23 +360,8 @@ def validate_pinned_law(law):
         if col_lo > 0 or col_hi < 0:
             raise ValueError(f"passive terminal response column {i!r} violates zero-sum conservation")
 
-    # 4. Graph connectivity over possibly-coupled terminal pairs (M[i][j].lo < 0 and M[j][i].lo < 0).
-    adj = {t: set() for t in terminals}
-    for idx_i, i in enumerate(terminals):
-        for j in terminals[idx_i + 1:]:
-            if parsed[i][j][0] < 0 and parsed[j][i][0] < 0:
-                adj[i].add(j)
-                adj[j].add(i)
-    visited = {terminals[0]}
-    stack = [terminals[0]]
-    while stack:
-        cur = stack.pop()
-        for nxt in adj[cur]:
-            if nxt not in visited:
-                visited.add(nxt)
-                stack.append(nxt)
-    if visited != terminal_set:
-        raise ValueError("passive terminal response network is disconnected")
+    # 4. Exact joint rational feasibility of a reciprocal passive zero-sum matrix and connectivity.
+    _verify_joint_passive_feasibility(terminals, parsed)
 
     return provenance
 
@@ -1229,7 +1381,15 @@ def validate_investigation_record(record):
                 or geom.get("exposedAreaM2") != quantities["exposedAreaM2"]):
             raise ValueError("radial_phase_bath geometry does not match rawResult.radialShell")
         rs_in = inputs.get("radialShell")
+        expected_exterior = {
+            "enclosureTemperatureK": shell.get("enclosureTemperatureK"),
+            "emissivity": shell.get("emissivity"),
+            "sigmaWPerM2K4": shell.get("sigmaWPerM2K4"),
+            "airTemperatureK": shell.get("airTemperatureK"),
+            "convectionCoefficientWPerM2K": shell.get("convectionCoefficientWPerM2K"),
+        }
         if (not isinstance(rs_in, dict)
+                or set(rs_in) != {"surfacePort", "geometry", "exterior"}
                 or rs_in.get("surfacePort") != partner_port
                 or rs_in.get("geometry") != {
                     "kind": shell["geometry"],
@@ -1238,6 +1398,10 @@ def validate_investigation_record(record):
                     "layers": shell["layers"],
                 }):
             raise ValueError("inputs.radialShell does not match rawResult.radialShell")
+        if rs_in.get("exterior") != expected_exterior:
+            raise ValueError("inputs.radialShell.exterior does not match rawResult.radialShell")
+        if set(inputs) != {"durationS", "phaseBath", "radialShell"}:
+            raise ValueError("radial_phase_bath inputs must contain exact keys durationS, phaseBath, radialShell")
     else:
         for q_key, raw_key, unit, owner, sign, nonneg, pos in (
             ("bodyEquilibriumTemperatureK", "bodyEquilibriumTemperatureBoundsK", "K", f"body:{partner_port}", "absolute_temperature_nonnegative", True, False),
@@ -1266,6 +1430,8 @@ def validate_investigation_record(record):
         }
         if inputs.get("body") != expected_body_in:
             raise ValueError("inputs.body does not match rawResult")
+        if set(inputs) != {"durationS", "phaseBath", "body"}:
+            raise ValueError("body_phase_bath_exchange inputs must contain exact keys durationS, phaseBath, body")
 
     return True
 
