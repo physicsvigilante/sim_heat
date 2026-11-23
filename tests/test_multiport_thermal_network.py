@@ -329,6 +329,107 @@ class MultiportThermalNetworkTests(TestCase):
         # Cool bath stopped at warm's exhaustion time, so plenty of solid remains (> 0.49 kg).
         cool_solid_lo = F(res["ports"]["cool"]["remainingSolidBoundsKg"][0])
         self.assertGreater(cool_solid_lo, F("0.49"))
+        self.assertEqual(res["ports"]["warm"]["plateauStatusAtModeledStop"], "exhausted")
+        self.assertEqual(res["ports"]["warm"]["statusAtRequestedDuration"], "exhausted")
+        self.assertEqual(res["ports"]["cool"]["plateauStatusAtModeledStop"], "coexisting")
+        self.assertEqual(res["ports"]["cool"]["statusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+
+    def test_two_bath_link_does_not_report_counterfactual_exhaustion_for_later_bath(self):
+        # P2-2 exact witness: LINK (G=2 W/K), hot freezes out at 0.005 s, cold would
+        # only melt out at 5 s under obsolete clamped flows; requested duration is 10 s.
+        res = investigate(
+            LINK,
+            {
+                "hot": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "400",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0.001",
+                },
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "1",
+                },
+            },
+            duration_s="10",
+        )
+        self.assertEqual(res["phaseSystem"]["plateauStatus"], "exhausted")
+        self.assertEqual(res["phaseSystem"]["firstExhaustedCandidatePorts"], ["hot"])
+        self.assertEqual(res["phaseSystem"]["modeledDurationBoundsS"], ["1/200", "1/200"])
+        self.assertIs(res["phaseSystem"]["postExhaustionModeled"], False)
+
+        self.assertEqual(res["ports"]["hot"]["bathInflowDuringPlateauBoundsW"], ["-200", "-200"])
+        self.assertEqual(res["ports"]["hot"]["remainingLiquidBoundsKg"], ["0", "0"])
+        self.assertEqual(res["ports"]["hot"]["plateauStatusAtModeledStop"], "exhausted")
+        self.assertEqual(res["ports"]["hot"]["statusAtRequestedDuration"], "exhausted")
+
+        self.assertEqual(res["ports"]["cold"]["bathInflowDuringPlateauBoundsW"], ["200", "200"])
+        self.assertEqual(res["ports"]["cold"]["remainingSolidBoundsKg"], ["999/1000", "999/1000"])
+        self.assertEqual(res["ports"]["cold"]["plateauStatusAtModeledStop"], "coexisting")
+        self.assertEqual(
+            res["ports"]["cold"]["statusAtRequestedDuration"],
+            "not_modeled_after_system_exhaustion",
+        )
+
+    def test_optional_zero_bridge_unanchored_component_refused_and_anchored_control_accepted(self):
+        # P2-1 exact 4-terminal witness: G_AB=1, G_CD=1, G_BC in [0, 1].
+        # Passes connected-existence validation (G_BC=1), but G_BC=0 disconnects {C, D}.
+        bridge_law = {
+            "schema": "sim_heat.offline_terminal_response/1",
+            "terminals": ["A", "B", "C", "D"],
+            "imposedTemperaturesK": {"A": "300", "B": "300", "C": "300", "D": "300"},
+            "supplyResponseBoundsWPerK": {
+                "A": {"A": ["1", "1"], "B": ["-1", "-1"], "C": ["0", "0"], "D": ["0", "0"]},
+                "B": {"A": ["-1", "-1"], "B": ["1", "2"], "C": ["-1", "0"], "D": ["0", "0"]},
+                "C": {"A": ["0", "0"], "B": ["-1", "0"], "C": ["1", "2"], "D": ["-1", "-1"]},
+                "D": {"A": ["0", "0"], "B": ["0", "0"], "C": ["-1", "-1"], "D": ["1", "1"]},
+            },
+            "modelSha256": "a" * 64,
+            "studySha256": "b" * 64,
+            "factsSha256": "c" * 64,
+            "nativeExecuted": False,
+            "nativeQualified": False,
+            "independentlyCertifiedReference": False,
+            "runnerConsumable": False,
+        }
+        adiabatic = {
+            "kind": "radiating_surface",
+            "areaM2": "1",
+            "enclosureTemperatureK": "300",
+            "emissivity": "0",
+            "sigmaWPerM2K4": "0.0000000567",
+        }
+        # Only A is anchored; C and D can float to any temperature when G_BC = 0 -> MUST refuse.
+        with self.assertRaisesRegex(ValueError, "not guaranteed to be connected to an active temperature anchor"):
+            solve_from_law(
+                bridge_law,
+                {
+                    "A": {"kind": "maintained", "temperatureK": "300"},
+                    "B": adiabatic,
+                    "C": adiabatic,
+                    "D": adiabatic,
+                },
+            )
+
+        # Positive control: when D is also anchored (maintained at 350 K), every component
+        # is anchored via w_lo > 0 edges in EVERY feasible realization -> MUST succeed.
+        ok = solve_from_law(
+            bridge_law,
+            {
+                "A": {"kind": "maintained", "temperatureK": "300"},
+                "B": adiabatic,
+                "C": adiabatic,
+                "D": {"kind": "maintained", "temperatureK": "350"},
+            },
+        )
+        self.assertTrue(ok["solverMetadata"]["residualCertified"])
+        # When G_BC in [0, 1], T_B in [300, 350/3 + ...] and T_C in [..., 350]; specifically 300 in T_B and 350 in T_C.
+        self.assertEqual(F(ok["ports"]["B"]["temperatureBoundsK"][0]), F(300))
+        self.assertEqual(F(ok["ports"]["C"]["temperatureBoundsK"][1]), F(350))
 
     def test_adiabatic_port_anchored_elsewhere_and_cli_entry_point(self):
         res = investigate(

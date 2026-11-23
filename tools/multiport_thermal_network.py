@@ -286,8 +286,39 @@ def _eval_node_residual(u_k, neighbors, fixed_neighbors, exterior, u_vec, *, max
     return total
 
 
+def _verify_guaranteed_anchoring(terminals, parsed_ports, w_net):
+    """Verify every terminal is reachable from an active temperature anchor via w_lo > 0 edges."""
+    anchored = set()
+    for name in terminals:
+        p = parsed_ports[name]
+        if p["kind"] in ("maintained", "phase_bath"):
+            anchored.add(name)
+        elif p["eps"] > 0 or p["h"] > 0:
+            anchored.add(name)
+    if not anchored:
+        raise ValueError(
+            "at least one maintained, phase_bath, or active exterior-exchange port is required "
+            "to anchor steady temperatures"
+        )
+    visited = set(anchored)
+    stack = list(anchored)
+    while stack:
+        cur = stack.pop()
+        for other in terminals:
+            if other != cur and other not in visited and w_net[(cur, other)][0] > 0:
+                visited.add(other)
+                stack.append(other)
+    if visited != set(terminals):
+        unanchored = sorted(set(terminals) - visited)
+        raise ValueError(
+            f"terminals {unanchored} are not guaranteed to be connected to an active temperature "
+            "anchor across all feasible passive realizations"
+        )
+
+
 def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
     """Solve coupled multi-port steady temperatures via exact monotone sub-/super-solution iteration."""
+    _verify_guaranteed_anchoring(terminals, parsed_ports, w_net)
     fixed_temps = {}
     unknown_ids = []
     for name in terminals:
@@ -580,25 +611,34 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
             if sys_status == "exhausted" and first_exhausted_ports == [name]:
                 # Certified unique first-exhausted bath: exact event energy & zero remaining exhausted phase.
                 mlo = mhi = solid if m["process"] == "melting" else -liquid
+                stop_status = "exhausted"
+                req_status = "exhausted"
             else:
                 # Evaluate converted mass over the system modeled duration [mod_lo, mod_hi], clipped to inventory.
                 def _clip(q, t):
                     return min(solid, max(-liquid, q * t / latent))
                 conv_vals = [_clip(q, t) for q in (q_lo, q_hi) for t in (mod_lo, mod_hi)]
                 mlo, mhi = min(conv_vals), max(conv_vals)
-            if m["t_lo"] is None or duration < m["t_lo"]:
-                indiv_status = "coexisting"
-            elif duration >= m["t_hi"]:
-                indiv_status = "exhausted"
-            else:
-                indiv_status = "exhaustion_time_uncertain"
+                if m["t_lo"] is None or mod_hi < m["t_lo"]:
+                    stop_status = "coexisting"
+                elif mod_lo >= m["t_hi"]:
+                    stop_status = "exhausted"
+                else:
+                    stop_status = "exhaustion_time_uncertain"
+                if sys_status == "coexisting":
+                    req_status = "coexisting"
+                elif sys_status == "exhausted" and name in first_exhausted_ports:
+                    req_status = stop_status
+                else:
+                    req_status = "not_modeled_after_system_exhaustion"
             phase_details[name] = {
                 "transitionTemperatureK": str(p["transition"]),
                 "specificLatentHeatJPerKg": str(latent),
                 "initialSolidKg": str(solid),
                 "initialLiquidKg": str(liquid),
                 "phaseProcess": m["process"],
-                "individualPlateauStatusAtRequestedDuration": indiv_status,
+                "plateauStatusAtModeledStop": stop_status,
+                "statusAtRequestedDuration": req_status,
                 "exhaustionTimeBoundsS": None if m["t_lo"] is None else [str(m["t_lo"]), str(m["t_hi"])],
                 "latentEnergyIntoBathBoundsJ": [str(mlo * latent), str(mhi * latent)],
                 "remainingSolidBoundsKg": [str(solid - mhi), str(solid - mlo)],
