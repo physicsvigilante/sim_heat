@@ -6,7 +6,9 @@ Every GitHub Actions workflow under `.github/workflows/` runs **offline** (zero 
 
 | Workflow | Trigger | Required / Scope |
 |---|---|---|
-| `main-offline-acceptance-ci.yml` (`main-offline-acceptance`) | `push` to `main`, `pull_request` to `main` | Full offline acceptance gate: top-level `tests/`, `h1/tests`, `experiments/h1_spike/checks`, `viewer/network/tests`, Node viewer tests, `render_product_docs.py --check`, N1–N13 offline suites, and representative CLI smoke replays. Records checked-out tree and commit identity. |
+| `main-offline-acceptance-ci.yml` (`main-offline-acceptance`) | `push` to `main`, `pull_request` to `main` | Full offline acceptance gate: top-level `tests/`, `h1/tests`, `experiments/h1_spike/checks`, `viewer/network/tests`, Node viewer tests, N1–N13 offline suites, and representative CLI smoke replays (including `multiport_thermal_network`, `staged_phase_body_network`, and `multibody_phase_network` via `tests/fixtures/m02_smoke/`). Records checked-out tree and commit identity. |
+
+Product-doc HTML parity (`tools/render_product_docs.py --check`) is enforced separately by `product-entry-ci.yml`, `authoring-workbench-ci.yml`, and the N1–N12 workflows rather than `main-offline-acceptance-ci.yml`.
 
 ### Branch-Protection Enforcement (Repository Admin Closeout)
 
