@@ -312,8 +312,8 @@ def _verify_guaranteed_anchoring(terminals, parsed_ports, w_net):
     if visited != set(terminals):
         unanchored = sorted(set(terminals) - visited)
         raise ValueError(
-            f"terminals {unanchored} are not guaranteed to be connected to an active temperature "
-            "anchor across all feasible passive realizations"
+            f"independent-edge lower-bound anchoring test inconclusive for terminals {unanchored}; "
+            "the correlated feasible set may still be anchored"
         )
 
 
