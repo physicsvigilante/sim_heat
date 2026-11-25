@@ -54,8 +54,14 @@ def _body_temp_box(t_eq, t_0, exp_box):
     return Box.bounds(min(corners), max(corners))
 
 
-def _bisect_threshold(eval_fn, target, lo, hi, increasing=True, steps=64):
-    """Bracket first time in [lo, hi] where a monotonic interval function crosses target."""
+def _bisect_threshold(eval_fn, target, lo, hi, increasing=True, steps=64, lo_proved_safe=False):
+    """Bracket first time in [lo, hi] where a monotonic interval function crosses target.
+
+    By default (lo_proved_safe=False), verifies before(lo); if that fails, returns None
+    for the lower bracket instead of certifying lo. Callers may pass lo_proved_safe=True
+    only when an analytic proof guarantees no realization crosses at or before lo despite
+    interval-dependency widening in eval_fn(lo).
+    """
     # Find largest t_lo in [lo, hi] strictly before crossing, and smallest t_hi at/after crossing.
     def before(t):
         v_lo, v_hi = eval_fn(t).span()
@@ -64,6 +70,20 @@ def _bisect_threshold(eval_fn, target, lo, hi, increasing=True, steps=64):
     def reached(t):
         v_lo, v_hi = eval_fn(t).span()
         return v_lo >= target if increasing else v_hi <= target
+
+    if not lo_proved_safe and not before(lo):
+        if reached(lo):
+            return None, lo
+        if not reached(hi):
+            return None, None
+        a_hi, b_hi = lo, hi
+        for _ in range(steps):
+            mid = (a_hi + b_hi) / 2
+            if reached(mid):
+                b_hi = mid
+            else:
+                a_hi = mid
+        return None, b_hi
 
     a_lo, b_lo = lo, hi
     for _ in range(steps):
@@ -239,21 +259,29 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                     while energy_at(hi).span()[0] < e_solid:
                         hi *= 2
                     ex_lo, ex_hi = _bisect_threshold(energy_at, e_solid, duration, hi, increasing=True)
-                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
+                    if ex_lo is not None and ex_hi is not None:
+                        exhaustion_bounds = [str(ex_lo), str(ex_hi)]
             elif e_req.span()[0] >= e_solid:
-                status = "exhausted"
-                exhausted_phase = "solid"
                 ex_lo, ex_hi = _bisect_threshold(energy_at, e_solid, F(0), duration, increasing=True)
-                exhaustion_bounds = [str(ex_lo), str(ex_hi)]
-                mod_lo, mod_hi = ex_lo, ex_hi
-                e_box = Box.exact(e_solid)
-                t_final = body_temp_at_interval(ex_lo, ex_hi)
+                if ex_lo is None or ex_hi is None:
+                    status = "exhaustion_time_uncertain"
+                    mod_lo, mod_hi = F(0), duration
+                    e_box = Box.bounds(min(e_solid, e_req.span()[0]), min(e_solid, e_req.span()[1]))
+                    t_final = body_temp_at_interval(F(0), duration)
+                else:
+                    status = "exhausted"
+                    exhausted_phase = "solid"
+                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
+                    mod_lo, mod_hi = ex_lo, ex_hi
+                    e_box = Box.exact(e_solid)
+                    t_final = body_temp_at_interval(ex_lo, ex_hi)
             else:
                 status = "exhaustion_time_uncertain"
                 ex_lo, _ = _bisect_threshold(energy_at, e_solid, F(0), duration, increasing=True)
-                mod_lo, mod_hi = ex_lo, duration
+                mod_lo = F(0) if ex_lo is None else ex_lo
+                mod_hi = duration
                 e_box = Box.bounds(min(e_solid, e_req.span()[0]), min(e_solid, e_req.span()[1]))
-                t_final = body_temp_at_interval(ex_lo, duration)
+                t_final = body_temp_at_interval(mod_lo, duration)
         elif freezing_mono:
             process = "freezing"
             e_req = energy_at(duration)
@@ -267,21 +295,29 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                     while energy_at(hi).span()[1] > e_liquid:
                         hi *= 2
                     ex_lo, ex_hi = _bisect_threshold(energy_at, e_liquid, duration, hi, increasing=False)
-                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
+                    if ex_lo is not None and ex_hi is not None:
+                        exhaustion_bounds = [str(ex_lo), str(ex_hi)]
             elif e_req.span()[1] <= e_liquid:
-                status = "exhausted"
-                exhausted_phase = "liquid"
                 ex_lo, ex_hi = _bisect_threshold(energy_at, e_liquid, F(0), duration, increasing=False)
-                exhaustion_bounds = [str(ex_lo), str(ex_hi)]
-                mod_lo, mod_hi = ex_lo, ex_hi
-                e_box = Box.exact(e_liquid)
-                t_final = body_temp_at_interval(ex_lo, ex_hi)
+                if ex_lo is None or ex_hi is None:
+                    status = "exhaustion_time_uncertain"
+                    mod_lo, mod_hi = F(0), duration
+                    e_box = Box.bounds(max(e_liquid, e_req.span()[0]), max(e_liquid, e_req.span()[1]))
+                    t_final = body_temp_at_interval(F(0), duration)
+                else:
+                    status = "exhausted"
+                    exhausted_phase = "liquid"
+                    exhaustion_bounds = [str(ex_lo), str(ex_hi)]
+                    mod_lo, mod_hi = ex_lo, ex_hi
+                    e_box = Box.exact(e_liquid)
+                    t_final = body_temp_at_interval(ex_lo, ex_hi)
             else:
                 status = "exhaustion_time_uncertain"
                 ex_lo, _ = _bisect_threshold(energy_at, e_liquid, F(0), duration, increasing=False)
-                mod_lo, mod_hi = ex_lo, duration
+                mod_lo = F(0) if ex_lo is None else ex_lo
+                mod_hi = duration
                 e_box = Box.bounds(max(e_liquid, e_req.span()[0]), max(e_liquid, e_req.span()[1]))
-                t_final = body_temp_at_interval(ex_lo, duration)
+                t_final = body_temp_at_interval(mod_lo, duration)
         elif (q0_lo > 0 and qe_hi < 0) or (q0_hi < 0 and qe_lo > 0):
             # Genuine sign reversal on (0, duration): unique turning point t* = tau * ln(-Q_tr / Q_inf).
             melting_first = q0_lo > 0
@@ -313,30 +349,51 @@ def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_k
                 e_box = e_req
                 t_final = body_temp_at_interval(duration, duration)
             elif peak_hit:
-                status = "exhausted"
-                exhausted_phase = "solid" if melting_first else "liquid"
                 limit = e_solid if melting_first else e_liquid
                 # Strictly monotonic on [0, ts_lo] for every realization in the parameter box.
                 upper_mono = min(duration, ts_lo)
                 ex_lo, ex_hi = _bisect_threshold(
                     energy_at, limit, F(0), upper_mono, increasing=melting_first)
-                # Even if near-tangent peak uncertainty leaves ex_hi unresolved on [0, ts_lo],
-                # peak_hit and opposite endpoint flow signs certify first exhaustion in
-                # [ex_lo, min(duration, ts_hi)] with exact event energy limit and zero remaining phase.
-                hi_bound = min(duration, ts_hi) if ex_hi is None else ex_hi
-                exhaustion_bounds = [str(ex_lo), str(hi_bound)]
-                mod_lo, mod_hi = ex_lo, hi_bound
-                e_box = Box.exact(limit)
-                t_final = body_temp_at_interval(mod_lo, mod_hi)
+                if ex_lo is None:
+                    status = "exhaustion_time_uncertain"
+                    mod_lo, mod_hi = F(0), duration
+                    e_lo = max(e_liquid, min(e_peak.span()[0], e_req.span()[0], F(0)))
+                    e_hi = min(e_solid, max(e_peak.span()[1], e_req.span()[1], F(0)))
+                    e_box = Box.bounds(e_lo, e_hi)
+                    t_final = body_temp_at_interval(F(0), duration)
+                else:
+                    status = "exhausted"
+                    exhausted_phase = "solid" if melting_first else "liquid"
+                    # Even if near-tangent peak uncertainty leaves ex_hi unresolved on [0, ts_lo],
+                    # peak_hit and opposite endpoint flow signs certify first exhaustion in
+                    # [ex_lo, min(duration, ts_hi)] with exact event energy limit and zero remaining phase.
+                    hi_bound = min(duration, ts_hi) if ex_hi is None else ex_hi
+                    exhaustion_bounds = [str(ex_lo), str(hi_bound)]
+                    mod_lo, mod_hi = ex_lo, hi_bound
+                    e_box = Box.exact(limit)
+                    t_final = body_temp_at_interval(mod_lo, mod_hi)
             elif peak_safe and end_hit:
                 status = "exhausted"
                 exhausted_phase = "liquid" if melting_first else "solid"
                 limit = e_liquid if melting_first else e_solid
-                # Strictly monotonic on [ts_hi, duration] for every realization in the parameter box.
-                lower_mono = min(duration, ts_hi)
+                # Analytic soundness proof for lo = min(duration, ts_lo) with lo_proved_safe=True
+                # (stated for melting_first; freezing_first is the exact mirror image):
+                # 1. Every realization omega satisfies 0 < ts_lo <= t*(omega) < duration.
+                # 2. E(.; omega) is strictly increasing on [0, t*(omega)] from E(0; omega) = 0,
+                #    so E(t; omega) > 0 >= e_liquid on (0, ts_lo] (including e_liquid = 0).
+                # 3. After t*(omega), E(.; omega) is strictly decreasing, so it crosses e_liquid
+                #    at most once on [ts_lo, duration].
+                # 4. Hence every realization's true first crossing exceeds ts_lo; before(mid)
+                #    holding implies no realization has crossed by mid, and reached(t) holding
+                #    implies every realization has crossed by t. Interval dependency in
+                #    energy_at(t) can make before(ts_lo) evaluate False even though ts_lo is
+                #    analytically safe, so lo_proved_safe=True anchors the lower bracket at
+                #    lower_mono and advances it above lower_mono only through before(mid).
+                lower_mono = min(duration, ts_lo)
                 ex_lo, ex_hi = _bisect_threshold(
-                    energy_at, limit, lower_mono, duration, increasing=not melting_first)
-                lo_bound = min(duration, ts_lo) if ex_hi is None else ex_lo
+                    energy_at, limit, lower_mono, duration,
+                    increasing=not melting_first, lo_proved_safe=True)
+                lo_bound = lower_mono if ex_lo is None else ex_lo
                 hi_bound = duration if ex_hi is None else ex_hi
                 exhaustion_bounds = [str(lo_bound), str(hi_bound)]
                 mod_lo, mod_hi = lo_bound, hi_bound
