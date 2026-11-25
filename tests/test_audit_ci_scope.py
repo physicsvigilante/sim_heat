@@ -179,6 +179,41 @@ class AuditCIScopeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_n1/SOURCE-PINS.json'):
                 verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
 
+    def test_f09_ci_workflow_map_and_main_acceptance_smoke_fixtures(self):
+        main_ci = (ROOT / '.github/workflows/main-offline-acceptance-ci.yml').read_text(encoding='utf-8')
+        ci_map = (ROOT / 'docs/CI_WORKFLOW_MAP.md').read_text(encoding='utf-8')
+        main_row = next(line for line in ci_map.splitlines() if '`main-offline-acceptance-ci.yml`' in line)
+        self.assertNotIn('render_product_docs.py --check', main_row)
+
+        smoke_specs = (
+            ('tools.multiport_thermal_network', 'tests/fixtures/m02_smoke/multiport_smoke.json',
+             'sim_heat.offline_multiport_network/1'),
+            ('tools.staged_phase_body_network', 'tests/fixtures/m02_smoke/staged_smoke.json',
+             'sim_heat.offline_staged_phase_body/1'),
+            ('tools.multibody_phase_network', 'tests/fixtures/m02_smoke/multibody_smoke.json',
+             'sim_heat.offline_multibody_phase_network/1'),
+        )
+        flags = ('nativeExecuted', 'nativeQualified', 'independentlyCertifiedReference', 'runnerConsumable')
+        for module, fixture_rel, expected_schema in smoke_specs:
+            with self.subTest(module=module):
+                self.assertIn(f'-m {module} --request {fixture_rel}', main_ci)
+                fixture_path = ROOT / fixture_rel
+                self.assertTrue(fixture_path.is_file(), f'missing smoke fixture {fixture_rel}')
+                run = subprocess.run(
+                    [sys.executable, '-B', '-m', module, '--request', str(fixture_path)],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(run.returncode, 0, run.stderr)
+                out = json.loads(run.stdout)
+                self.assertEqual(out['schema'], expected_schema)
+                for flag in flags:
+                    self.assertIs(out[flag], False)
+                    self.assertIs(out['evidence'][flag], False)
+
 
 if __name__ == '__main__':
     unittest.main()
