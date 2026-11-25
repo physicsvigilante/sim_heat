@@ -763,29 +763,32 @@ class MultiportThermalNetworkTests(TestCase):
         self.assertGreater(F(lim["solverMetadata"]["maxTemperatureWidthK"]), F(0))
         self.assertGreater(F(lim["solverMetadata"]["maxHeatRateWidthW"]), F(0))
 
-        # Phase-bath straddle at max_sweeps=1 raises resolution-limit refusal naming sweep_limit & width.
+        # Phase-bath straddle at max_sweeps=1 raises resolution-limit refusal naming sweep_limit & width,
+        # while the same problem resolves cleanly at default max_sweeps.
         straddle_ports = {
             "cool": {
                 "kind": "phase_bath",
-                "transitionTemperatureK": "335",
+                "transitionTemperatureK": "420",
                 "specificLatentHeatJPerKg": "334000",
                 "initialSolidKg": "1",
                 "initialLiquidKg": "1",
             },
             "warm": {
                 "kind": "radiating_surface",
-                "areaM2": "0.01",
-                "enclosureTemperatureK": "400",
-                "emissivity": "0.1",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "500",
+                "emissivity": "0.8",
                 "sigmaWPerM2K4": "0.0000000567",
             },
             "middle": {
                 "kind": "radiating_surface",
-                "areaM2": "0.01",
-                "enclosureTemperatureK": "300",
-                "emissivity": "0.1",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "200",
+                "emissivity": "0.8",
                 "sigmaWPerM2K4": "0.0000000567",
             },
         }
         with self.assertRaisesRegex(ValueError, r"sweep_limit.*max_sweeps=1.*Width"):
             solve_from_law(star_law, straddle_ports, duration_s="100", max_sweeps=1)
+        resolved = solve_from_law(star_law, straddle_ports, duration_s="100")
+        self.assertEqual(resolved["solverMetadata"]["terminationReason"], "converged")

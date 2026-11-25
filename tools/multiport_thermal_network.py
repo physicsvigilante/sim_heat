@@ -316,8 +316,70 @@ def _verify_guaranteed_anchoring(terminals, parsed_ports, w_net):
         )
 
 
+def _solve_exact_linear_fractions(matrix, rhs):
+    """Exact rational Gaussian elimination with partial pivoting for nonsingular M-matrix systems."""
+    n = len(rhs)
+    aug = [list(matrix[i]) + [rhs[i]] for i in range(n)]
+    for col in range(n):
+        pivot = None
+        for r in range(col, n):
+            if aug[r][col] != 0:
+                if pivot is None or abs(aug[r][col]) > abs(aug[pivot][col]):
+                    pivot = r
+        if pivot is None:
+            raise ValueError("singular linear steady thermal system")
+        if pivot != col:
+            aug[col], aug[pivot] = aug[pivot], aug[col]
+        piv_val = aug[col][col]
+        for r in range(col + 1, n):
+            factor = aug[r][col] / piv_val
+            if factor != 0:
+                for c in range(col, n + 1):
+                    aug[r][c] -= factor * aug[col][c]
+    sol = [Fraction(0)] * n
+    for r in range(n - 1, -1, -1):
+        s = aug[r][n] - sum(aug[r][c] * sol[c] for c in range(r + 1, n))
+        sol[r] = s / aug[r][r]
+    return sol
+
+
+def _solve_piecewise_linear_root(terms, *, maximize):
+    """Exact rational root of sum_r w_r*(T - t_r) * (T - t_r) = 0 with strictly positive total slope."""
+    knots = sorted({t_r for t_r, _, _ in terms})
+    if len(knots) == 1:
+        return knots[0]
+
+    def _eval(t_val):
+        total = Fraction(0)
+        for t_r, w_lo, w_hi in terms:
+            diff = t_val - t_r
+            if maximize:
+                total += (w_hi if diff >= 0 else w_lo) * diff
+            else:
+                total += (w_lo if diff >= 0 else w_hi) * diff
+        return total
+
+    for j, k_val in enumerate(knots):
+        val = _eval(k_val)
+        if val == 0:
+            return k_val
+        if val > 0:
+            left = knots[j - 1]
+            num = Fraction(0)
+            den = Fraction(0)
+            for t_r, w_lo, w_hi in terms:
+                if t_r <= left:
+                    w = w_hi if maximize else w_lo
+                else:
+                    w = w_lo if maximize else w_hi
+                num += w * t_r
+                den += w
+            return num / den
+    return knots[-1]
+
+
 def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
-    """Solve coupled multi-port steady temperatures via exact monotone sub-/super-solution iteration."""
+    """Solve coupled multi-port steady temperatures via exact rational linear or monotone block sweeps."""
     _verify_guaranteed_anchoring(terminals, parsed_ports, w_net)
     fixed_temps = {}
     unknown_ids = []
@@ -334,13 +396,16 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
             unknown_ids.append(f"surface:{name}")
 
     if not unknown_ids:
-        return {}, 0
+        return {}, 0, "converged"
 
     idx_of = {uid: k for k, uid in enumerate(unknown_ids)}
     n_u = len(unknown_ids)
     neighbors = [[] for _ in range(n_u)]
+    port_net_neighbors = [[] for _ in range(n_u)]
     fixed_neighbors = [[] for _ in range(n_u)]
     exteriors = [None] * n_u
+    single_nodes = []
+    shell_pairs = []
 
     for name in terminals:
         p = parsed_ports[name]
@@ -356,15 +421,19 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
             if other in fixed_temps:
                 fixed_neighbors[k_port].append((fixed_temps[other], w_pair))
             else:
-                neighbors[k_port].append((idx_of[f"port:{other}"], w_pair))
+                nbr = (idx_of[f"port:{other}"], w_pair)
+                neighbors[k_port].append(nbr)
+                port_net_neighbors[k_port].append(nbr)
         if p["kind"] == "radiating_surface":
             exteriors[k_port] = p
+            single_nodes.append(k_port)
         else:
             k_surf = idx_of[f"surface:{name}"]
             g_shell = p["g_shell"]
             neighbors[k_port].append((k_surf, g_shell))
             neighbors[k_surf].append((k_port, g_shell))
             exteriors[k_surf] = p
+            shell_pairs.append((k_port, k_surf, g_shell))
 
     # Collect all active anchor temperatures to build a guaranteed global bracket [t_min, t_max].
     anchors = list(fixed_temps.values())
@@ -382,41 +451,149 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
     u_hi = [t_max] * n_u
 
     sweeps = 0
-    if t_min < t_max:
-        tol = Fraction(1, 10**24)
-        for sweep in range(1, max_sweeps + 1):
-            sweeps = sweep
-            max_delta = Fraction(0)
+    if t_min == t_max:
+        termination_reason = "converged"
+    else:
+        # Exact linear path applies ONLY when every conductance and area interval has zero width
+        # (both network conductances and all port attachments, excluding interval radial_shell)
+        # and every exterior has eps == 0.
+        is_exact_linear = (
+            all(w_lo == w_hi for nbrs in neighbors for _, (w_lo, w_hi) in nbrs)
+            and all(w_lo == w_hi for fnbrs in fixed_neighbors for _, (w_lo, w_hi) in fnbrs)
+            and all(
+                ext["area"][0] == ext["area"][1] and ext["eps"] == 0
+                for ext in exteriors
+                if ext is not None
+            )
+        )
+        if is_exact_linear:
+            mat = [[Fraction(0)] * n_u for _ in range(n_u)]
+            rhs = [Fraction(0)] * n_u
             for k in range(n_u):
-                # Lower bound update: leftmost zero of f_k^max(u_k; u_lo) on [u_lo[k], u_hi[k]].
-                lo_a = _bisect_monotone_bound(
-                    lambda t, k=k: _eval_node_residual(
-                        t, neighbors[k], fixed_neighbors[k], exteriors[k], u_lo, maximize=True
-                    ),
-                    u_lo[k],
-                    u_hi[k],
-                    find_leftmost_zero=True,
-                )
-                new_lo = max(u_lo[k], _floor_fraction(lo_a))
-                # Upper bound update: rightmost zero of f_k^min(u_k; u_hi) on [new_lo, u_hi[k]].
-                hi_b = _bisect_monotone_bound(
-                    lambda t, k=k: _eval_node_residual(
-                        t, neighbors[k], fixed_neighbors[k], exteriors[k], u_hi, maximize=False
-                    ),
-                    new_lo,
-                    u_hi[k],
-                    find_leftmost_zero=False,
-                )
-                new_hi = min(u_hi[k], _ceil_fraction(hi_b))
-                if new_lo > new_hi:
-                    raise ValueError("monotone multi-port enclosure collapsed inconsistently")
-                delta = max(new_lo - u_lo[k], u_hi[k] - new_hi)
-                if delta > max_delta:
-                    max_delta = delta
-                u_lo[k] = new_lo
-                u_hi[k] = new_hi
-            if max_delta <= tol:
-                break
+                diag = Fraction(0)
+                for m, (w_val, _) in neighbors[k]:
+                    diag += w_val
+                    mat[k][m] -= w_val
+                for t_fix, (w_val, _) in fixed_neighbors[k]:
+                    diag += w_val
+                    rhs[k] += w_val * t_fix
+                ext = exteriors[k]
+                if ext is not None and ext["air_k"] is not None and ext["h"] > 0:
+                    ah = ext["area"][0] * ext["h"]
+                    diag += ah
+                    rhs[k] += ah * ext["air_k"]
+                mat[k][k] = diag
+            exact_sol = _solve_exact_linear_fractions(mat, rhs)
+            u_lo = list(exact_sol)
+            u_hi = list(exact_sol)
+            termination_reason = "exact_linear"
+        else:
+            tol = Fraction(1, 10**24)
+            eps_round = Fraction(1, _ROUND_SCALE)
+            converged = False
+            for sweep in range(1, max_sweeps + 1):
+                sweeps = sweep
+                max_delta = Fraction(0)
+                for k in single_nodes:
+                    # Lower bound update: leftmost zero of f_k^max(u_k; u_lo) on [u_lo[k], u_hi[k]].
+                    lo_a = _bisect_monotone_bound(
+                        lambda t, k=k: _eval_node_residual(
+                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_lo, maximize=True
+                        ),
+                        u_lo[k],
+                        u_hi[k],
+                        find_leftmost_zero=True,
+                    )
+                    new_lo = max(u_lo[k], _floor_fraction(lo_a))
+                    # Upper bound update: rightmost zero of f_k^min(u_k; u_hi) on [new_lo, u_hi[k]].
+                    hi_b = _bisect_monotone_bound(
+                        lambda t, k=k: _eval_node_residual(
+                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_hi, maximize=False
+                        ),
+                        new_lo,
+                        u_hi[k],
+                        find_leftmost_zero=False,
+                    )
+                    new_hi = min(u_hi[k], _ceil_fraction(hi_b))
+                    if new_lo > new_hi:
+                        raise ValueError("monotone multi-port enclosure collapsed inconsistently")
+                    delta = max(new_lo - u_lo[k], u_hi[k] - new_hi)
+                    if delta > max_delta:
+                        max_delta = delta
+                    u_lo[k] = new_lo
+                    u_hi[k] = new_hi
+
+                for k_port, k_surf, g_shell in shell_pairs:
+                    g_lo, g_hi = g_shell
+                    ext = exteriors[k_surf]
+                    a_lo, a_hi = ext["area"]
+
+                    def _f_s(ti, ts, maximize, g_lo=g_lo, g_hi=g_hi, ext=ext, a_lo=a_lo, a_hi=a_hi):
+                        diff = ts - ti
+                        g = (g_hi if diff >= 0 else g_lo) if maximize else (g_lo if diff >= 0 else g_hi)
+                        q = _exterior_flux_per_area(
+                            ts, ext["env_k"], ext["eps"], ext["sigma"], ext["air_k"], ext["h"]
+                        )
+                        a = (a_hi if q >= 0 else a_lo) if maximize else (a_lo if q >= 0 else a_hi)
+                        return g * diff + a * q
+
+                    old_lo_i, old_lo_s = u_lo[k_port], u_lo[k_surf]
+                    old_hi_i, old_hi_s = u_hi[k_port], u_hi[k_surf]
+
+                    # Coupled 2x2 sub-solution block update with clamped -10^-30 outward-rounding slack.
+                    base_lo = (
+                        [(u_lo[m], w[0], w[1]) for m, w in port_net_neighbors[k_port]]
+                        + [(tf, w[0], w[1]) for tf, w in fixed_neighbors[k_port]]
+                    )
+
+                    def _psi_max(ts, base_lo=base_lo, g_lo=g_lo, g_hi=g_hi):
+                        return _solve_piecewise_linear_root(base_lo + [(ts, g_lo, g_hi)], maximize=True)
+
+                    ts_a = _bisect_monotone_bound(
+                        lambda ts: _f_s(max(old_lo_i, _psi_max(ts) - eps_round), ts, True),
+                        old_lo_s,
+                        old_hi_s,
+                        find_leftmost_zero=True,
+                        steps=100,
+                    )
+                    new_lo_s = max(old_lo_s, _floor_fraction(ts_a))
+                    new_lo_i = max(old_lo_i, _floor_fraction(_psi_max(new_lo_s)))
+                    if new_lo_i > old_hi_i or new_lo_s > old_hi_s:
+                        raise ValueError("monotone multi-port enclosure collapsed inconsistently")
+                    u_lo[k_port] = new_lo_i
+                    u_lo[k_surf] = new_lo_s
+
+                    # Coupled 2x2 super-solution block update with clamped +10^-30 outward-rounding slack.
+                    base_hi = (
+                        [(u_hi[m], w[0], w[1]) for m, w in port_net_neighbors[k_port]]
+                        + [(tf, w[0], w[1]) for tf, w in fixed_neighbors[k_port]]
+                    )
+
+                    def _psi_min(ts, base_hi=base_hi, g_lo=g_lo, g_hi=g_hi):
+                        return _solve_piecewise_linear_root(base_hi + [(ts, g_lo, g_hi)], maximize=False)
+
+                    ts_b = _bisect_monotone_bound(
+                        lambda ts: _f_s(min(old_hi_i, _psi_min(ts) + eps_round), ts, False),
+                        new_lo_s,
+                        old_hi_s,
+                        find_leftmost_zero=False,
+                        steps=100,
+                    )
+                    new_hi_s = min(old_hi_s, _ceil_fraction(ts_b))
+                    new_hi_i = min(old_hi_i, _ceil_fraction(_psi_min(new_hi_s)))
+                    if new_lo_i > new_hi_i or new_lo_s > new_hi_s:
+                        raise ValueError("monotone multi-port enclosure collapsed inconsistently")
+                    u_hi[k_port] = new_hi_i
+                    u_hi[k_surf] = new_hi_s
+
+                    delta = max(new_lo_i - old_lo_i, new_lo_s - old_lo_s, old_hi_i - new_hi_i, old_hi_s - new_hi_s)
+                    if delta > max_delta:
+                        max_delta = delta
+
+                if max_delta <= tol:
+                    converged = True
+                    break
+            termination_reason = "converged" if converged else "sweep_limit"
 
     # Independent mathematical certification of the final box [u_lo, u_hi]:
     # f_k^max(u_lo[k]; u_lo) <= 0 and f_k^min(u_hi[k]; u_hi) >= 0 for every k.
@@ -428,7 +605,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
         if _eval_node_residual(u_hi[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_hi, maximize=False) < 0:
             raise ValueError("multi-port steady upper-bound residual certification failed")
 
-    return {uid: (u_lo[k], u_hi[k]) for k, uid in enumerate(unknown_ids)}, sweeps
+    return {uid: (u_lo[k], u_hi[k]) for k, uid in enumerate(unknown_ids)}, sweeps, termination_reason
 
 
 def _exterior_outflow_box(t_lo, t_hi, ext):
@@ -465,80 +642,126 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
         duration = decimal_input(duration_s, "duration")
 
     w_net = _symmetric_conductances(terminals, law)
-    solved_u, sweeps = _solve_monotone_network(terminals, parsed_ports, w_net, max_sweeps=max_sweeps)
+    solved_u, sweeps, termination_reason = _solve_monotone_network(
+        terminals, parsed_ports, w_net, max_sweeps=max_sweeps
+    )
 
-    # Assemble certified terminal temperatures.
+    # Assemble certified terminal temperatures as exact (lo, hi) Fraction pairs and Boxes.
+    port_temp_spans = {}
     port_temps = {}
     for name in terminals:
         p = parsed_ports[name]
         if p["kind"] == "maintained":
+            port_temp_spans[name] = (p["temp"], p["temp"])
             port_temps[name] = Box.exact(p["temp"])
         elif p["kind"] == "phase_bath":
+            port_temp_spans[name] = (p["transition"], p["transition"])
             port_temps[name] = Box.exact(p["transition"])
         else:
-            port_temps[name] = Box.bounds(*solved_u[f"port:{name}"])
+            t_lo, t_hi = solved_u[f"port:{name}"]
+            port_temp_spans[name] = (t_lo, t_hi)
+            port_temps[name] = Box.bounds(t_lo, t_hi)
 
-    # Compute network-side outflow into each port: Q_{net -> i} = sum_{j != i} W_ij * (T_j - T_i).
-    net_outflows = {}
-    for name in terminals:
-        q_net = ZERO
-        for other in terminals:
-            if other == name:
-                continue
-            w_box = Box.bounds(*w_net[(name, other)])
-            q_net = q_net + w_box * (port_temps[other] - port_temps[name])
-        net_outflows[name] = q_net
-
-    # Reconcile port outflows with exterior / radial-shell laws.
-    port_outflows = {}
+    # Compute port outflows, exterior splits, radial profiles, and global steady balance.
+    port_outflow_spans = {}
     radial_profiles = {}
     exterior_splits = {}
-    for name in terminals:
-        p = parsed_ports[name]
-        if p["kind"] in ("maintained", "phase_bath"):
-            port_outflows[name] = net_outflows[name]
-        elif p["kind"] == "radiating_surface":
-            t_lo, t_hi = port_temps[name].span()
-            q_ext = _exterior_outflow_box(t_lo, t_hi, p)
-            q_comb = _intersect_boxes([net_outflows[name], q_ext], f"port {name}")
-            port_outflows[name] = q_comb
-            area_box = Box.bounds(*p["area"])
-            q_rad = area_box * p["eps"] * p["sigma"] * Box.bounds(t_lo**4 - p["env_k"]**4, t_hi**4 - p["env_k"]**4)
-            split = {"netHeatToEnclosureBoundsW": bounds(q_rad)}
-            if p["air_k"] is not None:
-                q_conv = area_box * p["h"] * Box.bounds(t_lo - p["air_k"], t_hi - p["air_k"])
-                split["netHeatToAirBoundsW"] = bounds(q_conv)
-            exterior_splits[name] = split
-        else:  # radial_shell
-            ts_lo, ts_hi = solved_u[f"surface:{name}"]
-            ts_box = Box.bounds(ts_lo, ts_hi)
-            g_shell_box = Box.bounds(*p["g_shell"])
-            q_cond = g_shell_box * (port_temps[name] - ts_box)
-            q_ext = _exterior_outflow_box(ts_lo, ts_hi, p)
-            q_comb = _intersect_boxes([net_outflows[name], q_cond, q_ext], f"radial_shell {name}")
-            port_outflows[name] = q_comb
-            profile = p["shell"].surface_profile(port_temps[name], ZERO, q_comb)
-            profile[-1]["temperatureBoundsK"] = [str(ts_lo), str(ts_hi)]
-            radial_profiles[name] = profile
-            area_box = Box.bounds(*p["area"])
-            q_rad = area_box * p["eps"] * p["sigma"] * Box.bounds(ts_lo**4 - p["env_k"]**4, ts_hi**4 - p["env_k"]**4)
-            split = {"netHeatToEnclosureBoundsW": bounds(q_rad)}
-            if p["air_k"] is not None:
-                q_conv = area_box * p["h"] * Box.bounds(ts_lo - p["air_k"], ts_hi - p["air_k"])
-                split["netHeatToAirBoundsW"] = bounds(q_conv)
-            exterior_splits[name] = split
+    if termination_reason == "exact_linear":
+        # Every conductance, area, temperature, and linear film flux is an exact rational.
+        for name in terminals:
+            t_i = port_temp_spans[name][0]
+            q_net = Fraction(0)
+            for other in terminals:
+                if other == name:
+                    continue
+                w_val = w_net[(name, other)][0]
+                q_net += w_val * (port_temp_spans[other][0] - t_i)
+            p = parsed_ports[name]
+            if p["kind"] == "radiating_surface":
+                q_ext = p["area"][0] * _exterior_flux_per_area(
+                    t_i, p["env_k"], p["eps"], p["sigma"], p["air_k"], p["h"]
+                )
+                if q_net != q_ext:
+                    raise ValueError(f"port {name} steady energy enclosures are inconsistent")
+                split = {"netHeatToEnclosureBoundsW": ["0", "0"]}
+                if p["air_k"] is not None:
+                    split["netHeatToAirBoundsW"] = [str(q_ext), str(q_ext)]
+                exterior_splits[name] = split
+            port_outflow_spans[name] = (q_net, q_net)
+        bal_val = sum((port_outflow_spans[name][0] for name in terminals), Fraction(0))
+        bal_lo = bal_hi = bal_val
+        if bal_lo > 0 or bal_hi < 0:
+            raise ValueError("multi-port steady global energy balance does not contain zero")
+        global_balance_bounds = [str(bal_lo), str(bal_hi)]
+    else:
+        # Compute network-side outflow into each port: Q_{net -> i} = sum_{j != i} W_ij * (T_j - T_i).
+        net_outflows = {}
+        for name in terminals:
+            q_net = ZERO
+            for other in terminals:
+                if other == name:
+                    continue
+                w_box = Box.bounds(*w_net[(name, other)])
+                q_net = q_net + w_box * (port_temps[other] - port_temps[name])
+            net_outflows[name] = q_net
 
-    # Tighten each phase bath inflow via global energy conservation Q_b = -sum_{j != b} Q_j.
-    for name in terminals:
-        if parsed_ports[name]["kind"] == "phase_bath":
-            others_sum = sum((port_outflows[o] for o in terminals if o != name), ZERO)
-            port_outflows[name] = _intersect_boxes([port_outflows[name], -others_sum], f"phase_bath {name}")
+        # Reconcile port outflows with exterior / radial-shell laws.
+        port_outflows = {}
+        for name in terminals:
+            p = parsed_ports[name]
+            if p["kind"] in ("maintained", "phase_bath"):
+                port_outflows[name] = net_outflows[name]
+            elif p["kind"] == "radiating_surface":
+                t_lo, t_hi = port_temps[name].span()
+                q_ext = _exterior_outflow_box(t_lo, t_hi, p)
+                q_comb = _intersect_boxes([net_outflows[name], q_ext], f"port {name}")
+                port_outflows[name] = q_comb
+                area_box = Box.bounds(*p["area"])
+                q_rad = area_box * p["eps"] * p["sigma"] * Box.bounds(t_lo**4 - p["env_k"]**4, t_hi**4 - p["env_k"]**4)
+                split = {"netHeatToEnclosureBoundsW": bounds(q_rad)}
+                if p["air_k"] is not None:
+                    q_conv = area_box * p["h"] * Box.bounds(t_lo - p["air_k"], t_hi - p["air_k"])
+                    split["netHeatToAirBoundsW"] = bounds(q_conv)
+                exterior_splits[name] = split
+            else:  # radial_shell
+                ts_lo, ts_hi = solved_u[f"surface:{name}"]
+                ts_box = Box.bounds(ts_lo, ts_hi)
+                g_shell_box = Box.bounds(*p["g_shell"])
+                q_cond = g_shell_box * (port_temps[name] - ts_box)
+                q_ext = _exterior_outflow_box(ts_lo, ts_hi, p)
+                q_comb = _intersect_boxes([net_outflows[name], q_cond, q_ext], f"radial_shell {name}")
+                port_outflows[name] = q_comb
+                profile = p["shell"].surface_profile(port_temps[name], ZERO, q_comb)
+                profile[-1]["temperatureBoundsK"] = [str(ts_lo), str(ts_hi)]
+                radial_profiles[name] = profile
+                area_box = Box.bounds(*p["area"])
+                q_rad = area_box * p["eps"] * p["sigma"] * Box.bounds(ts_lo**4 - p["env_k"]**4, ts_hi**4 - p["env_k"]**4)
+                split = {"netHeatToEnclosureBoundsW": bounds(q_rad)}
+                if p["air_k"] is not None:
+                    q_conv = area_box * p["h"] * Box.bounds(ts_lo - p["air_k"], ts_hi - p["air_k"])
+                    split["netHeatToAirBoundsW"] = bounds(q_conv)
+                exterior_splits[name] = split
 
-    # Verify global steady energy balance contains 0.
-    global_balance = sum((port_outflows[name] for name in terminals), ZERO)
-    bal_lo, bal_hi = global_balance.span()
-    if bal_lo > 0 or bal_hi < 0:
-        raise ValueError("multi-port steady global energy balance does not contain zero")
+        # Tighten each phase bath inflow via global energy conservation Q_b = -sum_{j != b} Q_j.
+        for name in terminals:
+            if parsed_ports[name]["kind"] == "phase_bath":
+                others_sum = sum((port_outflows[o] for o in terminals if o != name), ZERO)
+                port_outflows[name] = _intersect_boxes([port_outflows[name], -others_sum], f"phase_bath {name}")
+
+        # Verify global steady energy balance contains 0.
+        global_balance = sum((port_outflows[name] for name in terminals), ZERO)
+        bal_lo, bal_hi = global_balance.span()
+        if bal_lo > 0 or bal_hi < 0:
+            raise ValueError("multi-port steady global energy balance does not contain zero")
+        global_balance_bounds = bounds(global_balance)
+        for name in terminals:
+            port_outflow_spans[name] = port_outflows[name].span()
+
+    max_temp_width = max((hi - lo for lo, hi in solved_u.values()), default=Fraction(0))
+    max_heat_width = max(
+        (port_outflow_spans[name][1] - port_outflow_spans[name][0] for name in terminals),
+        default=Fraction(0),
+    )
 
     # Multi-phase-bath plateau & earliest-exhaustion accounting.
     phase_ports = [name for name in terminals if parsed_ports[name]["kind"] == "phase_bath"]
@@ -549,7 +772,7 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
         active_exh = []
         for name in phase_ports:
             p = parsed_ports[name]
-            q_lo, q_hi = port_outflows[name].span()
+            q_lo, q_hi = port_outflow_spans[name]
             if q_lo > 0:
                 proc = "melting"
                 t_lo = p["solid"] * p["latent"] / q_hi
@@ -567,6 +790,12 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                 t_lo = t_hi = None
                 exh_phase = None
             else:
+                if termination_reason == "sweep_limit":
+                    raise ValueError(
+                        f"phase_bath {name!r} inflow straddles zero at solver sweep_limit "
+                        f"(max_sweeps={max_sweeps}, maxTemperatureWidthK={max_temp_width}, "
+                        f"maxHeatRateWidthW={max_heat_width}, bathInflowWidthW={q_hi - q_lo})"
+                    )
                 raise ValueError(f"latent heat-flow direction is unresolved at phase_bath {name!r}")
             bath_meta[name] = {
                 "process": proc,
@@ -664,8 +893,8 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
     for name in terminals:
         p = parsed_ports[name]
         kind = p["kind"]
-        q_bounds = bounds(port_outflows[name])
-        t_bounds = bounds(port_temps[name])
+        q_bounds = [str(port_outflow_spans[name][0]), str(port_outflow_spans[name][1])]
+        t_bounds = [str(port_temp_spans[name][0]), str(port_temp_spans[name][1])]
         if kind == "maintained":
             active_bcs[name] = {
                 "role": "maintained",
@@ -752,11 +981,14 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
             "activeBoundaryConditions": active_bcs,
         },
         "ports": ports_out,
-        "systemEnergyBalanceBoundsW": bounds(global_balance),
+        "systemEnergyBalanceBoundsW": global_balance_bounds,
         "phaseSystem": phase_system,
         "solverMetadata": {
             "method": "exact_rational_monotone_sub_super_solution_gauss_seidel",
             "sweeps": sweeps,
+            "terminationReason": termination_reason,
+            "maxTemperatureWidthK": str(max_temp_width),
+            "maxHeatRateWidthW": str(max_heat_width),
             "residualCertified": True,
         },
         **provenance,
