@@ -792,3 +792,175 @@ class MultiportThermalNetworkTests(TestCase):
             solve_from_law(star_law, straddle_ports, duration_s="100", max_sweeps=1)
         resolved = solve_from_law(star_law, straddle_ports, duration_s="100")
         self.assertEqual(resolved["solverMetadata"]["terminationReason"], "converged")
+
+    def test_f04_pure_phase_bath_regimes_epsilon_limit_and_multi_bath_start_exhaustion(self):
+        link_law = terminal_response(*LINK)
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+
+        # 1) Pure solid + melting inflow: exact oracle and eps in {1e-9, 1e-12} criterion.
+        pure_s = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "373"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(pure_s["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_s["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertIs(pure_s["ports"]["cold"]["exhaustedAtStart"], False)
+        self.assertIsNone(pure_s["ports"]["cold"]["exhaustedPhase"])
+        self.assertEqual(pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"], ["20000", "20000"])
+        for eps_s in ("0.000000001", "0.000000000001"):
+            eps = F(eps_s)
+            ref = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": eps_s,
+                    },
+                },
+                duration_s="100",
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+                ref["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["remainingSolidBoundsKg"],
+                ref["ports"]["cold"]["remainingSolidBoundsKg"],
+            )
+            self.assertEqual(
+                [F(x) for x in pure_s["ports"]["cold"]["remainingLiquidBoundsKg"]],
+                [F(x) - eps for x in ref["ports"]["cold"]["remainingLiquidBoundsKg"]],
+            )
+
+        # 2) Pure liquid + freezing outflow mirror.
+        pure_l = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "200"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "0",
+                    "initialLiquidKg": "1",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(pure_l["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_l["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(pure_l["ports"]["cold"]["phaseProcess"], "freezing")
+        self.assertEqual(pure_l["ports"]["cold"]["latentEnergyIntoBathBoundsJ"], ["-14600", "-14600"])
+
+        # 3) Regime (b): pure solid + outflow -> exhaustedAtStart=True (including duration == 0).
+        for dur_s in ("100", "0"):
+            exh = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "200"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                duration_s=dur_s,
+            )
+            self.assertEqual(exh["phaseSystem"]["plateauStatus"], "exhausted")
+            self.assertIs(exh["phaseSystem"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["phaseSystem"]["firstExhaustionTimeBoundsS"], ["0", "0"])
+            self.assertEqual(exh["phaseSystem"]["modeledDurationBoundsS"], ["0", "0"])
+            self.assertEqual(exh["phaseSystem"]["firstExhaustedCandidatePorts"], ["cold"])
+            self.assertIs(exh["ports"]["cold"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["ports"]["cold"]["exhaustedPhase"], "liquid")
+            self.assertEqual(exh["ports"]["cold"]["remainingSolidBoundsKg"], ["1", "1"])
+            self.assertEqual(exh["ports"]["cold"]["remainingLiquidBoundsKg"], ["0", "0"])
+
+        # 4) Multi-bath multiport with one pure bath in regime (b): system status exhausted at [0, 0].
+        mb = solve_from_law(
+            star_law,
+            {
+                "warm": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "400",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",  # pure solid losing heat -> regime (b)!
+                },
+                "cool": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "1",
+                },
+                "middle": {"kind": "maintained", "temperatureK": "330"},
+            },
+            duration_s="100",
+        )
+        self.assertEqual(mb["phaseSystem"]["plateauStatus"], "exhausted")
+        self.assertIs(mb["phaseSystem"]["exhaustedAtStart"], True)
+        self.assertEqual(mb["phaseSystem"]["firstExhaustionTimeBoundsS"], ["0", "0"])
+        self.assertEqual(mb["phaseSystem"]["firstExhaustedCandidatePorts"], ["warm"])
+        self.assertIs(mb["ports"]["warm"]["exhaustedAtStart"], True)
+        self.assertEqual(mb["ports"]["warm"]["exhaustedPhase"], "liquid")
+        self.assertIs(mb["ports"]["cool"]["exhaustedAtStart"], False)
+        self.assertIsNone(mb["ports"]["cool"]["exhaustedPhase"])
+        self.assertEqual(mb["ports"]["cool"]["statusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+
+        # 5) Regime (c) exact equilibrium & duration == 0 in regime (a).
+        eq = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "273"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(eq["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(eq["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(eq["ports"]["cold"]["phaseProcess"], "equilibrium")
+
+        # 6) Regime (d) CR-11: unresolved sign straddle still refuses even at duration == 0.
+        with self.assertRaisesRegex(ValueError, "sweep_limit"):
+            solve_from_law(star_law, straddle_ports, duration_s="0", max_sweeps=1)
+
+        # 7) Zero total mass still refused.
+        with self.assertRaises(ValueError):
+            solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "0",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                duration_s="10",
+            )
