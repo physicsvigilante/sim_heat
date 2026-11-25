@@ -345,7 +345,7 @@ def _solve_exact_linear_fractions(matrix, rhs):
 
 
 def _solve_piecewise_linear_root(terms, *, maximize):
-    """Exact rational root of sum_r w_r*(T - t_r) * (T - t_r) = 0 with strictly positive total slope."""
+    """Exact rational root of sum_r w_r*(T - t_r) = 0 with strictly positive total slope."""
     knots = sorted({t_r for t_r, _, _ in terms})
     if len(knots) == 1:
         return knots[0]
@@ -456,15 +456,15 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
         termination_reason = "converged"
     else:
         # Exact linear path applies ONLY when every conductance and area interval has zero width
-        # (both network conductances and all port attachments, excluding interval radial_shell)
-        # and every exterior has eps == 0.
+        # (every pair in w_net, including fixed-to-fixed edges, and every port attachment,
+        # excluding radial_shell) and every exterior has eps == 0.
         is_exact_linear = (
-            all(w_lo == w_hi for nbrs in neighbors for _, (w_lo, w_hi) in nbrs)
-            and all(w_lo == w_hi for fnbrs in fixed_neighbors for _, (w_lo, w_hi) in fnbrs)
+            all(w_lo == w_hi for w_lo, w_hi in w_net.values())
+            and all(p["kind"] != "radial_shell" for p in parsed_ports.values())
             and all(
-                ext["area"][0] == ext["area"][1] and ext["eps"] == 0
-                for ext in exteriors
-                if ext is not None
+                p["area"][0] == p["area"][1] and p["eps"] == 0
+                for p in parsed_ports.values()
+                if "area" in p
             )
         )
         if is_exact_linear:

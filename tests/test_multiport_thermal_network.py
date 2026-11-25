@@ -797,6 +797,56 @@ class MultiportThermalNetworkTests(TestCase):
         resolved = solve_from_law(star_law, straddle_ports, duration_s="100")
         self.assertEqual(resolved["solverMetadata"]["terminationReason"], "converged")
 
+    def test_f02_fixed_to_fixed_interval_edge_does_not_enter_exact_linear(self):
+        # EH-01 witness: STAR with exact unknown-incident edges (cool,warm)=1, (cool,middle)=3/2
+        # and interval fixed<->fixed edge (warm,middle)=[1/2, 7/10]. Exact linear path must NOT
+        # trigger; Q_middle must enclose [62, 82] W and Q_warm must enclose [-162, -142] W.
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        law = copy.deepcopy(terminal_response(*star_inputs))
+        law["supplyResponseBoundsWPerK"] = {
+            "warm": {"warm": ["3/2", "17/10"], "middle": ["-7/10", "-1/2"], "cool": ["-1", "-1"]},
+            "middle": {"warm": ["-7/10", "-1/2"], "middle": ["2", "11/5"], "cool": ["-3/2", "-3/2"]},
+            "cool": {"warm": ["-1", "-1"], "middle": ["-3/2", "-3/2"], "cool": ["5/2", "5/2"]},
+        }
+        res = solve_from_law(
+            law,
+            {
+                "warm": {"kind": "maintained", "temperatureK": "400"},
+                "middle": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "10",
+                    "initialLiquidKg": "10",
+                },
+                "cool": {
+                    "kind": "radiating_surface",
+                    "areaM2": "1",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0",
+                    "sigmaWPerM2K4": "0.0000000567",
+                    "airTemperatureK": "300",
+                    "convectionCoefficientWPerM2K": "10",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertNotEqual(res["solverMetadata"]["terminationReason"], "exact_linear")
+        self.assertEqual(res["solverMetadata"]["terminationReason"], "converged")
+        self.assertTrue(res["solverMetadata"]["residualCertified"])
+        t_cool_lo, t_cool_hi = map(F, res["ports"]["cool"]["temperatureBoundsK"])
+        self.assertLessEqual(t_cool_lo, F(308))
+        self.assertGreaterEqual(t_cool_hi, F(308))
+        q_mid_lo, q_mid_hi = map(F, res["ports"]["middle"]["bathInflowDuringPlateauBoundsW"])
+        self.assertLessEqual(q_mid_lo, F(62))
+        self.assertGreaterEqual(q_mid_hi, F(82))
+        q_warm_lo, q_warm_hi = map(F, res["ports"]["warm"]["inflowFromNetworkBoundsW"])
+        self.assertLessEqual(q_warm_lo, F(-162))
+        self.assertGreaterEqual(q_warm_hi, F(-142))
+        exh_lo, exh_hi = map(F, res["ports"]["middle"]["exhaustionTimeBoundsS"])
+        self.assertLessEqual(exh_lo, F(10000, 82))
+        self.assertGreaterEqual(exh_hi, F(10000, 62))
+
     def test_f04_pure_phase_bath_regimes_epsilon_limit_and_multi_bath_start_exhaustion(self):
         link_law = terminal_response(*LINK)
         star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
