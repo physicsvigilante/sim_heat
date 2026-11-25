@@ -405,7 +405,11 @@ class MultiportThermalNetworkTests(TestCase):
             "sigmaWPerM2K4": "0.0000000567",
         }
         # Only A is anchored; C and D can float to any temperature when G_BC = 0 -> MUST refuse.
-        with self.assertRaisesRegex(ValueError, "not guaranteed to be connected to an active temperature anchor"):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"independent-edge lower-bound anchoring test inconclusive for terminals \['C', 'D'\]; "
+            r"the correlated feasible set may still be anchored",
+        ):
             solve_from_law(
                 bridge_law,
                 {
@@ -986,4 +990,36 @@ class MultiportThermalNetworkTests(TestCase):
                     },
                 },
                 duration_s="10",
+            )
+
+    def test_f10_correlated_triangle_anchoring_decision_unchanged_with_accurate_message(self):
+        # M01 CORRELATED_ANCHOR witness: exact diagonals 2 and off-diagonals in [-2, 0] force every
+        # feasible edge to 1, yet independent-edge lower bounds are 0 -> still refuses with F-10 wording.
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        synthetic = copy.deepcopy(terminal_response(*star_inputs))
+        synthetic["supplyResponseBoundsWPerK"] = {
+            i: {j: ["2", "2"] if i == j else ["-2", "0"] for j in synthetic["terminals"]}
+            for i in synthetic["terminals"]
+        }
+        adiabatic = {
+            "kind": "radiating_surface",
+            "areaM2": "0.01",
+            "enclosureTemperatureK": "300",
+            "emissivity": "0",
+            "sigmaWPerM2K4": "0.0000000567",
+            "airTemperatureK": "280",
+            "convectionCoefficientWPerM2K": "0",
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            r"independent-edge lower-bound anchoring test inconclusive for terminals \['cool', 'middle'\]; "
+            r"the correlated feasible set may still be anchored",
+        ):
+            solve_from_law(
+                synthetic,
+                {
+                    "warm": {"kind": "maintained", "temperatureK": "380"},
+                    "middle": adiabatic,
+                    "cool": adiabatic,
+                },
             )
