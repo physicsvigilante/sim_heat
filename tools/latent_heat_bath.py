@@ -72,33 +72,48 @@ def reservoir_inflows(law, surface_port, temperatures):
 
 
 def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
-    phase = phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
+    phase = phase_inputs(
+        transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, allow_pure=True
+    )
     qlo, qhi, surface = plateau_power(law, port, phase[0], exterior, surface_port)
-    return plateau_state(law, port, phase, qlo, qhi, surface)
+    return plateau_state(law, port, phase, qlo, qhi, surface, include_start_exhaustion_fields=True)
 
 
-def phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s):
+def phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, *, allow_pure=False):
     transition = decimal_input(transition_k, "transition temperature")
     latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
     solid = decimal_input(solid_kg, "initial solid mass")
     liquid = decimal_input(liquid_kg, "initial liquid mass")
     horizon = decimal_input(duration_s, "duration")
-    if min(transition,latent,solid,liquid) <= 0:
-        raise ValueError("positive transition temperature, latent heat and both initial masses required")
+    if allow_pure:
+        if min(transition, latent) <= 0 or solid < 0 or liquid < 0 or (solid + liquid) <= 0:
+            raise ValueError(
+                "positive transition temperature, latent heat, nonnegative initial masses, "
+                "and positive total mass required"
+            )
+    else:
+        if min(transition, latent, solid, liquid) <= 0:
+            raise ValueError("positive transition temperature, latent heat and both initial masses required")
     return transition, latent, solid, liquid, horizon
 
 
-def plateau_state(law, port, phase, qlo, qhi, surface):
+def plateau_state(law, port, phase, qlo, qhi, surface, *, include_start_exhaustion_fields=False):
     transition, latent, solid, liquid, horizon = phase
     if qlo > 0:
         mode = "melting"
-        start, end = solid*latent/qhi, solid*latent/qlo
+        start, end = solid * latent / qhi, solid * latent / qlo
+        candidate_phase = "solid"
+        exhausted_at_start = solid == 0
     elif qhi < 0:
         mode = "freezing"
-        start, end = liquid*latent/(-qlo), liquid*latent/(-qhi)
+        start, end = liquid * latent / (-qlo), liquid * latent / (-qhi)
+        candidate_phase = "liquid"
+        exhausted_at_start = liquid == 0
     elif qlo == qhi == 0:
         mode = "equilibrium"
         start = end = None
+        candidate_phase = None
+        exhausted_at_start = False
     else:
         raise ValueError("latent heat-flow direction is unresolved")
 
@@ -111,22 +126,26 @@ def plateau_state(law, port, phase, qlo, qhi, surface):
     # Signed mass converted from solid to liquid. Clip at the first exhausted
     # phase. Beyond that time only the state at the plateau endpoint is reported.
     def converted(q):
-        return min(solid,max(-liquid,q*horizon/latent))
-    mlo,mhi = converted(qlo),converted(qhi)
-    def bounds(a,b):
-        return [str(a),str(b)]
-    return {**surface, "schema": "sim_heat.offline_latent_bath/1", "phaseBathPort": port,
+        return min(solid, max(-liquid, q * horizon / latent))
+    mlo, mhi = converted(qlo), converted(qhi)
+    def bounds(a, b):
+        return [str(a), str(b)]
+    result = {**surface, "schema": "sim_heat.offline_latent_bath/1", "phaseBathPort": port,
             "transitionTemperatureK": str(transition), "specificLatentHeatJPerKg": str(latent),
             "initialSolidKg": str(solid), "initialLiquidKg": str(liquid),
             "requestedDurationS": str(horizon), "phaseProcess": mode, "plateauStatus": status,
-            "bathInflowDuringPlateauBoundsW": bounds(qlo,qhi),
-            "exhaustionTimeBoundsS": None if start is None else bounds(start,end),
-            "modeledDurationBoundsS": bounds(horizon,horizon) if start is None else
-                                      bounds(min(horizon,start),min(horizon,end)),
-            "latentEnergyIntoBathBoundsJ": bounds(mlo*latent,mhi*latent),
-            "remainingSolidBoundsKg": bounds(solid-mhi,solid-mlo),
-            "remainingLiquidBoundsKg": bounds(liquid+mlo,liquid+mhi),
+            "bathInflowDuringPlateauBoundsW": bounds(qlo, qhi),
+            "exhaustionTimeBoundsS": None if start is None else bounds(start, end),
+            "modeledDurationBoundsS": bounds(horizon, horizon) if start is None else
+                                      bounds(min(horizon, start), min(horizon, end)),
+            "latentEnergyIntoBathBoundsJ": bounds(mlo * latent, mhi * latent),
+            "remainingSolidBoundsKg": bounds(solid - mhi, solid - mlo),
+            "remainingLiquidBoundsKg": bounds(liquid + mlo, liquid + mhi),
             **offline_provenance(law)}
+    if include_start_exhaustion_fields:
+        result["exhaustedAtStart"] = exhausted_at_start
+        result["exhaustedPhase"] = candidate_phase if status == "exhausted" else None
+    return result
 
 
 if __name__ == "__main__":

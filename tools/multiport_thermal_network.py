@@ -151,6 +151,7 @@ def _parse_port_specs(terminals, ports):
                 spec.get("initialSolidKg"),
                 spec.get("initialLiquidKg"),
                 "0",
+                allow_pure=True,
             )
             parsed[name] = {
                 "kind": "phase_bath",
@@ -778,17 +779,20 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                 t_lo = p["solid"] * p["latent"] / q_hi
                 t_hi = p["solid"] * p["latent"] / q_lo
                 exh_phase = "solid"
+                exh_at_start = p["solid"] == 0
                 active_exh.append((name, t_lo, t_hi, exh_phase))
             elif q_hi < 0:
                 proc = "freezing"
                 t_lo = p["liquid"] * p["latent"] / (-q_lo)
                 t_hi = p["liquid"] * p["latent"] / (-q_hi)
                 exh_phase = "liquid"
+                exh_at_start = p["liquid"] == 0
                 active_exh.append((name, t_lo, t_hi, exh_phase))
             elif q_lo == q_hi == 0:
                 proc = "equilibrium"
                 t_lo = t_hi = None
                 exh_phase = None
+                exh_at_start = False
             else:
                 if termination_reason == "sweep_limit":
                     raise ValueError(
@@ -804,6 +808,7 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                 "t_lo": t_lo,
                 "t_hi": t_hi,
                 "exh_phase": exh_phase,
+                "exhausted_at_start": exh_at_start,
             }
 
         if not active_exh:
@@ -832,12 +837,18 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                     item[0] for item in active_exh if item[1] <= duration
                 ]
 
+        sys_exh_at_start = any(bath_meta[n]["exhausted_at_start"] for n in phase_ports)
+
         for name in phase_ports:
             p = parsed_ports[name]
             m = bath_meta[name]
             q_lo, q_hi = m["q_lo"], m["q_hi"]
             solid, liquid, latent = p["solid"], p["liquid"], p["latent"]
-            if sys_status == "exhausted" and first_exhausted_ports == [name]:
+            if m["exhausted_at_start"]:
+                mlo = mhi = Fraction(0)
+                stop_status = "exhausted"
+                req_status = "exhausted"
+            elif sys_status == "exhausted" and first_exhausted_ports == [name]:
                 # Certified unique first-exhausted bath: exact event energy & zero remaining exhausted phase.
                 mlo = mhi = solid if m["process"] == "melting" else -liquid
                 stop_status = "exhausted"
@@ -868,6 +879,8 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                 "phaseProcess": m["process"],
                 "plateauStatusAtModeledStop": stop_status,
                 "statusAtRequestedDuration": req_status,
+                "exhaustedAtStart": m["exhausted_at_start"],
+                "exhaustedPhase": m["exh_phase"] if stop_status == "exhausted" else None,
                 "exhaustionTimeBoundsS": None if m["t_lo"] is None else [str(m["t_lo"]), str(m["t_hi"])],
                 "latentEnergyIntoBathBoundsJ": [str(mlo * latent), str(mhi * latent)],
                 "remainingSolidBoundsKg": [str(solid - mhi), str(solid - mlo)],
@@ -878,6 +891,7 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
             "phaseBathPorts": phase_ports,
             "requestedDurationS": str(duration),
             "plateauStatus": sys_status,
+            "exhaustedAtStart": sys_exh_at_start,
             "postExhaustionModeled": False,
             "firstExhaustionTimeBoundsS": None if first_lo is None else [str(first_lo), str(first_hi)],
             "firstExhaustedCandidatePorts": first_exhausted_ports,

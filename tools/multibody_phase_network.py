@@ -99,6 +99,7 @@ def _parse_ports(terminals, ports):
                 spec["initialSolidKg"],
                 spec["initialLiquidKg"],
                 "0",
+                allow_pure=True,
             )
             parsed[name] = {
                 "kind": "phase_bath",
@@ -182,9 +183,9 @@ class _MultiBodyEvolution:
         """Return certified (body_temps, body_integrals, fixed_energies, fixed_flows) at time t >= 0."""
         if t in self._cache:
             return self._cache[t]
-        if t == 0:
+        if t == 0 or self.t_min == self.t_max:
             body_temps = [Box.exact(self.parsed[b]["t0"]) for b in self.body_ports]
-            body_ints = [ZERO for _ in self.body_ports]
+            body_ints = [Box.exact(self.parsed[b]["t0"] * t) for b in self.body_ports]
         else:
             dim = 2 * self.n + 1
             scaled = [[self.base_a[r][c] * t for c in range(dim)] for r in range(dim)]
@@ -238,8 +239,8 @@ class _MultiBodyEvolution:
         self._cache[t] = result
         return result
 
-    def subinterval_enclosures(self, t_a, t_b, phase_ports):
-        """Certified enclosures of body temps and phase-bath energies for ALL tau in [t_a, t_b]."""
+    def subinterval_enclosures_with_flows(self, t_a, t_b, tracked_fixed_ports):
+        """Certified enclosures of body temps, fixed-port energies, and fixed-port flows on [t_a, t_b]."""
         h = t_b - t_a
         temps_a, _, energies_a, _ = self.state_at(t_a)
         temps_b, _, energies_b, _ = self.state_at(t_b)
@@ -254,7 +255,8 @@ class _MultiBodyEvolution:
             sub_temps.append(Box.bounds(lo, hi))
 
         sub_energies = {}
-        for p in phase_ports:
+        sub_flows = {}
+        for p in tracked_fixed_ports:
             tp = self.fixed_temps[p]
             q_sub = ZERO
             for i, b in enumerate(self.body_ports):
@@ -271,6 +273,12 @@ class _MultiBodyEvolution:
             if e_lo > e_hi:
                 raise ValueError("subinterval phase-bath energy enclosure is inconsistent")
             sub_energies[p] = Box.bounds(e_lo, e_hi)
+            sub_flows[p] = q_sub
+        return sub_temps, sub_energies, sub_flows
+
+    def subinterval_enclosures(self, t_a, t_b, phase_ports):
+        """Certified enclosures of body temps and phase-bath energies for ALL tau in [t_a, t_b]."""
+        sub_temps, sub_energies, _ = self.subinterval_enclosures_with_flows(t_a, t_b, phase_ports)
         return sub_temps, sub_energies
 
 
@@ -283,9 +291,50 @@ def _bath_exhausted_at(e_box, p_spec):
     return None
 
 
-def _bath_safe_on(e_box, p_spec):
+def _bath_safe_on(e_box, p_spec, *, t_a=None, q_sub=None):
     lo, hi = e_box.span()
-    return hi < p_spec["e_solid"] and lo > p_spec["e_liquid"]
+    if p_spec["solid"] > 0 and p_spec["liquid"] > 0:
+        return hi < p_spec["e_solid"] and lo > p_spec["e_liquid"]
+    if p_spec["liquid"] == 0:
+        # Pure solid (e_liquid == 0, e_solid > 0): opposite-boundary check always applies.
+        if hi >= p_spec["e_solid"]:
+            return False
+        if lo > 0:
+            return True
+        if q_sub is not None:
+            q_lo, q_hi = q_sub.span()
+            if q_lo == 0 and q_hi == 0 and lo == 0 and hi == 0:
+                return True
+            # CR-10: only a cell [0, b] anchored at t = 0 with strictly inward flux relaxes lo > 0.
+            if t_a == 0 and q_lo > 0:
+                return True
+        return False
+    # Pure liquid (e_solid == 0, e_liquid < 0): mirror of pure solid.
+    if lo <= p_spec["e_liquid"]:
+        return False
+    if hi < 0:
+        return True
+    if q_sub is not None:
+        q_lo, q_hi = q_sub.span()
+        if q_lo == 0 and q_hi == 0 and lo == 0 and hi == 0:
+            return True
+        if t_a == 0 and q_hi < 0:
+            return True
+    return False
+
+
+def _cell_bath_hits(e_box, p_spec, *, t_a=None, q_sub=None):
+    """Return (hit_solid, hit_liquid) on a cell, avoiding spurious t=0 boundary hits on strictly inward [0, b]."""
+    lo, hi = e_box.span()
+    hit_solid = hi >= p_spec["e_solid"]
+    hit_liquid = lo <= p_spec["e_liquid"]
+    if t_a == 0 and q_sub is not None:
+        q_lo, q_hi = q_sub.span()
+        if p_spec["liquid"] == 0 and q_lo > 0:
+            hit_liquid = False
+        if p_spec["solid"] == 0 and q_hi < 0:
+            hit_solid = False
+    return hit_solid, hit_liquid
 
 
 def _locate_first_exhaustion(
@@ -301,17 +350,50 @@ def _locate_first_exhaustion(
     """Locate certified first phase-bath exhaustion on [0, duration] via adaptive interval subdivision.
 
     Returns (sys_status, mod_lo, mod_hi, first_exhausted_candidates, exhausted_phase_by_port,
-             body_temps_at_stop, fixed_energies_at_stop, solver_metadata).
+             body_temps_at_stop, fixed_energies_at_stop, solver_metadata, exhausted_at_start_ports).
     """
-    if duration == 0:
-        temps, _, energies, _ = evo.state_at(Fraction(0))
+    temps_0, _, energies_0, q_init = evo.state_at(Fraction(0))
+
+    # Regime (b) checked FIRST (even when duration == 0, per F-04 / CR-11):
+    # any pure-phase bath with certified initial flow leaving coexistence is exhausted at t = 0.
+    start_exh_ports = []
+    start_exh_phase = {}
+    for p in phase_ports:
+        p_spec = parsed[p]
+        q0_lo, q0_hi = q_init[p].span()
+        if p_spec["liquid"] == 0 and q0_hi < 0:
+            start_exh_ports.append(p)
+            start_exh_phase[p] = "liquid"
+        elif p_spec["solid"] == 0 and q0_lo > 0:
+            start_exh_ports.append(p)
+            start_exh_phase[p] = "solid"
+    if start_exh_ports:
         meta = {
             "terminationReason": "resolved",
             "pruneRefinementsUsed": 0,
             "bisectRefinementsUsed": 0,
             "modeledDurationWidthS": "0",
         }
-        return "coexisting", Fraction(0), Fraction(0), [], {}, temps, energies, meta
+        return (
+            "exhausted",
+            Fraction(0),
+            Fraction(0),
+            start_exh_ports,
+            start_exh_phase,
+            temps_0,
+            energies_0,
+            meta,
+            set(start_exh_ports),
+        )
+
+    if duration == 0:
+        meta = {
+            "terminationReason": "resolved",
+            "pruneRefinementsUsed": 0,
+            "bisectRefinementsUsed": 0,
+            "modeledDurationWidthS": "0",
+        }
+        return "coexisting", Fraction(0), Fraction(0), [], {}, temps_0, energies_0, meta, set()
 
     # Build initial uniform grid on [0, duration].
     grid = [duration * k / initial_steps for k in range(initial_steps + 1)]
@@ -319,13 +401,13 @@ def _locate_first_exhaustion(
     # Scan left-to-right to find the earliest subinterval not proven strictly safe.
     first_unsafe_idx = None
     for k in range(initial_steps):
-        _, sub_e = evo.subinterval_enclosures(grid[k], grid[k + 1], phase_ports)
-        if not all(_bath_safe_on(sub_e[p], parsed[p]) for p in phase_ports):
+        _, sub_e, sub_q = evo.subinterval_enclosures_with_flows(grid[k], grid[k + 1], phase_ports)
+        if not all(_bath_safe_on(sub_e[p], parsed[p], t_a=grid[k], q_sub=sub_q[p]) for p in phase_ports):
             first_unsafe_idx = k
             break
 
     if first_unsafe_idx is None:
-        # Mathematically proven: NO phase bath exhausts anywhere on [0, duration].
+        # Mathematically proven: NO phase bath exhausts anywhere on [0, duration] (covers exact equilibrium too).
         temps, _, energies, _ = evo.state_at(duration)
         meta = {
             "terminationReason": "resolved",
@@ -333,7 +415,63 @@ def _locate_first_exhaustion(
             "bisectRefinementsUsed": 0,
             "modeledDurationWidthS": "0",
         }
-        return "coexisting", duration, duration, [], {}, temps, energies, meta
+        return "coexisting", duration, duration, [], {}, temps, energies, meta, set()
+
+    # Regime (d) (OQ-C3 closed decision): if any pure bath has unresolved or zero initial flux
+    # (and did not already prove exact equilibrium above), departure from t = 0 cannot be certified
+    # by any cell [0, b']. Return conservative exhaustion_time_uncertain modeled from t = 0.
+    unresolved_pure_start = []
+    for p in phase_ports:
+        p_spec = parsed[p]
+        if p_spec["liquid"] == 0 or p_spec["solid"] == 0:
+            q0_lo, q0_hi = q_init[p].span()
+            if q0_lo <= 0 <= q0_hi:
+                unresolved_pure_start.append(p)
+    if unresolved_pure_start:
+        all_fixed = evo.fixed_ports
+        cell_temps = []
+        cell_fixed = []
+        cell_flows = []
+        for k in range(initial_steps):
+            ct, cf, cq = evo.subinterval_enclosures_with_flows(grid[k], grid[k + 1], all_fixed)
+            cell_temps.append(ct)
+            cell_fixed.append(cf)
+            cell_flows.append(cq)
+        temps_end, _, energies_end, _ = evo.state_at(duration)
+        stop_temps = [_box_union([ct[i] for ct in cell_temps] + [temps_end[i]]) for i in range(evo.n)]
+        stop_fixed_raw = {f: _box_union([cf[f] for cf in cell_fixed] + [energies_end[f]]) for f in all_fixed}
+        candidates = []
+        for p in phase_ports:
+            if p in unresolved_pure_start or any(
+                not _bath_safe_on(cell_fixed[k][p], parsed[p], t_a=grid[k], q_sub=cell_flows[k][p])
+                for k in range(initial_steps)
+            ):
+                candidates.append(p)
+        stop_fixed = dict(stop_fixed_raw)
+        for p in phase_ports:
+            p_spec = parsed[p]
+            lo, hi = stop_fixed_raw[p].span()
+            stop_fixed[p] = Box.bounds(
+                max(p_spec["e_liquid"], min(p_spec["e_solid"], lo)),
+                max(p_spec["e_liquid"], min(p_spec["e_solid"], hi)),
+            )
+        meta = {
+            "terminationReason": "resolved",
+            "pruneRefinementsUsed": 0,
+            "bisectRefinementsUsed": 0,
+            "modeledDurationWidthS": str(duration),
+        }
+        return (
+            "exhaustion_time_uncertain",
+            Fraction(0),
+            duration,
+            candidates,
+            {},
+            stop_temps,
+            stop_fixed,
+            meta,
+            set(),
+        )
 
     # Check if any grid point at or after first_unsafe_idx+1 certifies exhaustion.
     cert_hi = None
@@ -350,8 +488,8 @@ def _locate_first_exhaustion(
     # and cert_hi is None) is mathematically proven strictly safe for ALL phase baths.
     intervals = []
     for k in range(first_unsafe_idx, stop_idx):
-        _, sub_e = evo.subinterval_enclosures(grid[k], grid[k + 1], phase_ports)
-        if not all(_bath_safe_on(sub_e[p], parsed[p]) for p in phase_ports):
+        _, sub_e, sub_q = evo.subinterval_enclosures_with_flows(grid[k], grid[k + 1], phase_ports)
+        if not all(_bath_safe_on(sub_e[p], parsed[p], t_a=grid[k], q_sub=sub_q[p]) for p in phase_ports):
             intervals.append((grid[k], grid[k + 1]))
 
     bisect_tol = max(Fraction(1, 10**9), duration / (10**9))
@@ -377,17 +515,17 @@ def _locate_first_exhaustion(
         if any(_bath_exhausted_at(energies_mid[p], parsed[p]) is not None for p in phase_ports):
             cert_hi = mid
             intervals = [(lo, min(hi, mid)) for lo, hi in intervals if lo < mid]
-            _, sub_left = evo.subinterval_enclosures(a, mid, phase_ports)
-            if not all(_bath_safe_on(sub_left[p], parsed[p]) for p in phase_ports):
+            _, sub_left, q_left = evo.subinterval_enclosures_with_flows(a, mid, phase_ports)
+            if not all(_bath_safe_on(sub_left[p], parsed[p], t_a=a, q_sub=q_left[p]) for p in phase_ports):
                 intervals.insert(0, (a, mid))
             continue
 
         new_front = []
-        _, sub_left = evo.subinterval_enclosures(a, mid, phase_ports)
-        if not all(_bath_safe_on(sub_left[p], parsed[p]) for p in phase_ports):
+        _, sub_left, q_left = evo.subinterval_enclosures_with_flows(a, mid, phase_ports)
+        if not all(_bath_safe_on(sub_left[p], parsed[p], t_a=a, q_sub=q_left[p]) for p in phase_ports):
             new_front.append((a, mid))
-        _, sub_right = evo.subinterval_enclosures(mid, b, phase_ports)
-        if not all(_bath_safe_on(sub_right[p], parsed[p]) for p in phase_ports):
+        _, sub_right, q_right = evo.subinterval_enclosures_with_flows(mid, b, phase_ports)
+        if not all(_bath_safe_on(sub_right[p], parsed[p], t_a=mid, q_sub=q_right[p]) for p in phase_ports):
             new_front.append((mid, b))
         intervals = new_front + intervals
 
@@ -415,17 +553,17 @@ def _locate_first_exhaustion(
             if any(_bath_exhausted_at(energies_mid[p], parsed[p]) is not None for p in phase_ports):
                 cert_hi = mid
                 intervals = [(lo, min(hi, mid)) for lo, hi in intervals if lo < mid]
-                _, sub_left = evo.subinterval_enclosures(a, mid, phase_ports)
-                if not all(_bath_safe_on(sub_left[p], parsed[p]) for p in phase_ports):
+                _, sub_left, q_left = evo.subinterval_enclosures_with_flows(a, mid, phase_ports)
+                if not all(_bath_safe_on(sub_left[p], parsed[p], t_a=a, q_sub=q_left[p]) for p in phase_ports):
                     intervals.insert(min(idx, len(intervals)), (a, mid))
                 continue
 
             new_cells = []
-            _, sub_left = evo.subinterval_enclosures(a, mid, phase_ports)
-            if not all(_bath_safe_on(sub_left[p], parsed[p]) for p in phase_ports):
+            _, sub_left, q_left = evo.subinterval_enclosures_with_flows(a, mid, phase_ports)
+            if not all(_bath_safe_on(sub_left[p], parsed[p], t_a=a, q_sub=q_left[p]) for p in phase_ports):
                 new_cells.append((a, mid))
-            _, sub_right = evo.subinterval_enclosures(mid, b, phase_ports)
-            if not all(_bath_safe_on(sub_right[p], parsed[p]) for p in phase_ports):
+            _, sub_right, q_right = evo.subinterval_enclosures_with_flows(mid, b, phase_ports)
+            if not all(_bath_safe_on(sub_right[p], parsed[p], t_a=mid, q_sub=q_right[p]) for p in phase_ports):
                 new_cells.append((mid, b))
             intervals[idx:idx] = new_cells
 
@@ -437,16 +575,18 @@ def _locate_first_exhaustion(
             "bisectRefinementsUsed": bisect_used,
             "modeledDurationWidthS": "0",
         }
-        return "coexisting", duration, duration, [], {}, temps, energies, meta
+        return "coexisting", duration, duration, [], {}, temps, energies, meta, set()
 
     safe_hi = intervals[0][0] if intervals else cert_hi
     all_fixed = evo.fixed_ports
     cell_temps = []
     cell_fixed = []
+    cell_flows = []
     for a, b in intervals:
-        ct, cf = evo.subinterval_enclosures(a, b, all_fixed)
+        ct, cf, cq = evo.subinterval_enclosures_with_flows(a, b, all_fixed)
         cell_temps.append(ct)
         cell_fixed.append(cf)
+        cell_flows.append(cq)
 
     if cert_hi is not None:
         # Exhaustion is mathematically proven in union(intervals) U {cert_hi}.
@@ -457,9 +597,12 @@ def _locate_first_exhaustion(
         exh_phase_by_port = {}
         for p in phase_ports:
             p_spec = parsed[p]
-            lo, hi = stop_fixed_raw[p].span()
-            hit_solid = hi >= p_spec["e_solid"]
-            hit_liquid = lo <= p_spec["e_liquid"]
+            hit_solid = energies_end[p].span()[1] >= p_spec["e_solid"]
+            hit_liquid = energies_end[p].span()[0] <= p_spec["e_liquid"]
+            for idx_c, (a, _) in enumerate(intervals):
+                hs, hl = _cell_bath_hits(cell_fixed[idx_c][p], p_spec, t_a=a, q_sub=cell_flows[idx_c][p])
+                hit_solid = hit_solid or hs
+                hit_liquid = hit_liquid or hl
             if hit_solid or hit_liquid:
                 candidates.append(p)
                 if hit_solid and not hit_liquid:
@@ -486,7 +629,7 @@ def _locate_first_exhaustion(
             "bisectRefinementsUsed": bisect_used,
             "modeledDurationWidthS": str(cert_hi - safe_hi),
         }
-        return "exhausted", safe_hi, cert_hi, candidates, exh_phase_by_port, stop_temps, stop_fixed, meta
+        return "exhausted", safe_hi, cert_hi, candidates, exh_phase_by_port, stop_temps, stop_fixed, meta, set()
 
     # Exhaustion could not be ruled out on union(intervals) nor certified at any point;
     # any realization that never exhausts stops at duration, so include state_at(duration).
@@ -495,7 +638,10 @@ def _locate_first_exhaustion(
     stop_fixed_raw = {f: _box_union([cf[f] for cf in cell_fixed] + [energies_end[f]]) for f in all_fixed}
     candidates = []
     for p in phase_ports:
-        if any(not _bath_safe_on(cf[p], parsed[p]) for cf in cell_fixed) or not _bath_safe_on(energies_end[p], parsed[p]):
+        if any(
+            not _bath_safe_on(cell_fixed[idx_c][p], parsed[p], t_a=a, q_sub=cell_flows[idx_c][p])
+            for idx_c, (a, _) in enumerate(intervals)
+        ) or not _bath_safe_on(energies_end[p], parsed[p]):
             candidates.append(p)
     stop_fixed = dict(stop_fixed_raw)
     for p in phase_ports:
@@ -511,7 +657,7 @@ def _locate_first_exhaustion(
         "bisectRefinementsUsed": bisect_used,
         "modeledDurationWidthS": str(duration - safe_hi),
     }
-    return "exhaustion_time_uncertain", safe_hi, duration, candidates, {}, stop_temps, stop_fixed, meta
+    return "exhaustion_time_uncertain", safe_hi, duration, candidates, {}, stop_temps, stop_fixed, meta, set()
 
 
 def solve_from_law(
@@ -547,6 +693,7 @@ def solve_from_law(
             body_temps_stop,
             fixed_energies_stop,
             solver_meta,
+            exhausted_at_start_ports,
         ) = _locate_first_exhaustion(
             evo,
             phase_ports,
@@ -568,6 +715,7 @@ def solve_from_law(
             "bisectRefinementsUsed": 0,
             "modeledDurationWidthS": "0",
         }
+        exhausted_at_start_ports = set()
 
     source_ref_temps = {t: str(law["imposedTemperaturesK"][t]) for t in terminals}
     port_kinds = {t: parsed[t]["kind"] for t in terminals}
@@ -614,21 +762,30 @@ def solve_from_law(
         e_box = fixed_energies_stop[p_name]
         e_lo, e_hi = e_box.span()
         m_lo, m_hi = e_lo / p["latent"], e_hi / p["latent"]
-        if sys_status == "coexisting":
+        if p_name in exhausted_at_start_ports:
+            stop_status = "exhausted"
+            req_status = "exhausted"
+            port_exh_phase = exh_phase_by_port.get(p_name)
+        elif sys_status == "coexisting":
             stop_status = "coexisting"
             req_status = "coexisting"
+            port_exh_phase = None
         elif sys_status == "exhausted" and candidates == [p_name]:
             stop_status = "exhausted"
             req_status = "exhausted"
+            port_exh_phase = exh_phase_by_port.get(p_name)
         elif sys_status == "exhausted" and p_name in candidates:
             stop_status = "exhaustion_time_uncertain"
             req_status = "exhaustion_time_uncertain"
+            port_exh_phase = None
         elif sys_status == "exhausted":
             stop_status = "coexisting"
             req_status = "not_modeled_after_system_exhaustion"
+            port_exh_phase = None
         else:
             stop_status = "exhaustion_time_uncertain" if p_name in candidates else "coexisting"
             req_status = "not_certified_beyond_possible_exhaustion"
+            port_exh_phase = None
         active_bcs[p_name] = {
             "role": "phase_bath",
             "constraint": "clamped_during_coexistence",
@@ -643,7 +800,8 @@ def solve_from_law(
             "initialBathInflowBoundsW": bounds(q_init_fixed[p_name]),
             "plateauStatusAtModeledStop": stop_status,
             "statusAtRequestedDuration": req_status,
-            "exhaustedPhase": exh_phase_by_port.get(p_name) if candidates == [p_name] else None,
+            "exhaustedAtStart": p_name in exhausted_at_start_ports,
+            "exhaustedPhase": port_exh_phase,
             "latentEnergyIntoBathBoundsJ": [str(e_lo), str(e_hi)],
             "remainingSolidBoundsKg": [str(p["solid"] - m_hi), str(p["solid"] - m_lo)],
             "remainingLiquidBoundsKg": [str(p["liquid"] + m_lo), str(p["liquid"] + m_hi)],
@@ -656,6 +814,7 @@ def solve_from_law(
             "phaseBathPorts": phase_ports,
             "requestedDurationS": str(duration),
             "plateauStatus": sys_status,
+            "exhaustedAtStart": bool(exhausted_at_start_ports),
             "postExhaustionModeled": False,
             "firstExhaustionTimeBoundsS": [str(mod_lo), str(mod_hi)] if sys_status == "exhausted" else None,
             "firstExhaustedCandidatePorts": candidates,

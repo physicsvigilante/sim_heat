@@ -945,8 +945,31 @@ class MultiportThermalNetworkTests(TestCase):
         self.assertEqual(eq["ports"]["cold"]["phaseProcess"], "equilibrium")
 
         # 6) Regime (d) CR-11: unresolved sign straddle still refuses even at duration == 0.
+        pure_straddle_ports = {
+            "cool": {
+                "kind": "phase_bath",
+                "transitionTemperatureK": "420",
+                "specificLatentHeatJPerKg": "334000",
+                "initialSolidKg": "1",
+                "initialLiquidKg": "0",
+            },
+            "warm": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "500",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+            "middle": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "200",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+        }
         with self.assertRaisesRegex(ValueError, "sweep_limit"):
-            solve_from_law(star_law, straddle_ports, duration_s="0", max_sweeps=1)
+            solve_from_law(star_law, pure_straddle_ports, duration_s="0", max_sweeps=1)
 
         # 7) Zero total mass still refused.
         with self.assertRaises(ValueError):
