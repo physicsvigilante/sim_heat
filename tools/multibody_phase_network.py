@@ -23,6 +23,11 @@ from qualification.h1_n13.conduction import ONE, ZERO, Box, step_matrix
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
 from tools.multiport_thermal_network import _symmetric_conductances
+from simheat.enthalpy import (
+    DEFAULT_MAX_EVENTS as DEFAULT_CONTINUATION_MAX_EVENTS,
+    ENTHALPY_CONTINUATION_SCHEMA,
+    solve_enthalpy_continuation,
+)
 from simheat.laws import validate_terminal_law
 from tools.offline_investigation import PinnedSourceRef, _expect_exact_keys, validate_pinned_law
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS
@@ -876,6 +881,51 @@ def investigate(
         ports,
         duration_s,
         initial_steps=initial_steps,
+        max_prune_refinements=max_prune_refinements,
+        max_bisect_refinements=max_bisect_refinements,
+    )
+
+
+def solve_continuation_from_law(
+    law,
+    ports,
+    duration_s,
+    *,
+    initial_steps=16,
+    max_events=DEFAULT_CONTINUATION_MAX_EVENTS,
+    max_prune_refinements=DEFAULT_MAX_PRUNE_REFINEMENTS,
+    max_bisect_refinements=DEFAULT_MAX_BISECT_REFINEMENTS,
+):
+    """Solve coupled multi-body / multi-phase linear enthalpy-mode continuation (M04)."""
+    return solve_enthalpy_continuation(
+        law,
+        ports,
+        duration_s,
+        initial_steps=initial_steps,
+        max_events=max_events,
+        max_prune_refinements=max_prune_refinements,
+        max_bisect_refinements=max_bisect_refinements,
+    )
+
+
+def investigate_continuation(
+    inputs,
+    ports,
+    duration_s,
+    *,
+    initial_steps=16,
+    max_events=DEFAULT_CONTINUATION_MAX_EVENTS,
+    max_prune_refinements=DEFAULT_MAX_PRUNE_REFINEMENTS,
+    max_bisect_refinements=DEFAULT_MAX_BISECT_REFINEMENTS,
+):
+    """Resolve a pinned file-backed source tuple/PinnedSourceRef and solve enthalpy-mode continuation."""
+    law = inputs.resolve_law() if isinstance(inputs, PinnedSourceRef) else terminal_response(*inputs)
+    return solve_continuation_from_law(
+        law,
+        ports,
+        duration_s,
+        initial_steps=initial_steps,
+        max_events=max_events,
         max_prune_refinements=max_prune_refinements,
         max_bisect_refinements=max_bisect_refinements,
     )

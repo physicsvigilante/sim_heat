@@ -88,4 +88,6 @@
 |---|---|---|---|---|
 | **M02** (PR #202) | Correctness batch: F-01 (P1), F-02–F-04, F-07, F-09, F-10 | `bca7273f71477d0ba7fee6ef4143fdf99f959111` | `f37422399672479d083ddb6e1085afafe54615db` | **Merged & Verified** |
 | **M02 Follow-up** (PR #203) | F-06 Windows nested-path + bounded N1 exemption + A-05b `.gitattributes` | `b2ea46c8094ef3daddc077de5c0ea8348ff46d54` | `07a10fb2824538e88297072d6c714f063b299c6a` | **Merged & Verified** |
-| **M03** (planned) | Physical composability & consolidation (`ThermalSystem`, validated `DerivedLaw`, F-05/F-08, `simheat/core`, Windows CI) | — | — | **Pending D2 comparison & `CONTRACT-M03.md`** |
+| **Baseline Docs v2** (PR #205) | Policy v2 (autonomous engineering research team) + Architecture Record v2 | `c1f9551265618742baa5769d185c1be6bf0d683f` | `da1d3bc2dec2e4eb6c821a522219bdf04652765b` | **Merged & Verified** |
+| **M03** (PR #206) | Physical composability & consolidation (`simheat/core`, `DerivedLaw`, `ThermalSystem`, F-05/F-08, Windows CI) | `5d882aae817582e2b1caf30d3775228095533b18` | `c6e564288884b78fb169d78025dce32e812c875e` | **Merged & Verified** |
+| **M04** (in progress) | Linear enthalpy-mode continuation (`simheat/enthalpy.py`, reversing hysteresis, Picard local-slope contraction, exact symmetry-tie proof, `ThermalSystem` dispatch) | — | — | **Implementation & Review** |

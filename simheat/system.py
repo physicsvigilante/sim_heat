@@ -22,6 +22,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from simheat.enthalpy import (
+    DEFAULT_MAX_EVENTS,
+    signed_decimal_input,
+    solve_enthalpy_continuation,
+)
 from simheat.laws import (
     DERIVED_LAW_SCHEMA,
     DerivedLaw,
@@ -187,7 +192,7 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
         _expect_exact_keys(
             spec,
             required=("kind", "initialTemperatureK"),
-            optional=("heatCapacityJPerK", "massKg", "specificHeatJPerKgK"),
+            optional=("heatCapacityJPerK", "massKg", "specificHeatJPerKgK", "heatInputW"),
             label=f"attachments[{name}]",
         )
         t0 = decimal_input(spec["initialTemperatureK"], f"initial temperature at {name}")
@@ -216,12 +221,20 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError(f"positive massKg and specificHeatJPerKgK required at {name}")
             cap = m * c
             cap_str = _fraction_to_decimal_str(cap)
+        if "heatInputW" in spec:
+            power = signed_decimal_input(spec["heatInputW"], f"heatInputW at {name}")
+            power_str = spec["heatInputW"].strip()
+        else:
+            power = Fraction(0)
+            power_str = "0"
         return {
             "kind": "sensible_body",
             "heatCapacityJPerK": cap_str,
             "initialTemperatureK": _decimal_str(spec["initialTemperatureK"]),
+            "heatInputW": power_str,
             "capacity": cap,
             "t0": t0,
+            "heat_input": power,
         }
 
     if kind == "phase_substance":
@@ -238,6 +251,7 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
                 "initialTemperatureK",
                 "solidSpecificHeatJPerKgK",
                 "liquidSpecificHeatJPerKgK",
+                "heatInputW",
             ),
             label=f"attachments[{name}]",
         )
@@ -272,6 +286,12 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError(f"positive solid and liquid specific heats required at {name}")
             c_s_str = _decimal_str(spec["solidSpecificHeatJPerKgK"])
             c_l_str = _decimal_str(spec["liquidSpecificHeatJPerKgK"])
+        if "heatInputW" in spec:
+            power = signed_decimal_input(spec["heatInputW"], f"heatInputW at {name}")
+            power_str = spec["heatInputW"].strip()
+        else:
+            power = Fraction(0)
+            power_str = "0"
         return {
             "kind": "phase_substance",
             "transitionTemperatureK": _decimal_str(spec["transitionTemperatureK"]),
@@ -281,6 +301,7 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
             "initialTemperatureK": t0_str,
             "solidSpecificHeatJPerKgK": c_s_str,
             "liquidSpecificHeatJPerKgK": c_l_str,
+            "heatInputW": power_str,
             "t_tr": t_tr,
             "t0": t0,
             "latent": latent,
@@ -288,6 +309,7 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
             "liquid": liquid,
             "c_s": c_s,
             "c_l": c_l,
+            "heat_input": power,
         }
 
     if kind == "exterior_surface":
@@ -413,6 +435,7 @@ class ThermalSystem:
     max_sweeps: int
     initial_steps: int
     observations: tuple[str, ...]
+    max_events: int = DEFAULT_MAX_EVENTS
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], *, base_dir: str | Path | None = None) -> ThermalSystem:
@@ -456,7 +479,7 @@ class ThermalSystem:
         _expect_exact_keys(
             solve,
             required=("mode",),
-            optional=("durationS", "continuation", "maxSweeps", "initialSteps", "observations"),
+            optional=("durationS", "continuation", "maxSweeps", "initialSteps", "maxEvents", "observations"),
             label="solve",
         )
         mode = solve["mode"]
@@ -479,6 +502,9 @@ class ThermalSystem:
         initial_steps = solve.get("initialSteps", 16)
         if isinstance(initial_steps, bool) or not isinstance(initial_steps, int) or not (1 <= initial_steps <= 256):
             raise ValueError("solve.initialSteps must be an integer in [1, 256]")
+        max_events = solve.get("maxEvents", DEFAULT_MAX_EVENTS)
+        if isinstance(max_events, bool) or not isinstance(max_events, int) or max_events < 1:
+            raise ValueError("solve.maxEvents must be a positive integer")
         obs = tuple(solve.get("observations", ()))
         if any(not isinstance(o, str) or not o for o in obs):
             raise ValueError("solve.observations must contain non-empty strings")
@@ -493,6 +519,7 @@ class ThermalSystem:
             max_sweeps=max_sweeps,
             initial_steps=initial_steps,
             observations=obs,
+            max_events=max_events,
         )
 
     @classmethod
@@ -511,6 +538,11 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
     non_coex_phases = [
         t for t in phases if system.attachments[t]["t0"] != system.attachments[t]["t_tr"]
     ]
+    powered = [
+        t
+        for t in bodies + phases
+        if system.attachments[t].get("heat_input", Fraction(0)) != 0
+    ]
 
     if system.mode == "steady":
         if bodies:
@@ -525,6 +557,12 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
                 ["steady_mode", "non_coexisting_phase_substance"],
                 "Steady plateau solves require phase_substance attachments to start at T_0 == T_tr.",
             )
+        if powered:
+            return (
+                None,
+                ["steady_mode", "heat_input"],
+                "Steady multiport solves do not accept prescribed heatInputW power injections.",
+            )
         return "multiport", None, None
 
     # transient mode
@@ -534,26 +572,57 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
         return (
             None,
             [ext_kind, partner],
-            f"Coupled transient {ext_kind} + {partner} requires a nonlinear transient integrator (deferred beyond M03).",
+            f"Coupled transient {ext_kind} + {partner} requires a nonlinear transient integrator (deferred beyond M04).",
         )
 
-    if bodies:
+    if system.continuation == "first_exhaustion":
         if non_coex_phases:
             return (
                 None,
-                ["sensible_body", "non_coexisting_phase_substance"],
-                "Coupled multi-body transient with subcooled/superheated phase_substance requires M04 enthalpy-mode continuation.",
+                ["first_exhaustion", "non_coexisting_phase_substance"],
+                "first_exhaustion mode requires phase_substance ports to start in coexistence (T_0 == T_tr).",
             )
-        if system.continuation == "staged":
+        if powered:
             return (
                 None,
-                ["sensible_body", "staged_continuation"],
-                "Multi-body post-exhaustion staged continuation is deferred to M04.",
+                ["first_exhaustion", "heat_input"],
+                "first_exhaustion mode does not accept nonzero heatInputW; use continuation='auto' or 'staged'.",
             )
+        if bodies:
+            return "multibody", None, None
+        if phases:
+            return "multiport", None, None
+
+    def _require_phase_heats(port_list: list[str]) -> None:
+        for p_name in port_list:
+            p = system.attachments[p_name]
+            if p["c_s"] is None or p["c_l"] is None:
+                raise ValueError(
+                    f"enthalpy continuation at {p_name!r} requires solidSpecificHeatJPerKgK and liquidSpecificHeatJPerKgK"
+                )
+
+    all_phases_have_heats = bool(phases) and all(
+        system.attachments[t]["c_s"] is not None and system.attachments[t]["c_l"] is not None
+        for t in phases
+    )
+
+    if bodies:
+        wants_enthalpy = (
+            bool(powered)
+            or bool(non_coex_phases)
+            or (system.continuation == "staged" and bool(phases))
+            or (system.continuation == "auto" and all_phases_have_heats)
+        )
+        if wants_enthalpy:
+            _require_phase_heats(phases)
+            return "enthalpy", None, None
         return "multibody", None, None
 
     if len(phases) == 1:
         p = system.attachments[phases[0]]
+        if powered:
+            _require_phase_heats(phases)
+            return "enthalpy", None, None
         wants_staged = (
             system.continuation == "staged"
             or p["t0"] != p["t_tr"]
@@ -568,18 +637,15 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
         return "multiport", None, None
 
     if len(phases) >= 2:
-        if non_coex_phases:
-            return (
-                None,
-                ["multi_phase_substance", "non_coexisting_phase_substance"],
-                "Multiple phase_substance ports outside coexistence require M04 enthalpy-mode continuation.",
-            )
-        if system.continuation == "staged":
-            return (
-                None,
-                ["multi_phase_substance", "staged_continuation"],
-                "Simultaneous multi-bath post-exhaustion staging is deferred to M04.",
-            )
+        wants_enthalpy = (
+            bool(powered)
+            or bool(non_coex_phases)
+            or system.continuation == "staged"
+            or (system.continuation == "auto" and all_phases_have_heats)
+        )
+        if wants_enthalpy:
+            _require_phase_heats(phases)
+            return "enthalpy", None, None
         return "multiport", None, None
 
     return (
@@ -626,23 +692,25 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 f"Q_in[{t}] = -Q_supply[{t}] (into maintained reservoir positive)"
             )
         elif kind == "sensible_body":
+            p_term = f" + ({att['heatInputW']} W)" if att["heat_input"] != 0 else ""
             terminal_eqs[t] = (
-                f"{att['heatCapacityJPerK']} * dT[{t}]/dt = -Q_supply[{t}], "
+                f"{att['heatCapacityJPerK']} * dT[{t}]/dt = -Q_supply[{t}]{p_term}, "
                 f"T[{t}](0) = {att['initialTemperatureK']} K (into body positive)"
             )
         elif kind == "phase_substance":
-            if backend == "staged":
+            p_term = f" + ({att['heatInputW']} W)" if att["heat_input"] != 0 else ""
+            if backend in ("staged", "enthalpy"):
                 m_tot = att["solid"] + att["liquid"]
                 terminal_eqs[t] = (
                     f"Piecewise enthalpy H[{t}] (M = {m_tot} kg, T_tr = {att['transitionTemperatureK']} K, "
                     f"L = {att['specificLatentHeatJPerKg']} J/kg, c_s = {att['solidSpecificHeatJPerKgK']}, "
                     f"c_l = {att['liquidSpecificHeatJPerKgK']}): "
-                    f"dH[{t}]/dt = -Q_supply[{t}], T[{t}](0) = {att['initialTemperatureK']} K"
+                    f"dH[{t}]/dt = -Q_supply[{t}]{p_term}, T[{t}](0) = {att['initialTemperatureK']} K"
                 )
             else:
                 terminal_eqs[t] = (
                     f"T[{t}] = {att['transitionTemperatureK']} K during coexistence; "
-                    f"dH[{t}]/dt = -Q_supply[{t}], "
+                    f"dH[{t}]/dt = -Q_supply[{t}]{p_term}, "
                     f"m_s(0) = {att['initialSolidKg']} kg, m_l(0) = {att['initialLiquidKg']} kg, "
                     f"L = {att['specificLatentHeatJPerKg']} J/kg (into phase bath positive)"
                 )
@@ -675,9 +743,13 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
     if sys_obj.mode == "steady":
         conservation = "Global steady conservation: sum_i Q_supply[i] = 0 W"
     else:
+        has_power = any(
+            sys_obj.attachments[t].get("heat_input", Fraction(0)) != 0 for t in terms
+        )
+        rhs = "sum_n P_n * t_stop J" if has_power else "0 J"
         conservation = (
             "Global transient energy ledger on [0, t_stop]: "
-            "sum_bodies C_i*(T_i(t_stop) - T_i(0)) + sum_phases DeltaH_k + sum_maintained E_in,m = 0 J"
+            f"sum_bodies C_i*(T_i(t_stop) - T_i(0)) + sum_phases DeltaH_k + sum_maintained E_in,m = {rhs}"
         )
 
     lines = list(conduction_lines) + ["Terminal constitutive equations:"]
@@ -770,6 +842,41 @@ def _to_multibody_ports(system: ThermalSystem) -> dict[str, dict[str, Any]]:
             }
         else:
             raise ValueError(f"internal error: unsupported multibody attachment kind {kind!r}")
+    return ports
+
+
+def _to_enthalpy_ports(system: ThermalSystem) -> dict[str, dict[str, Any]]:
+    ports: dict[str, dict[str, Any]] = {}
+    for t in system.derived_law.terminals:
+        att = system.attachments[t]
+        kind = att["kind"]
+        if kind == "maintained":
+            ports[t] = {"kind": "maintained", "temperatureK": att["temperatureK"]}
+        elif kind == "sensible_body":
+            entry: dict[str, Any] = {
+                "kind": "sensible_body",
+                "heatCapacityJPerK": att["heatCapacityJPerK"],
+                "initialTemperatureK": att["initialTemperatureK"],
+            }
+            if att["heat_input"] != 0:
+                entry["heatInputW"] = att["heatInputW"]
+            ports[t] = entry
+        elif kind == "phase_substance":
+            entry = {
+                "kind": "phase_substance",
+                "transitionTemperatureK": att["transitionTemperatureK"],
+                "specificLatentHeatJPerKg": att["specificLatentHeatJPerKg"],
+                "solidSpecificHeatJPerKgK": att["solidSpecificHeatJPerKgK"],
+                "liquidSpecificHeatJPerKgK": att["liquidSpecificHeatJPerKgK"],
+                "initialSolidKg": att["initialSolidKg"],
+                "initialLiquidKg": att["initialLiquidKg"],
+                "initialTemperatureK": att["initialTemperatureK"],
+            }
+            if att["heat_input"] != 0:
+                entry["heatInputW"] = att["heatInputW"]
+            ports[t] = entry
+        else:
+            raise ValueError(f"internal error: unsupported enthalpy attachment kind {kind!r}")
     return ports
 
 
@@ -888,6 +995,27 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             "achievedWidths": {
                 "finalTemperatureWidthK": str(tf_hi - tf_lo),
                 "modeledDurationWidthS": "0",
+            },
+            "backendResult": raw,
+        }
+
+    if backend == "enthalpy":
+        ent_ports = _to_enthalpy_ports(sys_obj)
+        raw = solve_enthalpy_continuation(
+            sys_obj.derived_law,
+            ent_ports,
+            sys_obj.duration_s,
+            initial_steps=sys_obj.initial_steps,
+            max_events=sys_obj.max_events,
+        )
+        meta = raw["solverMetadata"]
+        return {
+            **base_envelope,
+            "status": raw["status"],
+            "terminationReason": meta["terminationReason"],
+            "achievedWidths": {
+                "maxFinalTemperatureWidthK": meta["maxFinalTemperatureWidthK"],
+                "modeledDurationWidthS": meta["modeledDurationWidthS"],
             },
             "backendResult": raw,
         }
