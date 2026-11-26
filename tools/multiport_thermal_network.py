@@ -710,6 +710,8 @@ def solve_from_law(
     parsed_ports, has_phase = _parse_port_specs(terminals, ports)
 
     if terminal_injections_w is None:
+        if total_generated_power_w not in (None, 0):
+            raise ValueError("total_generated_power_w requires terminal_injections_w")
         inj_map = {t: (Fraction(0), Fraction(0)) for t in terminals}
         total_gen_box = ZERO
     else:

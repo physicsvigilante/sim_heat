@@ -783,15 +783,16 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
     for t in terms:
         att = sys_obj.attachments[t]
         kind = att["kind"]
+        norton_term = f" + I_Norton[{t}]" if sys_obj.rod_generation is not None else ""
         if kind == "maintained":
             terminal_eqs[t] = (
                 f"T[{t}] = {att['temperatureK']} K; "
-                f"Q_in[{t}] = -Q_supply[{t}] (into maintained reservoir positive)"
+                f"Q_in[{t}] = -Q_supply[{t}]{norton_term} (into maintained reservoir positive)"
             )
         elif kind == "sensible_body":
             p_term = f" + ({att['heatInputW']} W)" if att["heat_input"] != 0 else ""
             terminal_eqs[t] = (
-                f"{att['heatCapacityJPerK']} * dT[{t}]/dt = -Q_supply[{t}]{p_term}, "
+                f"{att['heatCapacityJPerK']} * dT[{t}]/dt = -Q_supply[{t}]{norton_term}{p_term}, "
                 f"T[{t}](0) = {att['initialTemperatureK']} K (into body positive)"
             )
         elif kind == "phase_substance":
@@ -802,12 +803,12 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                     f"Piecewise enthalpy H[{t}] (M = {m_tot} kg, T_tr = {att['transitionTemperatureK']} K, "
                     f"L = {att['specificLatentHeatJPerKg']} J/kg, c_s = {att['solidSpecificHeatJPerKgK']}, "
                     f"c_l = {att['liquidSpecificHeatJPerKgK']}): "
-                    f"dH[{t}]/dt = -Q_supply[{t}]{p_term}, T[{t}](0) = {att['initialTemperatureK']} K"
+                    f"dH[{t}]/dt = -Q_supply[{t}]{norton_term}{p_term}, T[{t}](0) = {att['initialTemperatureK']} K"
                 )
             else:
                 terminal_eqs[t] = (
                     f"T[{t}] = {att['transitionTemperatureK']} K during coexistence; "
-                    f"dH[{t}]/dt = -Q_supply[{t}]{p_term}, "
+                    f"dH[{t}]/dt = -Q_supply[{t}]{norton_term}{p_term}, "
                     f"m_s(0) = {att['initialSolidKg']} kg, m_l(0) = {att['initialLiquidKg']} kg, "
                     f"L = {att['specificLatentHeatJPerKg']} J/kg (into phase bath positive)"
                 )
@@ -818,7 +819,7 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 else ""
             )
             terminal_eqs[t] = (
-                f"Q_out[{t}] = -Q_supply[{t}] = {att['areaM2']} * "
+                f"Q_out[{t}] = -Q_supply[{t}]{norton_term} = {att['areaM2']} * "
                 f"[{h_term}{att['emissivity']}*{att['sigmaWPerM2K4']}*(T[{t}]^4 - {att['enclosureTemperatureK']}^4)] "
                 "(outward positive)"
             )
@@ -854,7 +855,7 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 else ""
             )
             terminal_eqs[t] = (
-                f"Q_out[{t}] = -Q_supply[{t}] = G_shell({g.get('kind')}, r_in={g.get('innerRadiusM')}, "
+                f"Q_out[{t}] = -Q_supply[{t}]{norton_term} = G_shell({g.get('kind')}, r_in={g.get('innerRadiusM')}, "
                 f"{len(g.get('layers', []))} layers)*(T[{t}] - T_s[{t}]) = "
                 f"A_out[{t}]*[{h_term}{e.get('emissivity')}*{e.get('sigmaWPerM2K4')}*"
                 f"(T_s[{t}]^4 - {e.get('enclosureTemperatureK')}^4)] (outward positive)"
@@ -1110,6 +1111,8 @@ def solve_system(
         }
 
     rg = sys_obj.rod_generation
+    if parsed_probe is not None and rg is None:
+        raise ValueError("rod_probe requires a conduction.rods network with positive generatedPowerW")
     inj_arg = None if rg is None else rg.terminal_injections_w
     gen_tot_arg = None if rg is None else rg.total_generated_power_w
 

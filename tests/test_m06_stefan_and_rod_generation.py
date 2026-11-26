@@ -15,11 +15,14 @@ Independent 100-digit ``mpmath`` oracles verify:
 from __future__ import annotations
 
 from fractions import Fraction
+import random
 import unittest
 
 import mpmath as mp
 
 import simheat
+from simheat.enthalpy import solve_enthalpy_continuation
+from simheat.laws import DerivedLaw
 from simheat.rod_gen import build_rod_generation_model
 from simheat.stefan import STEFAN_SCHEMA, solve_stefan_from_law
 from simheat.system import (
@@ -29,6 +32,7 @@ from simheat.system import (
     describe_equations,
     solve_system,
 )
+from tools.multiport_thermal_network import solve_from_law as solve_multiport
 from tools.offline_provenance import OFFLINE_FLAG_KEYS
 
 
@@ -956,6 +960,193 @@ class TestM06StefanAndRodGeneration(unittest.TestCase):
         self.assertEqual(eq["conductionSummary"]["rodGenerationTotalPowerW"], "25")
         self.assertIn("I_Norton[b]", eq["equationsText"])
         self.assertIn("Quasi-steady planar Stefan front", eq["equationsText"])
+        # M06-R04: per-terminal maintained equation includes + I_Norton[a] when rod generation is active.
+        self.assertIn("+ I_Norton[a]", eq["terminalEquations"]["a"])
+
+    # ------------------------------------------------------------------
+    # 6. Review-finding discriminating regressions (M06-R01 .. M06-R05)
+    # ------------------------------------------------------------------
+    def test_m06_r01_howard_supersolution_and_random_multi_junction_interval_sweep(self) -> None:
+        # Exact deterministic 4-node witness from M06-R01 where t_max_term > u*[j1] while s[j2] > 0.
+        witness = {
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m06_r01_witness",
+            "nodes": ["a", "b", "j1", "j2"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["a", "b"],
+                "rods": {
+                    "a_j1": {"kind": "rod_area", "a": "a", "b": "j1", "k": "1", "L": "1", "A": "1"},
+                    "j1_j2": {"kind": "rod_area", "a": "j1", "b": "j2", "k": {"low": "1", "high": "2"}, "L": "1", "A": "1"},
+                    "a_j2": {"kind": "rod_area", "a": "a", "b": "j2", "k": "1", "L": "1", "A": "1", "generatedPowerW": "2400"},
+                    "b_j1": {"kind": "rod_area", "a": "b", "b": "j1", "k": "0.001", "L": "1", "A": "1"},
+                },
+            },
+            "attachments": {
+                "a": {"kind": "maintained", "temperatureK": "300"},
+                "b": {"kind": "maintained", "temperatureK": "1300"},
+            },
+            "solve": {"mode": "steady"},
+        }
+        res = solve_system(witness)
+        self.assertEqual(res["status"], "resolved")
+        rg = res["rodGenerationSummary"]
+        # Check exact corner solutions for g(j1_j2) in {1, 2}.
+        for g12 in (Fraction(1), Fraction(2)):
+            # (1 + g12 + 1/1000)*T1 - g12*T2 = 300 + 1300/1000
+            # -g12*T1 + (1 + g12)*T2 = 300 + 1200
+            a11, a12 = Fraction(1001, 1000) + g12, -g12
+            a21, a22 = -g12, Fraction(1) + g12
+            b1, b2 = Fraction(3013, 10), Fraction(1500)
+            det = a11 * a22 - a12 * a21
+            t1 = (a22 * b1 - a12 * b2) / det
+            t2 = (-a21 * b1 + a11 * b2) / det
+            _assert_enclosed(self, rg["nodeTemperatureBoundsK"]["j1"], mp.mpf(t1.numerator) / t1.denominator, msg="r01 j1")
+            _assert_enclosed(self, rg["nodeTemperatureBoundsK"]["j2"], mp.mpf(t2.numerator) / t2.denominator, msg="r01 j2")
+
+        # 50-trial deterministic randomized 2-4 junction interval rod graph sweep (seed=42).
+        rng = random.Random(42)
+        for trial in range(50):
+            nj = rng.randint(2, 4)
+            terms = ["t0", "t1"]
+            juncs = [f"j{k}" for k in range(nj)]
+            nodes = terms + juncs
+            rods = {}
+            # Build random spanning tree first for guaranteed connectivity, plus 1-2 extra chords.
+            order = list(nodes)
+            rng.shuffle(order)
+            edge_pairs = [(order[i], order[i + 1]) for i in range(len(order) - 1)]
+            for _ in range(rng.randint(1, 2)):
+                u, v = rng.sample(nodes, 2)
+                edge_pairs.append((u, v))
+            for idx, (u, v) in enumerate(edge_pairs):
+                lo_k = rng.randint(1, 5)
+                hi_k = lo_k + rng.randint(0, 5)
+                pwr = rng.choice(["0", "0", "25", "120", "800"])
+                if idx == 0:
+                    pwr = "150"
+                rods[f"e{idx}"] = {
+                    "kind": "rod_area",
+                    "a": u,
+                    "b": v,
+                    "k": str(lo_k) if lo_k == hi_k else {"low": str(lo_k), "high": str(hi_k)},
+                    "L": "1",
+                    "A": "1",
+                    "generatedPowerW": pwr,
+                }
+            model = build_rod_generation_model(nodes, terms, rods)
+            assert model is not None
+            t_lo0 = Fraction(rng.randint(250, 350))
+            t_hi1 = Fraction(rng.randint(400, 1200))
+            prof = model.recover_profiles({"t0": (t_lo0, t_lo0), "t1": (t_hi1, t_hi1)})
+            # Sample 3 exact realizations inside the conductance box and verify containment.
+            from tools.multiport_thermal_network import _solve_exact_linear_fractions
+            j_idx = {j: i for i, j in enumerate(juncs)}
+            for mode_pick in (0, 1, 2):
+                mat = [[Fraction(0)] * nj for _ in range(nj)]
+                rhs = [model.endpoint_injections_w[j] for j in juncs]
+                for e in model.edges:
+                    g = e.g_lo if mode_pick == 0 else (e.g_hi if mode_pick == 1 else (e.g_lo + e.g_hi) / 2)
+                    if e.a in j_idx and e.b in j_idx:
+                        ia, ib = j_idx[e.a], j_idx[e.b]
+                        mat[ia][ia] += g
+                        mat[ib][ib] += g
+                        mat[ia][ib] -= g
+                        mat[ib][ia] -= g
+                    elif e.a in j_idx:
+                        ia = j_idx[e.a]
+                        mat[ia][ia] += g
+                        rhs[ia] += g * (t_lo0 if e.b == "t0" else t_hi1)
+                    elif e.b in j_idx:
+                        ib = j_idx[e.b]
+                        mat[ib][ib] += g
+                        rhs[ib] += g * (t_lo0 if e.a == "t0" else t_hi1)
+                sol = _solve_exact_linear_fractions(mat, rhs)
+                for i, j in enumerate(juncs):
+                    lo_b, hi_b = map(Fraction, prof["nodeTemperatureBoundsK"][j])
+                    self.assertLessEqual(lo_b, sol[i], f"trial {trial} {j}")
+                    self.assertGreaterEqual(hi_b, sol[i], f"trial {trial} {j}")
+
+    def test_m06_r02_r03_r04_r05_validation_and_equation_consistency(self) -> None:
+        # M06-R02: unknown rod_probe, out-of-range x, and rod_probe on unheated system raise ValueError.
+        heated_sys = {
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m06_r02_heated",
+            "nodes": ["a", "b"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["a", "b"],
+                "rods": {"r1": {"kind": "rod_area", "a": "a", "b": "b", "k": "5", "L": "1", "A": "1", "generatedPowerW": "20"}},
+            },
+            "attachments": {
+                "a": {"kind": "maintained", "temperatureK": "300"},
+                "b": {"kind": "maintained", "temperatureK": "310"},
+            },
+            "solve": {"mode": "steady"},
+        }
+        with self.assertRaises(ValueError):
+            solve_system(heated_sys, rod_probe=("nonexistent", "0.5"))
+        with self.assertRaises(ValueError):
+            solve_system(heated_sys, rod_probe=("r1", "1.5"))
+
+        unheated_sys = {
+            **heated_sys,
+            "id": "m06_r02_unheated",
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["a", "b"],
+                "rods": {"r1": {"kind": "rod_area", "a": "a", "b": "b", "k": "5", "L": "1", "A": "1"}},
+            },
+        }
+        with self.assertRaises(ValueError):
+            solve_system(unheated_sys, rod_probe=("r1", "0.5"))
+
+        # M06-R03: standalone build_rod_generation_model rejects self-loops, bogus kind, disconnected graph.
+        with self.assertRaises(ValueError):
+            build_rod_generation_model(
+                ["a", "b"], ["a", "b"],
+                {"r1": {"kind": "rod_area", "a": "a", "b": "a", "k": "1", "L": "1", "A": "1", "generatedPowerW": "10"}},
+            )
+        with self.assertRaises(ValueError):
+            build_rod_generation_model(
+                ["a", "b"], ["a", "b"],
+                {"r1": {"kind": "bogus", "a": "a", "b": "b", "k": "1", "L": "1", "d": "1", "generatedPowerW": "10"}},
+            )
+        with self.assertRaises(ValueError):
+            build_rod_generation_model(
+                ["a", "b", "isolated"], ["a", "b"],
+                {"r1": {"kind": "rod_area", "a": "a", "b": "b", "k": "1", "L": "1", "A": "1", "generatedPowerW": "10"}},
+            )
+
+        # M06-R04: describe_equations includes + I_Norton[t] on heated terminal equations, omits on unheated.
+        eq_h = describe_equations(heated_sys)
+        eq_u = describe_equations(unheated_sys)
+        self.assertIn("+ I_Norton[a]", eq_h["terminalEquations"]["a"])
+        self.assertIn("+ I_Norton[b]", eq_h["terminalEquations"]["b"])
+        self.assertNotIn("I_Norton", eq_u["terminalEquations"]["a"])
+
+        # M06-R05: direct engine calls reject nonzero total_generated_power_w without terminal_injections_w.
+        law = DerivedLaw.from_rods(
+            ["a", "b"],
+            {"r1": {"kind": "rod_area", "a": "a", "b": "b", "k": "5", "L": "1", "A": "1"}},
+            terminals=["a", "b"],
+        )
+        with self.assertRaises(ValueError):
+            solve_multiport(
+                law,
+                {"a": {"kind": "maintained", "temperatureK": "300"}, "b": {"kind": "maintained", "temperatureK": "310"}},
+                total_generated_power_w=Fraction(10),
+            )
+        with self.assertRaises(ValueError):
+            solve_enthalpy_continuation(
+                law,
+                {
+                    "a": {"kind": "sensible_body", "heatCapacityJPerK": "100", "initialTemperatureK": "300"},
+                    "b": {"kind": "maintained", "temperatureK": "310"},
+                },
+                "10",
+                total_generated_power_w=Fraction(10),
+            )
 
 
 if __name__ == "__main__":

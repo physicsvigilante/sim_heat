@@ -567,8 +567,9 @@ def solve_stefan_from_law(
     # Positive INTO layer means melting (+), freezing releases latent heat (-).
     latent_energy_into_layer = -delta_mass * latent
 
-    # Final exposed-face temperature at port p (T_port = T_eq + (T_tr - T_eq) * R_port / R_tot)
-    # when growing/melting; clamped at T_eq if completely frozen/melted or T_tr at equilibrium.
+    # Final exposed-face temperature at port p (T_port = T_eq + R_port * Q_final) evaluated at
+    # t = t_modeled (when completed, t_modeled = t_done^- where the front just reaches s_max / 0
+    # with T_front = T_tr; postCompletionModeled is False).
     if g_kind == "planar":
         r_ice_final = final_coord / (k_layer * geom["area"])
     elif g_kind == "cylinder":

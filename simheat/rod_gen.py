@@ -24,6 +24,7 @@ from simheat.core import Box, ZERO, pi_rational_enclosure
 from simheat.laws import _monotone_junction_enclosure, _outward_clamp_fraction, _parse_positive_param
 from tools.join_thermal_networks import bounds
 from tools.multiport_thermal_network import _solve_exact_linear_fractions as _exact_linear_solve
+from tools.offline_investigation import _expect_exact_keys
 from tools.radiating_surface import decimal_input
 
 
@@ -59,6 +60,15 @@ class RodGenerationModel:
         """Recover certified internal junction temperatures and per-rod parabolic peaks."""
         if set(terminal_temps) != set(self.terminals):
             raise ValueError("terminal_temps keys must match RodGenerationModel.terminals")
+        if probe is not None:
+            if not isinstance(probe, (tuple, list)) or len(probe) != 2:
+                raise ValueError("probe must be a (rod_name, position_fraction) pair")
+            p_name, p_x = probe
+            edge_names = {e.name for e in self.edges}
+            if p_name not in edge_names:
+                raise ValueError(f"probe rod {p_name!r} not found in rods {sorted(edge_names)}")
+            if not isinstance(p_x, Fraction) or not (0 <= p_x <= 1):
+                raise ValueError("probe position fraction must be a Fraction in [0, 1]")
 
         node_temps: dict[str, tuple[Fraction, Fraction]] = dict(terminal_temps)
 
@@ -193,7 +203,9 @@ def _solve_junction_temperatures_with_sources(
     # Guaranteed sub-solution: T_J = t_min_term (since s_k >= 0).
     lo_map = {j: t_min_term for j in junctions}
 
-    # Guaranteed super-solution via Howard policy iteration on the M-matrix upper residual f_min.
+    # Guaranteed super-solution via pure Howard policy iteration on the M-matrix upper residual f_min.
+    # Start at t_min_term (a guaranteed sub-solution of f_min(u) = 0 since t_min - t_nbr <= 0 and -s_j <= 0);
+    # pure policy iteration without clamping increases monotonically to the exact upper fixed point f_min(u*) = 0.
     def _eval_j_res_hi(vals: dict[str, Fraction]) -> dict[str, Fraction]:
         out_r = {}
         for j in junctions:
@@ -205,8 +217,8 @@ def _solve_junction_temperatures_with_sources(
             out_r[j] = r_val
         return out_r
 
-    hi_map = {j: t_max_term for j in junctions}
-    for _ in range(32):
+    hi_map = {j: t_min_term for j in junctions}
+    for _ in range(max(32, 4 * nj + 16)):
         res_now = _eval_j_res_hi(hi_map)
         if all(v >= 0 for v in res_now.values()):
             break
@@ -222,7 +234,7 @@ def _solve_junction_temperatures_with_sources(
                 else:
                     rhs_hi[j_i] += g * t_n
         sol_super = _exact_linear_solve(mat_hi, rhs_hi)
-        hi_map = {junctions[i]: max(hi_map[junctions[i]], sol_super[i]) for i in range(nj)}
+        hi_map = {junctions[i]: sol_super[i] for i in range(nj)}
     else:
         if not all(v >= 0 for v in _eval_j_res_hi(hi_map).values()):
             raise ValueError("failed to construct certified super-solution for internal junction temperatures")
@@ -304,7 +316,18 @@ def build_rod_generation_model(
     rods: dict[str, dict[str, Any]],
 ) -> RodGenerationModel | None:
     """Build certified ``RodGenerationModel`` if any rod specifies positive ``generatedPowerW``."""
+    if not isinstance(nodes, (list, tuple)) or len(nodes) < 2 or any(not isinstance(n, str) or not n for n in nodes):
+        raise ValueError("nodes must be a list of at least 2 non-empty node name strings")
+    if len(set(nodes)) != len(nodes):
+        raise ValueError("nodes must contain unique names")
     node_set = set(nodes)
+    if not isinstance(terminals, (list, tuple)) or len(terminals) < 2:
+        raise ValueError("terminals must be a list of at least 2 node names")
+    if len(set(terminals)) != len(terminals) or not set(terminals).issubset(node_set):
+        raise ValueError("terminals must be unique members of nodes")
+    if not isinstance(rods, dict) or not rods:
+        raise ValueError("rods must be a non-empty mapping")
+
     term_list = list(terminals)
     term_set = set(term_list)
     junctions = tuple(n for n in nodes if n not in term_set)
@@ -313,14 +336,40 @@ def build_rod_generation_model(
     edges: list[RodGenEdge] = []
     endpoint_inj = {n: Fraction(0) for n in nodes}
     total_gen = Fraction(0)
+    conn_adj: dict[str, set[str]] = {n: set() for n in nodes}
 
     for name, spec in sorted(rods.items()):
+        if not isinstance(spec, dict):
+            raise ValueError(f"rods[{name}] must be a mapping")
+        kind = spec.get("kind")
+        if kind in ("rod_area", "RodArea"):
+            _expect_exact_keys(
+                spec,
+                required=("kind", "a", "b", "k", "L", "A"),
+                optional=("generatedPowerW",),
+                label=f"rods[{name}]",
+            )
+        elif kind in ("rod_circular", "RodCircular"):
+            _expect_exact_keys(
+                spec,
+                required=("kind", "a", "b", "k", "L", "d"),
+                optional=("generatedPowerW",),
+                label=f"rods[{name}]",
+            )
+        else:
+            raise ValueError(
+                f"rods[{name}].kind must be one of ('rod_area', 'RodArea', 'rod_circular', 'RodCircular'), got {kind!r}"
+            )
         p_raw = spec.get("generatedPowerW")
         power = decimal_input(p_raw, f"rods[{name}].generatedPowerW") if p_raw is not None else Fraction(0)
         a, b = spec["a"], spec["b"]
+        if a not in node_set or b not in node_set or a == b:
+            raise ValueError(f"rods[{name}] endpoints ({a!r}, {b!r}) must be distinct declared nodes")
+        conn_adj[a].add(b)
+        conn_adj[b].add(a)
         k_lo, k_hi = _parse_positive_param(spec["k"], f"rods[{name}].k")
         l_lo, l_hi = _parse_positive_param(spec["L"], f"rods[{name}].L")
-        if spec["kind"] in ("rod_area", "RodArea"):
+        if kind in ("rod_area", "RodArea"):
             a_lo, a_hi = _parse_positive_param(spec["A"], f"rods[{name}].A")
             if k_lo == k_hi and a_lo == a_hi and l_lo == l_hi:
                 g_lo = g_hi = k_lo * a_lo / l_lo
@@ -337,6 +386,17 @@ def build_rod_generation_model(
         endpoint_inj[a] += half
         endpoint_inj[b] += half
         total_gen += power
+
+    visited = {nodes[0]}
+    stack = [nodes[0]]
+    while stack:
+        cur = stack.pop()
+        for nxt in conn_adj[cur]:
+            if nxt not in visited:
+                visited.add(nxt)
+                stack.append(nxt)
+    if visited != node_set:
+        raise ValueError(f"rod graph is disconnected; unreachable nodes: {sorted(node_set - visited)}")
 
     if total_gen == 0:
         return None
