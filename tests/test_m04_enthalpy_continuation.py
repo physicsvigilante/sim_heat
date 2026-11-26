@@ -819,6 +819,130 @@ class M04EnthalpyContinuationTests(unittest.TestCase):
                 },
                 "10",
             )
+        # M04-R03: surrounding whitespace in heatInputW must be refused (matches decimal_input).
+        with self.assertRaises(ValueError):
+            solve_enthalpy_continuation(
+                link,
+                {
+                    "a": {"kind": "sensible_body", "heatCapacityJPerK": "100", "initialTemperatureK": "300", "heatInputW": " -10 "},
+                    "b": {"kind": "maintained", "temperatureK": "300"},
+                },
+                "10",
+            )
+
+    def test_review_hardening_m04_r01_r02_r03_regressions(self):
+        # M04-R01(1): intermediate multi-stage negative Kelvin (-66.19 K at event 0, recovering to +697.86 K) MUST fail!
+        law_r01_a = DerivedLaw.from_rods(
+            nodes=["a", "p", "r"],
+            terminals=["a", "p", "r"],
+            rods={
+                "ap": {"kind": "rod_area", "a": "a", "b": "p", "k": "0.5", "L": "1", "A": "1"},
+                "pr": {"kind": "rod_area", "a": "p", "b": "r", "k": "1", "L": "1", "A": "1"},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "negative absolute temperature"):
+            solve_enthalpy_continuation(
+                law_r01_a,
+                {
+                    "a": {"kind": "sensible_body", "heatCapacityJPerK": "10", "initialTemperatureK": "50", "heatInputW": "-100"},
+                    "p": {
+                        "kind": "phase_substance",
+                        "transitionTemperatureK": "100",
+                        "specificLatentHeatJPerKg": "100000",
+                        "solidSpecificHeatJPerKgK": "100",
+                        "liquidSpecificHeatJPerKgK": "100",
+                        "initialSolidKg": "0.25",
+                        "initialLiquidKg": "0",
+                    },
+                    "r": {"kind": "maintained", "temperatureK": "1000"},
+                },
+                "300",
+            )
+
+        # M04-R01(2): zero-event sensible-body intermediate dip below 0 K (recovering by t=150 s) MUST fail!
+        law_r01_b = _make_complete_law(["a", "b"], {("a", "b"): F("0.1")})
+        with self.assertRaisesRegex(ValueError, "negative absolute temperature"):
+            solve_enthalpy_continuation(
+                law_r01_b,
+                {
+                    "a": {"kind": "sensible_body", "heatCapacityJPerK": "1", "initialTemperatureK": "10", "heatInputW": "-50"},
+                    "b": {"kind": "sensible_body", "heatCapacityJPerK": "100", "initialTemperatureK": "200", "heatInputW": "500"},
+                },
+                "150",
+            )
+
+        # M04-R01(3): interval conductance straddling 0 K ([-28.27 K, +19.44 K]) MUST NOT return status='complete'!
+        law_r01_c = DerivedLaw.from_rods(
+            nodes=["a", "b"],
+            terminals=["a", "b"],
+            rods={"ab": {"kind": "rod_area", "a": "a", "b": "b", "k": {"low": "0.8", "high": "1.2"}, "L": "1", "A": "1"}},
+        )
+        with self.assertRaisesRegex(ValueError, "nonnegative absolute temperature|negative absolute temperature"):
+            solve_enthalpy_continuation(
+                law_r01_c,
+                {
+                    "a": {"kind": "sensible_body", "heatCapacityJPerK": "10", "initialTemperatureK": "20", "heatInputW": "-100"},
+                    "b": {"kind": "maintained", "temperatureK": "100"},
+                },
+                "50",
+            )
+
+        # Positive control with heatInputW < 0 where T stays strictly positive (~250 K > 0 K) MUST still complete cleanly!
+        pos_ctrl = solve_enthalpy_continuation(
+            law_r01_c,
+            {
+                "a": {"kind": "sensible_body", "heatCapacityJPerK": "100", "initialTemperatureK": "300", "heatInputW": "-10"},
+                "b": {"kind": "maintained", "temperatureK": "300"},
+            },
+            "50",
+        )
+        self.assertEqual(pos_ctrl["status"], "complete")
+        self.assertGreater(F(pos_ctrl["ports"]["a"]["finalTemperatureBoundsK"][0]), F(200))
+
+        # M04-R02: solve_continuation_from_law uses the full continuation defaults (240/96) and matches direct call on R2 initial_steps=1!
+        edges_r2 = {("b", "p"): F("3.2"), ("p", "r"): F("0.55"), ("b", "r"): F("0.45")}
+        ports_r2 = {
+            "b": {"kind": "sensible_body", "heatCapacityJPerK": "900", "initialTemperatureK": "410"},
+            "p": {
+                "kind": "phase_substance",
+                "initialTemperatureK": "260",
+                "transitionTemperatureK": "273.15",
+                "specificLatentHeatJPerKg": "334000",
+                "solidSpecificHeatJPerKgK": "2100",
+                "liquidSpecificHeatJPerKgK": "4200",
+                "initialSolidKg": "0.04",
+                "initialLiquidKg": "0",
+            },
+            "r": {"kind": "maintained", "temperatureK": "240"},
+        }
+        law_r2 = _make_complete_law(["b", "p", "r"], edges_r2, delta=F(0))
+        res_wrap = solve_continuation_from_law(law_r2, ports_r2, "3800", initial_steps=1)
+        self.assertEqual(res_wrap["status"], "complete")
+        self.assertEqual(len(res_wrap["events"]), 4)
+
+        # M04-R03: event landing at exact t == duration with zero post-event flux completes cleanly!
+        # Link G=2, hot maintained 300 K, pure solid at 250 K? Better: hot body at 300 K?
+        # Even simpler: pure solid at T_tr=300 K, L=1000, m=0.1 -> e_lat=100 J, maintained at 301 K, G=1 -> Q=1 W -> melts at exact t=100 s!
+        # Add heatInputW="-1" on a 3rd node? No, with exact t=100 s and duration=100 s, rem_hi==0 after event 0!
+        law_exact_end = _make_complete_law(["p", "r"], {("p", "r"): F(1)})
+        res_end = solve_enthalpy_continuation(
+            law_exact_end,
+            {
+                "p": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "solidSpecificHeatJPerKgK": "100",
+                    "liquidSpecificHeatJPerKgK": "100",
+                    "initialSolidKg": "0.1",
+                    "initialLiquidKg": "0",
+                },
+                "r": {"kind": "maintained", "temperatureK": "301"},
+            },
+            "100",
+        )
+        self.assertEqual(res_end["status"], "complete")
+        self.assertEqual(res_end["modeledDurationBoundsS"], ["100", "100"])
 
 
 if __name__ == "__main__":

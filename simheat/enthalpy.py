@@ -43,19 +43,16 @@ DEFAULT_MAX_BISECT_REFINEMENTS = 96
 
 
 def signed_decimal_input(value: Any, label: str) -> Fraction:
-    """Parse a strict signed SI decimal string into an exact ``Fraction``."""
-    if not isinstance(value, str):
-        raise ValueError(f"{label} must be a decimal string")
-    raw = value.strip()
-    if not raw:
-        raise ValueError(f"{label} must be a non-empty decimal string")
-    if raw[0] == "-":
-        if len(raw) == 1 or raw[1] in "+-":
+    """Parse a strict signed SI decimal string (no surrounding whitespace) into an exact ``Fraction``."""
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise ValueError(f"{label} must be a non-empty signed decimal string without surrounding whitespace")
+    if value[0] == "-":
+        if len(value) == 1 or value[1] in "+-" or value[1].isspace():
             raise ValueError(f"{label} has invalid signed decimal format {value!r}")
-        return -decimal_input(raw[1:], label)
-    if raw[0] == "+":
+        return -decimal_input(value[1:], label)
+    if value[0] == "+":
         raise ValueError(f"{label} must not have a leading '+' sign")
-    return decimal_input(raw, label)
+    return decimal_input(value, label)
 
 
 def _validate_positive_int(value: Any, label: str, *, upper: int | None = None) -> int:
@@ -735,6 +732,73 @@ def _global_conservation_residual(
     return total_du - Box.bounds(t_lo, t_hi) * total_power
 
 
+def _certify_stage_nonnegative(
+    evo: _ModeEvolution,
+    dt_end: Fraction,
+    initial_steps: int,
+    max_refinements: int,
+) -> None:
+    """When any sensible port extracts heat (r_min < 0), certify T_i(tau) >= 0 K on [0, dt_end].
+
+    No-op with zero overhead whenever ``evo.r_min == 0`` (all sensible heatInputW >= 0), where the
+    Kamke/Mueller comparison theorem already guarantees T_i(tau) >= T_min_0 >= 0.
+    """
+    if evo.r_min >= 0 or evo.n == 0 or dt_end <= 0:
+        return
+
+    grid = [dt_end * k / initial_steps for k in range(initial_steps + 1)]
+    pending: list[tuple[Fraction, Fraction]] = []
+    for k in range(initial_steps + 1):
+        tk, _, _ = evo.state_at(grid[k])
+        for n in evo.sensible:
+            if tk[n].span()[1] < 0:
+                raise ValueError(f"negative absolute temperature reached at port {n!r}")
+    for k in range(initial_steps):
+        ts, _, _ = evo.subinterval(grid[k], grid[k + 1])
+        bad_straddle = False
+        for n in evo.sensible:
+            lo, hi = ts[n].span()
+            if hi < 0:
+                raise ValueError(f"negative absolute temperature reached at port {n!r}")
+            if lo < 0:
+                bad_straddle = True
+        if bad_straddle:
+            pending.append((grid[k], grid[k + 1]))
+
+    tol = max(Fraction(1, 10**9), dt_end / (10**9))
+    used = 0
+    while pending:
+        a, b = pending.pop(0)
+        if b - a <= tol or used >= max_refinements:
+            ts, _, _ = evo.subinterval(a, b)
+            for n in evo.sensible:
+                lo, hi = ts[n].span()
+                if hi < 0:
+                    raise ValueError(f"negative absolute temperature reached at port {n!r}")
+                if lo < 0:
+                    raise ValueError(
+                        f"cannot certify nonnegative absolute temperature (T >= 0 K) at port {n!r}"
+                    )
+            continue
+        used += 1
+        mid = (a + b) / 2
+        tm, _, _ = evo.state_at(mid)
+        for n in evo.sensible:
+            if tm[n].span()[1] < 0:
+                raise ValueError(f"negative absolute temperature reached at port {n!r}")
+        for sub_a, sub_b in ((mid, b), (a, mid)):
+            ts, _, _ = evo.subinterval(sub_a, sub_b)
+            straddles = False
+            for n in evo.sensible:
+                lo, hi = ts[n].span()
+                if hi < 0:
+                    raise ValueError(f"negative absolute temperature reached at port {n!r}")
+                if lo < 0:
+                    straddles = True
+            if straddles:
+                pending.insert(0, (sub_a, sub_b))
+
+
 def _phase_masses_from_state(sp: _PortSpec, mode: str, h_box: Box) -> tuple[Box, Box]:
     if mode == "solid":
         return Box.exact(sp.total_mass), ZERO
@@ -916,10 +980,15 @@ def solve_enthalpy_continuation(
         *,
         unresolved_candidates: list[str] | None = None,
     ) -> dict[str, Any]:
-        # Physical absolute temperature check (only flag if provably negative Kelvin).
+        # Physical absolute temperature check: refuse provably negative OR 0 K-straddling bounds.
         for n in terminals:
-            if final_t[n].span()[1] < 0:
+            t_lo_n, t_hi_n = final_t[n].span()
+            if t_hi_n < 0:
                 raise ValueError(f"negative absolute temperature reached at port {n!r}")
+            if t_lo_n < 0:
+                raise ValueError(
+                    f"cannot certify nonnegative absolute temperature (T >= 0 K) at port {n!r}"
+                )
         residual = _global_conservation_residual(
             terminals, specs, final_t, final_h, mod_lo, mod_hi, total_power
         )
@@ -1012,9 +1081,24 @@ def solve_enthalpy_continuation(
     t_hi = Fraction(0)
 
     for _stage in range(max_events + 1):
-        evo = _ModeEvolution(terminals, specs, modes, t_cur, h_cur, w_net)
         rem_hi = duration - t_lo
         rem_lo = max(Fraction(0), duration - t_hi)
+
+        if rem_hi == 0:
+            if is_closed:
+                t_cur, h_cur = _project_closed_ledger(
+                    terminals, specs, modes, t_cur, h_cur, duration, duration, total_power, set()
+                )
+            return _finish("complete", "resolved", None, duration, duration, t_cur, h_cur, modes)
+
+        evo = _ModeEvolution(terminals, specs, modes, t_cur, h_cur, w_net)
+
+        if not phase_ports:
+            _certify_stage_nonnegative(evo, rem_hi, initial_steps, max_prune_refinements)
+            tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
+            if is_closed:
+                tf, hf = _project_closed_ledger(terminals, specs, modes, tf, hf, duration, duration, total_power, set())
+            return _finish("complete", "resolved", None, duration, duration, tf, hf, modes)
 
         # Verify strict boundary departure on restart for any phase node sitting at its mode boundary.
         t0_s, h0_s, q0_s = evo.state_at(Fraction(0))
@@ -1047,12 +1131,6 @@ def solve_enthalpy_continuation(
                 unresolved_candidates=bad_depart,
             )
 
-        if not phase_ports or rem_hi == 0:
-            tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
-            if is_closed:
-                tf, hf = _project_closed_ledger(terminals, specs, modes, tf, hf, duration, duration, total_power, set())
-            return _finish("complete", "resolved", None, duration, duration, tf, hf, modes)
-
         # Uniform initial grid over [0, rem_hi].
         grid = [rem_hi * k / initial_steps for k in range(initial_steps + 1)]
         first_unsafe: int | None = None
@@ -1075,6 +1153,7 @@ def solve_enthalpy_continuation(
                 break
 
         if first_unsafe is None:
+            _certify_stage_nonnegative(evo, rem_hi, initial_steps, max_prune_refinements)
             tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
             tf, hf = _clip_state_to_modes(terminals, specs, modes, tf, hf)
             if is_closed:
@@ -1338,6 +1417,7 @@ def solve_enthalpy_continuation(
 
         # All unsafe cells pruned away -> no event on [0, rem_hi]!
         if not intervals and cert_hi is None:
+            _certify_stage_nonnegative(evo, rem_hi, initial_steps, max_prune_refinements)
             tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
             tf, hf = _clip_state_to_modes(terminals, specs, modes, tf, hf)
             if is_closed:
@@ -1364,6 +1444,7 @@ def solve_enthalpy_continuation(
 
         # Unresolved event existence or horizon ordering (cert_hi is None or cert_hi > rem_lo).
         if cert_hi is None or cert_hi > rem_lo:
+            _certify_stage_nonnegative(evo, rem_hi, initial_steps, max_prune_refinements)
             t_hor, h_hor, _ = evo.subinterval(rem_lo, rem_hi)
             extras = [(t_hor, h_hor)]
             if cert_hi is not None:
@@ -1405,6 +1486,7 @@ def solve_enthalpy_continuation(
             )
 
         # Event IS certified before rem_lo in union(intervals) U {cert_hi}.
+        _certify_stage_nonnegative(evo, cert_hi, initial_steps, max_prune_refinements)
         cand_targets = _collect_candidates(intervals, cert_hi)
         cand_nodes = list(cand_targets.keys())
         tc_e, hc_e, _ = evo.state_at(cert_hi)

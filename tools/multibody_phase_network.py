@@ -24,7 +24,9 @@ from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
 from tools.multiport_thermal_network import _symmetric_conductances
 from simheat.enthalpy import (
+    DEFAULT_MAX_BISECT_REFINEMENTS as DEFAULT_CONTINUATION_MAX_BISECT_REFINEMENTS,
     DEFAULT_MAX_EVENTS as DEFAULT_CONTINUATION_MAX_EVENTS,
+    DEFAULT_MAX_PRUNE_REFINEMENTS as DEFAULT_CONTINUATION_MAX_PRUNE_REFINEMENTS,
     ENTHALPY_CONTINUATION_SCHEMA,
     solve_enthalpy_continuation,
 )
@@ -893,8 +895,8 @@ def solve_continuation_from_law(
     *,
     initial_steps=16,
     max_events=DEFAULT_CONTINUATION_MAX_EVENTS,
-    max_prune_refinements=DEFAULT_MAX_PRUNE_REFINEMENTS,
-    max_bisect_refinements=DEFAULT_MAX_BISECT_REFINEMENTS,
+    max_prune_refinements=DEFAULT_CONTINUATION_MAX_PRUNE_REFINEMENTS,
+    max_bisect_refinements=DEFAULT_CONTINUATION_MAX_BISECT_REFINEMENTS,
 ):
     """Solve coupled multi-body / multi-phase linear enthalpy-mode continuation (M04)."""
     return solve_enthalpy_continuation(
@@ -915,8 +917,8 @@ def investigate_continuation(
     *,
     initial_steps=16,
     max_events=DEFAULT_CONTINUATION_MAX_EVENTS,
-    max_prune_refinements=DEFAULT_MAX_PRUNE_REFINEMENTS,
-    max_bisect_refinements=DEFAULT_MAX_BISECT_REFINEMENTS,
+    max_prune_refinements=DEFAULT_CONTINUATION_MAX_PRUNE_REFINEMENTS,
+    max_bisect_refinements=DEFAULT_CONTINUATION_MAX_BISECT_REFINEMENTS,
 ):
     """Resolve a pinned file-backed source tuple/PinnedSourceRef and solve enthalpy-mode continuation."""
     law = inputs.resolve_law() if isinstance(inputs, PinnedSourceRef) else terminal_response(*inputs)
