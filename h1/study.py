@@ -123,7 +123,7 @@ def load_study(path: Path, root: Path, seen: tuple[Path, ...] = ()) -> Study:
     """Validate offline only; this function never writes or invokes a compiler."""
     root = root.resolve(strict=True)
     try:
-        relative = str(path.absolute().relative_to(root))
+        relative = path.absolute().relative_to(root).as_posix()
     except ValueError as exc:
         raise Refusal('path', 'study outside case root') from exc
     path = checked_path(root, relative, root, '.json')
