@@ -43,7 +43,7 @@ jobs:
           python -B -m unittest discover -s h1/tests -v 2>&1 | tee main_evidence/h1.log
           python -B -m unittest discover -s experiments/h1_spike/checks -v 2>&1 | tee main_evidence/analytical.log
           python -B -m unittest discover -s viewer/network/tests -v 2>&1 | tee main_evidence/adapter.log
-          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/*.test.mjs 2>&1 | tee main_evidence/viewer.log
+          node --test viewer/tests/*.test.mjs viewer/network/tests/*.test.mjs viewer/source_preview/*.test.mjs viewer/lesson/*.test.mjs 2>&1 | tee main_evidence/viewer.log
       - name: Run N1 pinned-context plan check and N2-N13 offline suites
         shell: bash
         run: |
