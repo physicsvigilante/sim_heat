@@ -57,8 +57,9 @@ Every conduction specification reduces deterministically to a certified symmetri
 - **Optional keys:** `kind` (`"rods"`), `nodes` (list of all node names, including internal storage-free junctions; inherits top-level `nodes` if omitted at top level), `terminals` (list of exposed terminal node names; if omitted at top level, defaults to `sorted(attachments.keys())`), `lawId`.
 - **Connectivity:** All declared `nodes` must form **one single connected component** with at least 2 terminals. Every node not in `terminals` is eliminated automatically as an ideal storage-free junction (Schur/Kron reduction for exact point rods; certified monotone barrier + Rayleigh enclosure for interval rods).
 - **Allowed `rod_spec` kinds (exact keys only):**
-  - `rod_area`: `{"kind": "rod_area", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "A": <pos>}` ($G = k A / L$)
-  - `rod_circular`: `{"kind": "rod_circular", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "d": <pos>}` ($G = k (\pi d^2 / 4) / L$, using certified rational $\pi$ enclosure; note `d` is **diameter** in meters!)
+  - `rod_area`: `{"kind": "rod_area", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "A": <pos>, "generatedPowerW"?: <nonneg>}` ($G = k A / L$)
+  - `rod_circular`: `{"kind": "rod_circular", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "d": <pos>, "generatedPowerW"?: <nonneg>}` ($G = k (\pi d^2 / 4) / L$, using certified rational $\pi$ enclosure; note `d` is **diameter** in meters!)
+  - Optional `generatedPowerW` (unsigned SI decimal string $\ge 0$, default `"0"`, top-level `conduction(rods)` only — refused inside `conduction(join)`): models uniform volumetric heat generation along that rod (total rod power $P_r \ge 0$ W). Automatically Norton-reduced through eliminated internal junctions onto terminal heat injections $I_{\text{Norton},i}$ for all compatible backends (`multiport`, `enthalpy`, `staged`, `stefan`), and recovers certified internal junction temperatures and per-rod parabolic peak temperatures/positions in `rodGenerationSummary`.
 
 ### 3.2 Schur-Complement Network Join (`kind: "join"`)
 Joins two independent conduction subnetworks across one or more ideal thermal contacts (eliminating the joined contact nodes):
@@ -109,6 +110,18 @@ Enthalpy $H$ is measured relative to pure solid at $T_{\text{tr}}$: `solid` ($H 
   - **Required:** `enclosureTemperatureK`, `emissivity` ($\in [0, 1]$), `sigmaWPerM2K4` ($> 0$).
   - **Optional (both or neither):** `airTemperatureK`, `convectionCoefficientWPerM2K`.
 
+### 4.6 `stefan_layer` (Transient Quasi-Steady Moving-Boundary Freezing / Melting Front)
+Models a growing or melting solid phase-change layer in the quasi-steady conduction limit (sensible heat storage inside the growing layer neglected; exact as Stefan number $\text{Ste} = c_s |T_{\text{tr}} - T_{\text{eq}}| / L \to 0$) attached to one terminal of any validated conduction network with `maintained` reservoirs on all other terminals (plus optional rod `generatedPowerW` Norton shift).
+- **Required:** `kind` (`"stefan_layer"`), `geometry`, `transitionTemperatureK` ($> 0$), `densityKgPerM3` ($> 0$), `specificLatentHeatJPerKg` ($> 0$), `layerConductivityWPerMK` ($> 0$).
+- **Optional:**
+  - `solidSpecificHeatJPerKgK` ($> 0$): enables certified Stefan-number validity diagnostic (`assumptions.stefanNumberBounds`).
+  - `externalFilmCoefficientWPerM2K` ($> 0$): adds external convective film resistance in series with the network port resistance at the exposed face.
+- `geometry` (exact keys per `kind`):
+  - `planar`: `{"kind": "planar", "areaM2": <pos>, "initialThicknessM": <nonneg>, "maxThicknessM"?: <pos >= initial>}`
+  - `cylinder`: `{"kind": "cylinder", "coreRadiusM": <pos>, "initialOuterRadiusM": <pos >= core>, "cylinderLengthM": <pos>, "maxOuterRadiusM"?: <pos >= initial>}`
+  - `sphere`: `{"kind": "sphere", "coreRadiusM": <pos>, "initialOuterRadiusM": <pos >= core>, "maxOuterRadiusM"?: <pos >= initial>}`
+- **Completion semantics:** When `maxThicknessM` / `maxOuterRadiusM` is reached (freezing) or the layer reaches zero thickness (melting), `postCompletionModeled` is `false` and `modeledDurationBoundsS` stops honestly at the certified completion time `completionTimeBoundsS`.
+
 ---
 
 ## 5. Solve Specification (`solve`) & Backend Dispatch
@@ -126,23 +139,26 @@ Enthalpy $H$ is measured relative to pure solid at $T_{\text{tr}}$: `solid` ($H 
 
 | Mode & Attachments | Selected Backend | Notes |
 |---|---|---|
-| `steady` + (`maintained`, `exterior_surface`, `radial_shell`, coexisting `phase_substance` with `heatInputW=0`) | `multiport` | Exact linear solve for convection-only point systems; certified monotone Newton/interval sweeps for radiation/shells. |
-| `steady` + `sensible_body` (or non-coexisting `phase_substance`, or nonzero `heatInputW`) | `unsupported_regime` | Structured refusal (`C = 0 != t -> inf`). |
+| `steady` + (`maintained`, `exterior_surface`, `radial_shell`, coexisting `phase_substance` with `heatInputW=0`, optional rod `generatedPowerW`) | `multiport` | Exact linear solve for convection-only point systems; certified monotone Newton/interval sweeps for radiation/shells and heated rods. |
+| `steady` + `sensible_body` (or non-coexisting `phase_substance`, or nonzero `heatInputW`, or `stefan_layer`) | `unsupported_regime` | Structured refusal (`C = 0 != t -> inf`, or moving front requires transient mode). |
+| `transient` + 1 `stefan_layer` + `maintained` only (optional rod `generatedPowerW`) | `stefan` | Certified quasi-steady planar / cylindrical / spherical Stefan moving-boundary solver (exact rational `isqrt` + monotone outward bisection). |
+| `transient` + `stefan_layer` + (`sensible_body`, `phase_substance`, `exterior_surface`, `radial_shell`, or multiple `stefan_layer`) | `unsupported_regime` | Structured refusal naming the exact unsupported mechanism pair. |
 | `transient` + (`exterior_surface` or `radial_shell`) | `unsupported_regime` | Nonlinear radiating transient is explicitly out of scope (deferred). |
-| `transient` + 1 `phase_substance` (with `c_s`, `c_l`, `heatInputW=0`) + `maintained` only | `staged` | Exact closed-form 3-stage rational exponential/logarithm enclosure. |
-| `transient` + `sensible_body` + coexisting `phase_substance` (without `c_s`/`c_l` or `continuation: "first_exhaustion"`) | `multibody` | Coupled multi-body transient stopping at certified first exhaustion. |
-| `transient` + `sensible_body` / multiple `phase_substance` (with `c_s`, `c_l`) or nonzero `heatInputW` | `enthalpy` | Certified sequential `solid` ↔ `plateau` ↔ `liquid` continuation with reversals, exact symmetry-tie proofs, energy conservation checks, and honest `mode_sequence_uncertain` stops. |
-| `transient` + `maintained` only (no `sensible_body` or `phase_substance`) | `unsupported_regime` | Structured refusal (`["transient_mode", "maintained_only"]`); requires at least one storage/phase attachment. |
+| `transient` + 1 `phase_substance` (with `c_s`, `c_l`, `heatInputW=0`, optional rod `generatedPowerW`) + `maintained` only | `staged` | Exact closed-form 3-stage rational exponential/logarithm enclosure. |
+| `transient` + `sensible_body` + coexisting `phase_substance` (without `c_s`/`c_l` or `continuation: "first_exhaustion"`, zero rod generation) | `multibody` | Coupled multi-body transient stopping at certified first exhaustion (`first_exhaustion` + rod generation returns `unsupported_regime`). |
+| `transient` + `sensible_body` / multiple `phase_substance` (with `c_s`, `c_l`) or nonzero `heatInputW` or rod `generatedPowerW` | `enthalpy` | Certified sequential `solid` ↔ `plateau` ↔ `liquid` continuation with reversals, exact symmetry-tie proofs, energy conservation checks, and honest `mode_sequence_uncertain` stops. |
+| `transient` + `maintained` only (no `sensible_body`, `phase_substance`, or `stefan_layer`) | `unsupported_regime` | Structured refusal (`["transient_mode", "maintained_only"]`); requires at least one storage/phase/front attachment. |
 
 ---
 
 ## 6. Result Envelope (`sim_heat.thermal_result/1`)
 
 `solve_system` always returns a unified JSON envelope containing:
-- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"staged"`, `"multibody"`, `"enthalpy"`, or `null` when `unsupported_regime`).
-- `status`: backend outcome (`"resolved"`, `"complete"`, `"coexisting"`, `"exhausted"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`, etc.).
+- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"staged"`, `"multibody"`, `"enthalpy"`, `"stefan"`, or `null` when `unsupported_regime`).
+- `status`: backend outcome (`"resolved"`, `"complete"`, `"coexisting"`, `"exhausted"`, `"growing"`, `"melting"`, `"completely_frozen"`, `"completely_melted"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`, etc.).
 - `terminationReason`: canonical termination code (`"converged"`, `"exact_linear"`, `"sweep_limit"`, `"resolved"`, `"refinement_budget"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`).
-- `achievedWidths`: achieved rational enclosure widths (`maxTemperatureWidthK`, `maxFinalTemperatureWidthK`, `modeledDurationWidthS`, etc.).
-- `equations`: deterministic output of `describe_equations` (conduction matrix, terminal ODE/algebraic/enthalpy equations, conservation ledger).
+- `achievedWidths`: achieved rational enclosure widths (`maxTemperatureWidthK`, `maxFinalTemperatureWidthK`, `finalThicknessWidthM`, `modeledDurationWidthS`, etc.).
+- `equations`: deterministic output of `describe_equations` (conduction matrix, optional rod Norton injections, terminal ODE/algebraic/enthalpy/Stefan equations, conservation ledger).
+- `rodGenerationSummary` (present whenever any rod specifies positive `generatedPowerW`): certified `totalGeneratedPowerW`, `terminalNortonInjectionsBoundsW`, `nodeTemperatureBoundsK` (including eliminated internal junctions), and per-rod parabolic `rodPeaks` (`peakTemperatureBoundsK`, `peakPositionFractionFromABounds`).
 - `backendResult`: full certified backend record (exact rational endpoint strings), or `null` for `unsupported_regime`.
 - Offline provenance flags (always `false`): `nativeExecuted`, `nativeQualified`, `independentlyCertifiedReference`, `runnerConsumable`.

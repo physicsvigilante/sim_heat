@@ -133,6 +133,35 @@ export function extractPortRows(result) {
     return [];
   }
   const raw = result.backendResult;
+  // Stefan backend returns stefan front summary + maintainedReservoirTemperaturesK (no raw.ports).
+  if (!raw.ports && raw.stefan && raw.network && raw.network.stefanPort) {
+    const rows = [];
+    const st = raw.stefan;
+    const sPort = raw.network.stefanPort;
+    rows.push({
+      name: sPort,
+      kind: `stefan_layer (${st.geometry})`,
+      temperatureDisplay: formatIntervalPair(st.finalPortTemperatureBoundsK, 'K', 5),
+      exactTemperatureBounds: st.finalPortTemperatureBoundsK,
+      energyOrPowerDisplay: formatIntervalPair(st.latentEnergyIntoLayerBoundsJ, 'J', 2),
+      detailDisplay:
+        `${st.status} (thickness ${formatIntervalPair(st.finalSolidThicknessBoundsM, 'm', 5)}, ` +
+        `mass ${formatIntervalPair(st.finalSolidMassBoundsKg, 'kg', 4)})`,
+    });
+    const maintained = raw.network.maintainedReservoirTemperaturesK || {};
+    for (const [mName, mTemp] of Object.entries(maintained)) {
+      const pair = [mTemp, mTemp];
+      rows.push({
+        name: mName,
+        kind: 'maintained',
+        temperatureDisplay: formatIntervalPair(pair, 'K', 5),
+        exactTemperatureBounds: pair,
+        energyOrPowerDisplay: '—',
+        detailDisplay: 'maintained reservoir',
+      });
+    }
+    return rows;
+  }
   // Staged backend returns substance trajectory + maintainedReservoirTemperaturesK (no raw.ports).
   if (!raw.ports && raw.trajectory && raw.substancePort) {
     const rows = [];

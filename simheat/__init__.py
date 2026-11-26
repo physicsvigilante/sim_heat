@@ -42,6 +42,16 @@ _ENTHALPY_EXPORTS = (
     "solve_enthalpy_continuation",
 )
 
+_STEFAN_EXPORTS = (
+    "STEFAN_SCHEMA",
+    "solve_stefan_from_law",
+)
+
+_ROD_GEN_EXPORTS = (
+    "RodGenerationModel",
+    "build_rod_generation_model",
+)
+
 
 def __getattr__(name: str):
     if name in _SYSTEM_EXPORTS:
@@ -52,6 +62,14 @@ def __getattr__(name: str):
         from simheat import enthalpy
 
         return getattr(enthalpy, name)
+    if name in _STEFAN_EXPORTS:
+        from simheat import stefan
+
+        return getattr(stefan, name)
+    if name in _ROD_GEN_EXPORTS:
+        from simheat import rod_gen
+
+        return getattr(rod_gen, name)
     raise AttributeError(f"module 'simheat' has no attribute {name!r}")
 
 
@@ -66,13 +84,16 @@ __all__ = [
     "ONE",
     "PINNED_LAW_SCHEMA",
     "RESULT_ENVELOPE_SCHEMA",
+    "RodGenerationModel",
     "SCALE",
+    "STEFAN_SCHEMA",
     "TAYLOR",
     "THERMAL_SYSTEM_SCHEMA",
     "ThermalSystem",
     "ZERO",
     "apply",
     "bounded_centre",
+    "build_rod_generation_model",
     "ceil_fraction",
     "describe_equations",
     "dot",
@@ -84,6 +105,7 @@ __all__ = [
     "pi_rational_enclosure",
     "product",
     "solve_enthalpy_continuation",
+    "solve_stefan_from_law",
     "solve_system",
     "step_matrix",
     "validate_terminal_law",

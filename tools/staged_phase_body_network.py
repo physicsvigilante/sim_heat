@@ -283,6 +283,7 @@ def solve_from_law(
     duration_s,
     *,
     maintained_temperatures_k=None,
+    port_norton_injection_w=None,
 ):
     """Solve multi-stage sensible <-> phase-change transient on a validated terminal network."""
     resolved_law, provenance = validate_terminal_law(law)
@@ -315,6 +316,12 @@ def solve_from_law(
 
     effective_imposed = {port: str(t0), **maintained}
     (eq_lo, eq_hi), (r_lo, r_hi) = physical_port({**law, "imposedTemperaturesK": effective_imposed}, port)
+    if port_norton_injection_w is not None:
+        inj_lo, inj_hi = port_norton_injection_w
+        if inj_lo < 0 or inj_lo > inj_hi:
+            raise ValueError("port_norton_injection_w must be a valid nonnegative interval")
+        eq_lo = eq_lo + r_lo * inj_lo
+        eq_hi = eq_hi + r_hi * inj_hi
 
     total_mass = solid0 + liquid0
     # Determine global monotone regime.

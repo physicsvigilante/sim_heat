@@ -261,9 +261,9 @@ def _symmetric_conductances(terminals, law):
     return w
 
 
-def _eval_node_residual(u_k, neighbors, fixed_neighbors, exterior, u_vec, *, maximize):
+def _eval_node_residual(u_k, neighbors, fixed_neighbors, exterior, u_vec, *, maximize, injection=Fraction(0)):
     """Pointwise upper (maximize=True) or lower (maximize=False) residual f_k(u_k) over parameter box."""
-    total = Fraction(0)
+    total = -injection
     for m, (w_lo, w_hi) in neighbors:
         diff = u_k - u_vec[m]
         if maximize:
@@ -345,14 +345,14 @@ def _solve_exact_linear_fractions(matrix, rhs):
     return sol
 
 
-def _solve_piecewise_linear_root(terms, *, maximize):
-    """Exact rational root of sum_r w_r*(T - t_r) = 0 with strictly positive total slope."""
+def _solve_piecewise_linear_root(terms, *, maximize, injection=Fraction(0)):
+    """Exact rational root of sum_r w_r*(T - t_r) - injection = 0 with strictly positive total slope."""
     knots = sorted({t_r for t_r, _, _ in terms})
-    if len(knots) == 1:
+    if len(knots) == 1 and injection == 0:
         return knots[0]
 
     def _eval(t_val):
-        total = Fraction(0)
+        total = -injection
         for t_r, w_lo, w_hi in terms:
             diff = t_val - t_r
             if maximize:
@@ -367,7 +367,7 @@ def _solve_piecewise_linear_root(terms, *, maximize):
             return k_val
         if val > 0:
             left = knots[j - 1]
-            num = Fraction(0)
+            num = injection
             den = Fraction(0)
             for t_r, w_lo, w_hi in terms:
                 if t_r <= left:
@@ -377,12 +377,21 @@ def _solve_piecewise_linear_root(terms, *, maximize):
                 num += w * t_r
                 den += w
             return num / den
-    return knots[-1]
+    # Root lies strictly above knots[-1] (when injection > 0).
+    num = injection
+    den = Fraction(0)
+    for t_r, w_lo, w_hi in terms:
+        w = w_hi if maximize else w_lo
+        num += w * t_r
+        den += w
+    return num / den
 
 
-def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
+def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120, inj_map=None):
     """Solve coupled multi-port steady temperatures via exact rational linear or monotone block sweeps."""
     _verify_guaranteed_anchoring(terminals, parsed_ports, w_net)
+    if inj_map is None:
+        inj_map = {t: (Fraction(0), Fraction(0)) for t in terminals}
     fixed_temps = {}
     unknown_ids = []
     for name in terminals:
@@ -406,6 +415,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
     port_net_neighbors = [[] for _ in range(n_u)]
     fixed_neighbors = [[] for _ in range(n_u)]
     exteriors = [None] * n_u
+    node_inj = [(Fraction(0), Fraction(0))] * n_u
     single_nodes = []
     shell_pairs = []
 
@@ -414,6 +424,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
         if p["kind"] in ("maintained", "phase_bath"):
             continue
         k_port = idx_of[f"port:{name}"]
+        node_inj[k_port] = inj_map[name]
         for other in terminals:
             if other == name:
                 continue
@@ -437,7 +448,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
             exteriors[k_surf] = p
             shell_pairs.append((k_port, k_surf, g_shell))
 
-    # Collect all active anchor temperatures to build a guaranteed global bracket [t_min, t_max].
+    # Collect all active anchor temperatures to build a guaranteed global bracket [u_lo, u_hi].
     anchors = list(fixed_temps.values())
     for name in terminals:
         p = parsed_ports[name]
@@ -448,19 +459,60 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                 anchors.append(p["air_k"])
     t_min = min(anchors)
     t_max = max(anchors)
+    has_positive_injection = any(hi > 0 for _, hi in node_inj)
 
     u_lo = [t_min] * n_u
-    u_hi = [t_max] * n_u
+    if not has_positive_injection:
+        u_hi = [t_max] * n_u
+    else:
+        # Howard M-matrix policy iteration for a certified nonlinear super-solution u_hi >= t_base.
+        t_base = max(t_max, Fraction(1))
+        u_hi = [t_base] * n_u
+        for _ in range(32):
+            if all(
+                _eval_node_residual(
+                    u_hi[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_hi,
+                    maximize=False, injection=node_inj[k][1],
+                ) >= 0
+                for k in range(n_u)
+            ):
+                break
+            mat_sup = [[Fraction(0)] * n_u for _ in range(n_u)]
+            rhs_sup = [node_inj[k][1] for k in range(n_u)]
+            for k in range(n_u):
+                diag = Fraction(0)
+                for m, (w_lo, w_hi) in neighbors[k]:
+                    w = w_lo if u_hi[k] >= u_hi[m] else w_hi
+                    diag += w
+                    mat_sup[k][m] -= w
+                for _, (w_lo, _) in fixed_neighbors[k]:
+                    diag += w_lo
+                ext = exteriors[k]
+                if ext is not None and (ext["eps"] > 0 or ext["h"] > 0):
+                    diag += ext["area"][0] * (ext["h"] + 4 * ext["eps"] * ext["sigma"] * (t_base**3))
+                mat_sup[k][k] = diag
+            delta_sup = _solve_exact_linear_fractions(mat_sup, rhs_sup)
+            u_hi = [max(u_hi[k], t_base + delta_sup[k]) for k in range(n_u)]
+        else:
+            if not all(
+                _eval_node_residual(
+                    u_hi[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_hi,
+                    maximize=False, injection=node_inj[k][1],
+                ) >= 0
+                for k in range(n_u)
+            ):
+                raise ValueError("failed to construct certified super-solution with rod heat generation")
 
     sweeps = 0
-    if t_min == t_max:
+    if t_min == t_max and not has_positive_injection:
         termination_reason = "converged"
     else:
-        # Exact linear path applies ONLY when every conductance and area interval has zero width
+        # Exact linear path applies ONLY when every conductance, area, and injection interval has zero width
         # (every pair in w_net, including fixed-to-fixed edges, and every port attachment,
         # excluding radial_shell) and every exterior has eps == 0.
         is_exact_linear = (
             all(w_lo == w_hi for w_lo, w_hi in w_net.values())
+            and all(lo == hi for lo, hi in inj_map.values())
             and all(p["kind"] != "radial_shell" for p in parsed_ports.values())
             and all(
                 p["area"][0] == p["area"][1] and p["eps"] == 0
@@ -470,7 +522,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
         )
         if is_exact_linear:
             mat = [[Fraction(0)] * n_u for _ in range(n_u)]
-            rhs = [Fraction(0)] * n_u
+            rhs = [node_inj[k][0] for k in range(n_u)]
             for k in range(n_u):
                 diag = Fraction(0)
                 for m, (w_val, _) in neighbors[k]:
@@ -500,7 +552,8 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                     # Lower bound update: leftmost zero of f_k^max(u_k; u_lo) on [u_lo[k], u_hi[k]].
                     lo_a = _bisect_monotone_bound(
                         lambda t, k=k: _eval_node_residual(
-                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_lo, maximize=True
+                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_lo,
+                            maximize=True, injection=node_inj[k][0],
                         ),
                         u_lo[k],
                         u_hi[k],
@@ -510,7 +563,8 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                     # Upper bound update: rightmost zero of f_k^min(u_k; u_hi) on [new_lo, u_hi[k]].
                     hi_b = _bisect_monotone_bound(
                         lambda t, k=k: _eval_node_residual(
-                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_hi, maximize=False
+                            t, neighbors[k], fixed_neighbors[k], exteriors[k], u_hi,
+                            maximize=False, injection=node_inj[k][1],
                         ),
                         new_lo,
                         u_hi[k],
@@ -529,6 +583,7 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                     g_lo, g_hi = g_shell
                     ext = exteriors[k_surf]
                     a_lo, a_hi = ext["area"]
+                    inj_lo_p, inj_hi_p = node_inj[k_port]
 
                     def _f_s(ti, ts, maximize, g_lo=g_lo, g_hi=g_hi, ext=ext, a_lo=a_lo, a_hi=a_hi):
                         diff = ts - ti
@@ -548,8 +603,10 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                         + [(tf, w[0], w[1]) for tf, w in fixed_neighbors[k_port]]
                     )
 
-                    def _psi_max(ts, base_lo=base_lo, g_lo=g_lo, g_hi=g_hi):
-                        return _solve_piecewise_linear_root(base_lo + [(ts, g_lo, g_hi)], maximize=True)
+                    def _psi_max(ts, base_lo=base_lo, g_lo=g_lo, g_hi=g_hi, inj_lo_p=inj_lo_p):
+                        return _solve_piecewise_linear_root(
+                            base_lo + [(ts, g_lo, g_hi)], maximize=True, injection=inj_lo_p,
+                        )
 
                     ts_a = _bisect_monotone_bound(
                         lambda ts: _f_s(max(old_lo_i, _psi_max(ts) - eps_round), ts, True),
@@ -571,8 +628,10 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
                         + [(tf, w[0], w[1]) for tf, w in fixed_neighbors[k_port]]
                     )
 
-                    def _psi_min(ts, base_hi=base_hi, g_lo=g_lo, g_hi=g_hi):
-                        return _solve_piecewise_linear_root(base_hi + [(ts, g_lo, g_hi)], maximize=False)
+                    def _psi_min(ts, base_hi=base_hi, g_lo=g_lo, g_hi=g_hi, inj_hi_p=inj_hi_p):
+                        return _solve_piecewise_linear_root(
+                            base_hi + [(ts, g_lo, g_hi)], maximize=False, injection=inj_hi_p,
+                        )
 
                     ts_b = _bisect_monotone_bound(
                         lambda ts: _f_s(min(old_hi_i, _psi_min(ts) + eps_round), ts, False),
@@ -602,9 +661,15 @@ def _solve_monotone_network(terminals, parsed_ports, w_net, *, max_sweeps=120):
     for k in range(n_u):
         if u_lo[k] > u_hi[k]:
             raise ValueError("multi-port steady enclosure is inverted")
-        if _eval_node_residual(u_lo[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_lo, maximize=True) > 0:
+        if _eval_node_residual(
+            u_lo[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_lo,
+            maximize=True, injection=node_inj[k][0],
+        ) > 0:
             raise ValueError("multi-port steady lower-bound residual certification failed")
-        if _eval_node_residual(u_hi[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_hi, maximize=False) < 0:
+        if _eval_node_residual(
+            u_hi[k], neighbors[k], fixed_neighbors[k], exteriors[k], u_hi,
+            maximize=False, injection=node_inj[k][1],
+        ) < 0:
             raise ValueError("multi-port steady upper-bound residual certification failed")
 
     return {uid: (u_lo[k], u_hi[k]) for k, uid in enumerate(unknown_ids)}, sweeps, termination_reason
@@ -627,7 +692,15 @@ def _intersect_boxes(boxes, label):
     return Box.bounds(lo, hi)
 
 
-def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
+def solve_from_law(
+    law,
+    ports,
+    *,
+    duration_s=None,
+    max_sweeps=120,
+    terminal_injections_w=None,
+    total_generated_power_w=None,
+):
     """Compose and solve a multi-port steady thermal network over a validated terminal law."""
     if isinstance(max_sweeps, bool) or not isinstance(max_sweeps, int) or max_sweeps < 1:
         raise ValueError("max_sweeps must be a positive integer")
@@ -635,6 +708,29 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
     law = resolved_law.to_engine_law()
     terminals = list(law["terminals"])
     parsed_ports, has_phase = _parse_port_specs(terminals, ports)
+
+    if terminal_injections_w is None:
+        if total_generated_power_w not in (None, 0):
+            raise ValueError("total_generated_power_w requires terminal_injections_w")
+        inj_map = {t: (Fraction(0), Fraction(0)) for t in terminals}
+        total_gen_box = ZERO
+    else:
+        if not isinstance(terminal_injections_w, dict) or set(terminal_injections_w) != set(terminals):
+            raise ValueError("terminal_injections_w keys must match network terminals")
+        inj_map = {}
+        for t in terminals:
+            lo, hi = terminal_injections_w[t]
+            if lo < 0 or lo > hi:
+                raise ValueError(f"terminal_injections_w[{t!r}] must be a valid nonnegative interval")
+            inj_map[t] = (lo, hi)
+        sum_lo = sum((inj_map[t][0] for t in terminals), Fraction(0))
+        sum_hi = sum((inj_map[t][1] for t in terminals), Fraction(0))
+        if total_generated_power_w is not None:
+            if not (sum_lo <= total_generated_power_w <= sum_hi):
+                raise ValueError("total_generated_power_w disagrees with terminal_injections_w sum")
+            total_gen_box = Box.exact(total_generated_power_w)
+        else:
+            total_gen_box = Box.bounds(sum_lo, sum_hi)
 
     duration = None
     if has_phase:
@@ -646,7 +742,7 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
 
     w_net = _symmetric_conductances(terminals, law)
     solved_u, sweeps, termination_reason = _solve_monotone_network(
-        terminals, parsed_ports, w_net, max_sweeps=max_sweeps
+        terminals, parsed_ports, w_net, max_sweeps=max_sweeps, inj_map=inj_map,
     )
 
     # Assemble certified terminal temperatures as exact (lo, hi) Fraction pairs and Boxes.
@@ -670,10 +766,10 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
     radial_profiles = {}
     exterior_splits = {}
     if termination_reason == "exact_linear":
-        # Every conductance, area, temperature, and linear film flux is an exact rational.
+        # Every conductance, area, injection, temperature, and linear film flux is an exact rational.
         for name in terminals:
             t_i = port_temp_spans[name][0]
-            q_net = Fraction(0)
+            q_net = inj_map[name][0]
             for other in terminals:
                 if other == name:
                     continue
@@ -691,16 +787,16 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                     split["netHeatToAirBoundsW"] = [str(q_ext), str(q_ext)]
                 exterior_splits[name] = split
             port_outflow_spans[name] = (q_net, q_net)
-        bal_val = sum((port_outflow_spans[name][0] for name in terminals), Fraction(0))
+        bal_val = sum((port_outflow_spans[name][0] for name in terminals), Fraction(0)) - total_gen_box.span()[0]
         bal_lo = bal_hi = bal_val
         if bal_lo > 0 or bal_hi < 0:
             raise ValueError("multi-port steady global energy balance does not contain zero")
         global_balance_bounds = [str(bal_lo), str(bal_hi)]
     else:
-        # Compute network-side outflow into each port: Q_{net -> i} = sum_{j != i} W_ij * (T_j - T_i).
+        # Compute network-side outflow into each port: Q_{net -> i} = I_i + sum_{j != i} W_ij * (T_j - T_i).
         net_outflows = {}
         for name in terminals:
-            q_net = ZERO
+            q_net = Box.bounds(*inj_map[name])
             for other in terminals:
                 if other == name:
                     continue
@@ -745,14 +841,16 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                     split["netHeatToAirBoundsW"] = bounds(q_conv)
                 exterior_splits[name] = split
 
-        # Tighten each phase bath inflow via global energy conservation Q_b = -sum_{j != b} Q_j.
+        # Tighten each phase bath inflow via global energy conservation Q_b = P_gen - sum_{j != b} Q_j.
         for name in terminals:
             if parsed_ports[name]["kind"] == "phase_bath":
                 others_sum = sum((port_outflows[o] for o in terminals if o != name), ZERO)
-                port_outflows[name] = _intersect_boxes([port_outflows[name], -others_sum], f"phase_bath {name}")
+                port_outflows[name] = _intersect_boxes(
+                    [port_outflows[name], total_gen_box - others_sum], f"phase_bath {name}"
+                )
 
         # Verify global steady energy balance contains 0.
-        global_balance = sum((port_outflows[name] for name in terminals), ZERO)
+        global_balance = sum((port_outflows[name] for name in terminals), ZERO) - total_gen_box
         bal_lo, bal_hi = global_balance.span()
         if bal_lo > 0 or bal_hi < 0:
             raise ValueError("multi-port steady global energy balance does not contain zero")

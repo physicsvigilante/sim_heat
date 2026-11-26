@@ -275,6 +275,8 @@ class _ModeEvolution:
         t_init: dict[str, Box],
         h_init: dict[str, Box],
         w_net: dict[tuple[str, str], tuple[Fraction, Fraction]],
+        inj_map: dict[str, tuple[Fraction, Fraction]] | None = None,
+        total_power_box: Box | None = None,
     ):
         self.terminals = list(terminals)
         self.specs = specs
@@ -283,6 +285,15 @@ class _ModeEvolution:
         self.h_init = dict(h_init)
         self.w_net = w_net
         self.w_box = {k: Box.bounds(v[0], v[1]) for k, v in w_net.items()}
+        self.inj_map = (
+            {t: (Fraction(0), Fraction(0)) for t in self.terminals}
+            if inj_map is None
+            else dict(inj_map)
+        )
+        self.p_box: dict[str, Box] = {}
+        for n in self.terminals:
+            base_p = Box.exact(specs[n].heat_input) if specs[n].kind != "maintained" else ZERO
+            self.p_box[n] = base_p + Box.bounds(*self.inj_map[n])
 
         self.sensible = [n for n in self.terminals if modes[n] in ("body", "solid", "liquid")]
         self.clamped = [n for n in self.terminals if modes[n] in ("plateau", "maintained")]
@@ -312,10 +323,13 @@ class _ModeEvolution:
         self.span = max(Fraction(1), self.t_max_0 - self.t_min_0)
 
         # Inhomogeneous Kamke/Mueller comparison rates: T_lo(a) + r_min*h <= T(t) <= T_hi(a) + r_max*h.
-        self.r_max = max([Fraction(0)] + [specs[n].heat_input / self.caps[n] for n in self.sensible])
-        self.r_min = min([Fraction(0)] + [specs[n].heat_input / self.caps[n] for n in self.sensible])
-        self.total_power = sum((specs[n].heat_input for n in self.terminals if specs[n].kind != "maintained"), Fraction(0))
-        self.passive_sensible = all(specs[n].heat_input == 0 for n in self.sensible)
+        self.r_max = max([Fraction(0)] + [self.p_box[n].span()[1] / self.caps[n] for n in self.sensible])
+        self.r_min = min([Fraction(0)] + [self.p_box[n].span()[0] / self.caps[n] for n in self.sensible])
+        if total_power_box is not None:
+            self.total_power_box = total_power_box
+        else:
+            self.total_power_box = sum((self.p_box[n] for n in self.terminals), ZERO)
+        self.passive_sensible = all(self.p_box[n].span() == (Fraction(0), Fraction(0)) for n in self.sensible)
 
         self.u0 = [(t_init[n] - self.origin) / self.span for n in self.sensible]
         self.u_clamped = {c: Box.exact((t - self.origin) / self.span) for c, t in self.clamped_t.items()}
@@ -326,7 +340,7 @@ class _ModeEvolution:
         for i, b in enumerate(self.sensible):
             cap = Box.exact(self.caps[b])
             diag_w = ZERO
-            affine_u = Box.exact(specs[b].heat_input / self.span)
+            affine_u = self.p_box[b] / self.span
             for other in self.terminals:
                 if other == b:
                     continue
@@ -376,7 +390,7 @@ class _ModeEvolution:
 
         q_map: dict[str, Box] = {}
         for n in self.terminals:
-            q = Box.exact(self.specs[n].heat_input) if self.specs[n].kind != "maintained" else ZERO
+            q = self.p_box[n]
             for other in self.terminals:
                 if other == n:
                     continue
@@ -389,7 +403,7 @@ class _ModeEvolution:
 
         for c in self.clamped:
             tc = self.clamped_t[c]
-            de = Box.exact(self.specs[c].heat_input * dt) if self.specs[c].kind != "maintained" else ZERO
+            de = self.p_box[c] * dt
             for s in self.sensible:
                 de = de + self.w_box[(c, s)] * (int_map[s] - tc * dt)
             for oc in self.clamped:
@@ -404,7 +418,7 @@ class _ModeEvolution:
             ZERO,
         )
         dh_clamped = sum((h_map[c] - self.h_init[c] for c in self.clamped), ZERO)
-        if not (du_sens + dh_clamped - Box.exact(self.total_power * dt)).contains_zero():
+        if not (du_sens + dh_clamped - self.total_power_box * dt).contains_zero():
             raise ValueError("enthalpy-mode stage energy conservation check failed")
 
         res = (t_map, h_map, q_map)
@@ -431,7 +445,8 @@ class _ModeEvolution:
 
             for n in self.sensible:
                 sum_w_hi = sum(self.w_net[(n, o)][1] for o in self.terminals if o != n)
-                v_max = (sum_w_hi * cell_span + abs(self.specs[n].heat_input)) / self.caps[n]
+                p_abs_hi = max(abs(self.p_box[n].span()[0]), abs(self.p_box[n].span()[1]))
+                v_max = (sum_w_hi * cell_span + p_abs_hi) / self.caps[n]
                 vh = v_max * h
                 lo = max(cell_lo, ta[n].span()[0] - vh, tb[n].span()[0] - vh)
                 hi = min(cell_hi, ta[n].span()[1] + vh, tb[n].span()[1] + vh)
@@ -444,7 +459,7 @@ class _ModeEvolution:
                 changed = False
                 next_t = dict(t_sub)
                 for n in self.sensible:
-                    q_n = Box.exact(self.specs[n].heat_input)
+                    q_n = self.p_box[n]
                     for other in self.terminals:
                         if other == n:
                             continue
@@ -471,7 +486,7 @@ class _ModeEvolution:
 
         q_sub: dict[str, Box] = {}
         for n in self.terminals:
-            q = Box.exact(self.specs[n].heat_input) if self.specs[n].kind != "maintained" else ZERO
+            q = self.p_box[n]
             for other in self.terminals:
                 if other == n:
                     continue
@@ -566,11 +581,11 @@ def _project_closed_ledger(
     h_map: dict[str, Box],
     t_lo: Fraction,
     t_hi: Fraction,
-    total_power: Fraction,
+    total_power_box: Box,
     snapped: set[str],
 ) -> tuple[dict[str, Box], dict[str, Box]]:
     """Sound projection onto exact closed-system energy conservation hyperplane."""
-    expected_dh = Box.bounds(t_lo, t_hi) * total_power
+    expected_dh = Box.bounds(t_lo, t_hi) * total_power_box
     dh_boxes: dict[str, Box] = {}
     for n in terminals:
         sp = specs[n]
@@ -630,12 +645,13 @@ def _can_prove_simultaneous_symmetry(
     h_init: dict[str, Box],
     terminals: list[str],
     w_net: dict[tuple[str, str], tuple[Fraction, Fraction]],
+    inj_map: dict[str, tuple[Fraction, Fraction]],
 ) -> str | None:
     """Return shared target mode iff exact network-automorphism symmetry proves simultaneous crossing."""
     if len(cand_nodes) < 2:
         return None
-    # Require exact point conductance law across every pair.
-    if any(lo != hi for lo, hi in w_net.values()):
+    # Require exact point conductance and exact point Norton injection law across every pair.
+    if any(lo != hi for lo, hi in w_net.values()) or any(lo != hi for lo, hi in inj_map.values()):
         return None
     # Every candidate must have the same single target mode and same current mode.
     targets = set()
@@ -649,6 +665,7 @@ def _can_prove_simultaneous_symmetry(
 
     ref = cand_nodes[0]
     ref_sig = specs[ref].symmetry_signature()
+    ref_inj = inj_map[ref]
     ref_mode = modes[ref]
     ref_t = t_init[ref].span()
     ref_h = h_init[ref].span()
@@ -656,7 +673,7 @@ def _can_prove_simultaneous_symmetry(
         return None
 
     for p in cand_nodes[1:]:
-        if specs[p].symmetry_signature() != ref_sig:
+        if specs[p].symmetry_signature() != ref_sig or inj_map[p] != ref_inj:
             return None
         if modes[p] != ref_mode:
             return None
@@ -717,7 +734,7 @@ def _global_conservation_residual(
     h_map: dict[str, Box],
     t_lo: Fraction,
     t_hi: Fraction,
-    total_power: Fraction,
+    total_power_box: Box,
 ) -> Box:
     """Compute signed global energy conservation residual (must contain zero)."""
     total_du = ZERO
@@ -729,7 +746,7 @@ def _global_conservation_residual(
             total_du = total_du + (h_map[n] - sp.h0)
         else:  # maintained: h_map[n] holds cumulative E_in_maintained
             total_du = total_du + h_map[n]
-    return total_du - Box.bounds(t_lo, t_hi) * total_power
+    return total_du - Box.bounds(t_lo, t_hi) * total_power_box
 
 
 def _certify_stage_nonnegative(
@@ -902,6 +919,8 @@ def solve_enthalpy_continuation(
     max_events: int = DEFAULT_MAX_EVENTS,
     max_prune_refinements: int = DEFAULT_MAX_PRUNE_REFINEMENTS,
     max_bisect_refinements: int = DEFAULT_MAX_BISECT_REFINEMENTS,
+    terminal_injections_w: dict[str, tuple[Fraction, Fraction]] | None = None,
+    total_generated_power_w: Fraction | None = None,
 ) -> dict[str, Any]:
     """Solve coupled multi-body / multi-phase linear enthalpy-mode continuation over a validated law."""
     _validate_positive_int(initial_steps, "initial_steps", upper=MAX_INITIAL_STEPS)
@@ -916,7 +935,32 @@ def solve_enthalpy_continuation(
     duration = decimal_input(duration_s, "duration")
     w_net = _symmetric_conductances(terminals, engine_law)
     is_closed = len(maintained_ports) == 0
-    total_power = sum((specs[n].heat_input for n in terminals if specs[n].kind != "maintained"), Fraction(0))
+
+    if terminal_injections_w is None:
+        if total_generated_power_w not in (None, 0):
+            raise ValueError("total_generated_power_w requires terminal_injections_w")
+        inj_map = {t: (Fraction(0), Fraction(0)) for t in terminals}
+        total_gen_box = ZERO
+    else:
+        if not isinstance(terminal_injections_w, dict) or set(terminal_injections_w) != set(terminals):
+            raise ValueError("terminal_injections_w keys must match network terminals")
+        inj_map = {}
+        for t in terminals:
+            lo, hi = terminal_injections_w[t]
+            if lo < 0 or lo > hi:
+                raise ValueError(f"terminal_injections_w[{t!r}] must be a valid nonnegative interval")
+            inj_map[t] = (lo, hi)
+        sum_lo = sum((inj_map[t][0] for t in terminals), Fraction(0))
+        sum_hi = sum((inj_map[t][1] for t in terminals), Fraction(0))
+        if total_generated_power_w is not None:
+            if not (sum_lo <= total_generated_power_w <= sum_hi):
+                raise ValueError("total_generated_power_w disagrees with terminal_injections_w sum")
+            total_gen_box = Box.exact(total_generated_power_w)
+        else:
+            total_gen_box = Box.bounds(sum_lo, sum_hi)
+
+    port_power = sum((specs[n].heat_input for n in terminals if specs[n].kind != "maintained"), Fraction(0))
+    total_power_box = Box.exact(port_power) + total_gen_box
 
     # Compute exact initial temperatures, enthalpies, and initial net fluxes Q_init.
     t_cur: dict[str, Box] = {}
@@ -942,7 +986,7 @@ def solve_enthalpy_continuation(
 
     q_init: dict[str, Box] = {}
     for n in terminals:
-        q = Box.exact(specs[n].heat_input) if specs[n].kind != "maintained" else ZERO
+        q = (Box.exact(specs[n].heat_input) if specs[n].kind != "maintained" else ZERO) + Box.bounds(*inj_map[n])
         for other in terminals:
             if other == n:
                 continue
@@ -990,7 +1034,7 @@ def solve_enthalpy_continuation(
                     f"cannot certify nonnegative absolute temperature (T >= 0 K) at port {n!r}"
                 )
         residual = _global_conservation_residual(
-            terminals, specs, final_t, final_h, mod_lo, mod_hi, total_power
+            terminals, specs, final_t, final_h, mod_lo, mod_hi, total_power_box
         )
         if not residual.contains_zero():
             raise ValueError(f"global energy conservation check failed: residual={bounds(residual)}")
@@ -1034,7 +1078,9 @@ def solve_enthalpy_continuation(
 
     # Trivial zero-duration or exact global thermal equilibrium (all T equal & all P == 0).
     all_temps_equal = len({specs[n].t0 for n in terminals}) == 1
-    all_powers_zero = all(specs[n].heat_input == 0 for n in terminals)
+    all_powers_zero = all(specs[n].heat_input == 0 for n in terminals) and all(
+        inj_map[n] == (Fraction(0), Fraction(0)) for n in terminals
+    )
     if duration == 0 or (all_temps_equal and all_powers_zero):
         return _finish("complete", "resolved", None, duration, duration, t_cur, h_cur, modes)
 
@@ -1087,17 +1133,21 @@ def solve_enthalpy_continuation(
         if rem_hi == 0:
             if is_closed:
                 t_cur, h_cur = _project_closed_ledger(
-                    terminals, specs, modes, t_cur, h_cur, duration, duration, total_power, set()
+                    terminals, specs, modes, t_cur, h_cur, duration, duration, total_power_box, set()
                 )
             return _finish("complete", "resolved", None, duration, duration, t_cur, h_cur, modes)
 
-        evo = _ModeEvolution(terminals, specs, modes, t_cur, h_cur, w_net)
+        evo = _ModeEvolution(
+            terminals, specs, modes, t_cur, h_cur, w_net, inj_map=inj_map, total_power_box=total_power_box
+        )
 
         if not phase_ports:
             _certify_stage_nonnegative(evo, rem_hi, initial_steps, max_prune_refinements)
             tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
             if is_closed:
-                tf, hf = _project_closed_ledger(terminals, specs, modes, tf, hf, duration, duration, total_power, set())
+                tf, hf = _project_closed_ledger(
+                    terminals, specs, modes, tf, hf, duration, duration, total_power_box, set()
+                )
             return _finish("complete", "resolved", None, duration, duration, tf, hf, modes)
 
         # Verify strict boundary departure on restart for any phase node sitting at its mode boundary.
@@ -1157,7 +1207,9 @@ def solve_enthalpy_continuation(
             tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
             tf, hf = _clip_state_to_modes(terminals, specs, modes, tf, hf)
             if is_closed:
-                tf, hf = _project_closed_ledger(terminals, specs, modes, tf, hf, duration, duration, total_power, set())
+                tf, hf = _project_closed_ledger(
+                    terminals, specs, modes, tf, hf, duration, duration, total_power_box, set()
+                )
             return _finish("complete", "resolved", None, duration, duration, tf, hf, modes)
 
         # Scan grid for earliest certified crossing point cert_hi.
@@ -1329,7 +1381,7 @@ def solve_enthalpy_continuation(
                     break
                 if (
                     _can_prove_simultaneous_symmetry(
-                        list(cands_now.keys()), cands_now, specs, modes, t_cur, h_cur, terminals, w_net
+                        list(cands_now.keys()), cands_now, specs, modes, t_cur, h_cur, terminals, w_net, inj_map
                     )
                     is not None
                 ):
@@ -1421,7 +1473,9 @@ def solve_enthalpy_continuation(
             tf, hf, _ = evo.subinterval(rem_lo, rem_hi)
             tf, hf = _clip_state_to_modes(terminals, specs, modes, tf, hf)
             if is_closed:
-                tf, hf = _project_closed_ledger(terminals, specs, modes, tf, hf, duration, duration, total_power, set())
+                tf, hf = _project_closed_ledger(
+                    terminals, specs, modes, tf, hf, duration, duration, total_power_box, set()
+                )
             return _finish("complete", "resolved", None, duration, duration, tf, hf, modes)
 
         safe_hi = intervals[0][0] if intervals else cert_hi
@@ -1525,7 +1579,7 @@ def solve_enthalpy_continuation(
             ev_group = [(only, next(iter(cand_targets[only])))]
         else:
             sym_target = _can_prove_simultaneous_symmetry(
-                cand_nodes, cand_targets, specs, modes, t_cur, h_cur, terminals, w_net
+                cand_nodes, cand_targets, specs, modes, t_cur, h_cur, terminals, w_net, inj_map
             )
             if sym_target is None:
                 term = "refinement_budget" if budget_exhausted else "mode_sequence_uncertain"
@@ -1562,11 +1616,11 @@ def solve_enthalpy_continuation(
 
         if is_closed:
             t_ev, h_ev = _project_closed_ledger(
-                terminals, specs, modes, t_ev, h_ev, new_t_lo, new_t_hi, total_power, snapped
+                terminals, specs, modes, t_ev, h_ev, new_t_lo, new_t_hi, total_power_box, snapped
             )
 
         ev_residual = _global_conservation_residual(
-            terminals, specs, t_ev, h_ev, new_t_lo, new_t_hi, total_power
+            terminals, specs, t_ev, h_ev, new_t_lo, new_t_hi, total_power_box
         )
         if not ev_residual.contains_zero():
             raise ValueError(f"event conservation check failed: residual={bounds(ev_residual)}")

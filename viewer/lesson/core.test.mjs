@@ -127,6 +127,27 @@ test('extractPortRows covers multiport, staged, and multibody phase_bath backend
   assert.match(mbRows[0].energyOrPowerDisplay, /1500\.00/);
   assert.match(mbRows[0].detailDisplay, /coexisting.*solid/);
 
+  // M06: stefan backend (stefan + maintainedReservoirTemperaturesK, no ports)
+  const sfRows = extractPortRows({
+    backendResult: {
+      network: { stefanPort: 'ice_face', maintainedReservoirTemperaturesK: { air: '263.15' } },
+      stefan: {
+        geometry: 'planar',
+        status: 'growing',
+        finalPortTemperatureBoundsK: ['265', '265'],
+        latentEnergyIntoLayerBoundsJ: ['-150000', '-150000'],
+        finalSolidThicknessBoundsM: ['1/20', '1/20'],
+        finalSolidMassBoundsKg: ['4585/100', '4585/100'],
+      },
+    },
+  });
+  assert.equal(sfRows.length, 2);
+  assert.equal(sfRows[0].name, 'ice_face');
+  assert.equal(sfRows[0].kind, 'stefan_layer (planar)');
+  assert.match(sfRows[0].detailDisplay, /growing.*thickness 0\.05000 m/);
+  assert.equal(sfRows[1].name, 'air');
+  assert.equal(sfRows[1].temperatureDisplay, '263.15 K');
+
   // M05-R04: buildSweepBarModel handles sub-watt and negative heat rates cleanly
   const bars = buildSweepBarModel([
     { radiusM: '0.045', heatLossBoundsW: ['25', '25'] },
