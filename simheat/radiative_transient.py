@@ -28,7 +28,6 @@ Mathematical method (100% exact-rational, zero floating-point approximation):
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any
 
@@ -42,10 +41,9 @@ from simheat.enthalpy import (
     _validate_positive_int,
     signed_decimal_input,
 )
-from simheat.laws import _monotone_junction_enclosure, _outward_clamp_fraction, validate_terminal_law
+from simheat.laws import _outward_clamp_fraction, validate_terminal_law
 from tools.join_thermal_networks import bounds
 from tools.multiport_thermal_network import (
-    _exterior_flux_per_area,
     _exterior_outflow_box,
     _parse_exterior,
     _solve_exact_linear_fractions,
@@ -473,10 +471,18 @@ def _build_linearized_comparison_ode(
     surf_box: dict[str, Box],
     *,
     lin_mode: str,
-) -> tuple[list[list[Box]], list[Box], dict[str, dict[str, Box]], dict[str, Box]]:
-    """Build certified linearized Schur-reduced ODE ``dT_S/dt = M*T_S + r`` for ``secant`` or ``tangent``.
+) -> tuple[
+    list[list[Box]],
+    list[list[tuple[Fraction, Box]]],
+    list[Box],
+    dict[str, dict[str, Box]],
+    dict[str, Box],
+]:
+    """Build certified linearized Schur-reduced passive conductance ODE for ``secant`` or ``tangent``.
 
-    Returns ``(M_mat, r_vec, H_basis, v0_map)`` where for every algebraic unknown ``u``:
+    Returns ``(g_ss, g_anchors, i_eff, H_basis, v0_map)`` in cancellation-free difference form:
+        ``C_i * dT_i/dt = sum_{j!=i} g_ss[i][j]*(T_j - T_i) + sum_{(t_k, g_k) in g_anchors[i]} g_k*(t_k - T_i) + i_eff[i]``
+    and for every algebraic unknown ``u``:
         ``T_u(t) in sum_{j in sensible} H_basis[j][u] * T_j(t) + v0_map[u]``.
     """
     alg_ids: list[str] = []
@@ -487,8 +493,10 @@ def _build_linearized_comparison_ode(
                 alg_ids.append(f"surface:{name}")
 
     adj: dict[str, list[tuple[str, Fraction, Fraction]]] = {u: [] for u in alg_ids}
-    # Separate anchors by dynamic sensible terminal (for H^(j)) vs constant clamped/ambient (for v0).
     sens_anchors: dict[str, dict[str, tuple[Fraction, Fraction]]] = {u: {} for u in alg_ids}
+    # Named constant anchors (clamped terminals + active linearized exterior ambients) for exact difference form.
+    named_anchors: list[tuple[str, Fraction]] = [(f"clamped:{c}", clamped_t[c]) for c in clamped]
+    const_anchor_edges: dict[str, dict[str, tuple[Fraction, Fraction]]] = {u: {} for u in alg_ids}
     const_anchors: dict[str, list[tuple[Fraction, Fraction, Fraction]]] = {u: [] for u in alg_ids}
     alg_sources: dict[str, tuple[Fraction, Fraction]] = {u: (Fraction(0), Fraction(0)) for u in alg_ids}
 
@@ -508,6 +516,7 @@ def _build_linearized_comparison_ode(
                 adj[u_port].append((f"port:{other}", w_pair[0], w_pair[1]))
             elif other in clamped_t:
                 const_anchors[u_port].append((clamped_t[other], w_pair[0], w_pair[1]))
+                const_anchor_edges[u_port][f"clamped:{other}"] = w_pair
             else:
                 sens_anchors[u_port][other] = w_pair
 
@@ -521,12 +530,14 @@ def _build_linearized_comparison_ode(
             adj[u_ext].append((u_port, g_lo, g_hi))
         if h_eff > 0:
             t_amb_eff = c_const / h_eff
+            anc_id = f"amb:{name}"
+            named_anchors.append((anc_id, t_amb_eff))
             const_anchors[u_ext].append((t_amb_eff, a_lo * h_eff, a_hi * h_eff))
+            const_anchor_edges[u_ext][anc_id] = (a_lo * h_eff, a_hi * h_eff)
         elif c_const > 0:
             s_lo, s_hi = alg_sources[u_ext]
             alg_sources[u_ext] = (s_lo + a_lo * c_const, s_hi + a_hi * c_const)
 
-    # Check if all conductances, areas, and algebraic injections are exact points.
     exact_all = (
         all(lo == hi for lo, hi in w_net.values())
         and all(es["area"][0] == es["area"][1] for es in ext_specs.values())
@@ -534,8 +545,8 @@ def _build_linearized_comparison_ode(
         and all(lo == hi for lo, hi in alg_sources.values())
     )
 
-    # Compute H_basis[j][u] in [0, 1] for each sensible node j: T_j = 1, all other terminals/ambients = 0, sources = 0.
     zero_sources = {u: (Fraction(0), Fraction(0)) for u in alg_ids}
+    # 1. Harmonic potentials H_basis[j][u] for each sensible node j.
     h_basis: dict[str, dict[str, Box]] = {}
     for j in sensible:
         diag_j: dict[str, list[tuple[Fraction, Fraction, Fraction]]] = {}
@@ -550,7 +561,25 @@ def _build_linearized_comparison_ode(
             for u in alg_ids
         }
 
-    # Compute v0_map[u] >= 0: all sensible T_j = 0, clamped at T_c, ambients at T_amb_eff, sources = alg_sources.
+    # 2. Harmonic potentials H_anc[anc_id][u] for each named constant anchor (clamped + exterior ambient).
+    h_anc: dict[str, dict[str, Box]] = {}
+    for anc_id, _ in named_anchors:
+        diag_a: dict[str, list[tuple[Fraction, Fraction, Fraction]]] = {}
+        for u in alg_ids:
+            items = [
+                (Fraction(1) if cid == anc_id else Fraction(0), g_lo, g_hi)
+                for cid, (g_lo, g_hi) in const_anchor_edges[u].items()
+            ]
+            for _, (g_lo, g_hi) in sens_anchors[u].items():
+                items.append((Fraction(0), g_lo, g_hi))
+            diag_a[u] = items
+        h_sol = _solve_interval_linear_m_system(alg_ids, adj, diag_a, zero_sources, exact_point=exact_all)
+        h_anc[anc_id] = {
+            u: Box.bounds(max(Fraction(0), h_sol[u].span()[0]), min(Fraction(1), h_sol[u].span()[1]))
+            for u in alg_ids
+        }
+
+    # 3. Algebraic offset v0_map[u] (for algebraic temperature recovery int_alg_port / int_alg_surf).
     diag_v0: dict[str, list[tuple[Fraction, Fraction, Fraction]]] = {}
     for u in alg_ids:
         items = list(const_anchors[u])
@@ -559,27 +588,50 @@ def _build_linearized_comparison_ode(
         diag_v0[u] = items
     v0_map = _solve_interval_linear_m_system(alg_ids, adj, diag_v0, alg_sources, exact_point=exact_all)
 
-    # Assemble Schur-reduced Metzler ODE dT_S/dt = M * T_S + r.
-    n_s = len(sensible)
-    m_mat: list[list[Box]] = [[ZERO for _ in range(n_s)] for _ in range(n_s)]
-    r_vec: list[Box] = [ZERO for _ in range(n_s)]
-    w_box = {k: Box.bounds(v[0], v[1]) for k, v in w_net.items()}
+    # 4. Exact Rayleigh monotonicity bounds on total driving-point conductance G_tot[i] for each sensible i:
+    #    At all-lower conductances (idx=0) -> exact lower bound; at all-upper conductances (idx=1) -> exact upper bound.
+    n_a = len(alg_ids)
+    a_idx = {u: k for k, u in enumerate(alg_ids)}
 
-    for i, bi in enumerate(sensible):
-        cap = Box.exact(caps[bi])
-        # Diagonal: -(sum_{u != bi} W_{bi, u} - sum_{a in ext} W_{bi, a} * H_a^(bi)) / C_i
-        diag_out = ZERO
+    def _exact_diag_at_corner(bi: str, corner: int) -> Fraction:
+        mat = [[Fraction(0)] * n_a for _ in range(n_a)]
+        rhs = [Fraction(0)] * n_a
+        for k, u in enumerate(alg_ids):
+            diag = Fraction(0)
+            for v, g_lo, g_hi in adj[u]:
+                g = g_lo if corner == 0 else g_hi
+                diag += g
+                mat[k][a_idx[v]] -= g
+            for _, g_lo, g_hi in const_anchors[u]:
+                diag += g_lo if corner == 0 else g_hi
+            for s_name, (g_lo, g_hi) in sens_anchors[u].items():
+                g = g_lo if corner == 0 else g_hi
+                diag += g
+                if s_name == bi:
+                    rhs[k] += g
+            mat[k][k] = diag
+        h_col = _solve_exact_linear_fractions(mat, rhs)
+        tot = Fraction(0)
         for other in terminals:
             if other == bi:
                 continue
-            wb = w_box[(bi, other)]
+            w = w_net[(bi, other)][corner]
             if other in ext_specs:
-                diag_out = diag_out + wb * (ONE - h_basis[bi][f"port:{other}"])
+                tot += w * (Fraction(1) - h_col[a_idx[f"port:{other}"]])
             else:
-                diag_out = diag_out + wb
-        m_mat[i][i] = -diag_out / cap
+                tot += w
+        return tot
 
-        # Off-diagonal (j != i): +(W_{bi, bj} + sum_{a in ext} W_{bi, a} * H_a^(bj)) / C_i >= 0
+    # 5. Assemble passive difference-form effective conductances & Norton-reduced injections!
+    n_s = len(sensible)
+    g_ss: list[list[Box]] = [[ZERO for _ in range(n_s)] for _ in range(n_s)]
+    g_anchors: list[list[tuple[Fraction, Box]]] = [[] for _ in range(n_s)]
+    i_eff: list[Box] = [ZERO for _ in range(n_s)]
+    w_box = {k: Box.bounds(v[0], v[1]) for k, v in w_net.items()}
+
+    for i, bi in enumerate(sensible):
+        # Collect all off-node effective conductances from bi: sensible peers + named constant anchors.
+        peer_boxes: dict[str, Box] = {}
         for j, bj in enumerate(sensible):
             if j == i:
                 continue
@@ -588,29 +640,68 @@ def _build_linearized_comparison_ode(
                 wb = w_box[(bi, e_name)]
                 if wb != ZERO:
                     coeff = coeff + wb * h_basis[bj][f"port:{e_name}"]
-            m_mat[i][j] = coeff / cap
+            peer_boxes[f"sens:{bj}"] = coeff
 
-        # Affine forcing r_i = (sum_{c in clamped} W_{bi, c}*T_c + sum_{a in ext} W_{bi, a}*v0_a + P_i + I_i) / C_i
-        rhs_i = p_box[bi]
-        for c in clamped:
-            rhs_i = rhs_i + w_box[(bi, c)] * clamped_t[c]
-        for e_name in ext_specs:
-            wb = w_box[(bi, e_name)]
-            if wb != ZERO:
-                rhs_i = rhs_i + wb * v0_map[f"port:{e_name}"]
-        r_vec[i] = rhs_i / cap
+        anc_boxes: dict[str, Box] = {}
+        for anc_id, _ in named_anchors:
+            coeff = ZERO
+            if anc_id.startswith("clamped:"):
+                c_name = anc_id[len("clamped:"):]
+                coeff = w_box[(bi, c_name)]
+            for e_name in ext_specs:
+                wb = w_box[(bi, e_name)]
+                if wb != ZERO:
+                    coeff = coeff + wb * h_anc[anc_id][f"port:{e_name}"]
+            if coeff != ZERO:
+                anc_boxes[anc_id] = coeff
 
-    return m_mat, r_vec, h_basis, v0_map
+        # Tighten every individual effective conductance via exact Rayleigh driving-point total conductance!
+        all_keys = list(peer_boxes.keys()) + list(anc_boxes.keys())
+        if all_keys:
+            if exact_all:
+                g_tot_box = Box.exact(_exact_diag_at_corner(bi, 0))
+            else:
+                g_tot_lo = _exact_diag_at_corner(bi, 0)
+                g_tot_hi = _exact_diag_at_corner(bi, 1)
+                g_tot_box = Box.bounds(g_tot_lo, g_tot_hi)
+            combined = {**peer_boxes, **anc_boxes}
+            for k in all_keys:
+                others_sum = sum((combined[o] for o in all_keys if o != k), ZERO)
+                from_tot = g_tot_box - others_sum
+                lo = max(Fraction(0), combined[k].span()[0], from_tot.span()[0])
+                hi = min(combined[k].span()[1], from_tot.span()[1])
+                if lo <= hi:
+                    combined[k] = Box.bounds(lo, hi)
+            for j, bj in enumerate(sensible):
+                if j != i:
+                    g_ss[i][j] = combined[f"sens:{bj}"]
+            for anc_id, t_anc in named_anchors:
+                if anc_id in anc_boxes:
+                    g_anchors[i].append((t_anc, combined[anc_id]))
+
+        # Effective power injection into bi: P_i + I_i + sum_{u in alg} H_basis[bi][u] * alg_sources[u]
+        # (Exact harmonic transpose symmetry of passive conductance graph: W_{i, A} L_{AA}^{-1} s_A = H^{(i)T} s_A!)
+        inj_i = p_box[bi]
+        for u in alg_ids:
+            s_lo, s_hi = alg_sources[u]
+            if s_hi > 0:
+                inj_i = inj_i + h_basis[bi][u] * Box.bounds(s_lo, s_hi)
+        i_eff[i] = inj_i
+
+    return g_ss, g_anchors, i_eff, h_basis, v0_map
 
 
 def _advance_linear_system(
-    m_mat: list[list[Box]],
-    r_vec: list[Box],
+    g_ss: list[list[Box]],
+    g_anchors: list[list[tuple[Fraction, Box]]],
+    i_eff: list[Box],
+    caps_list: list[Fraction],
     t_start: list[Fraction],
     dt: Fraction,
 ) -> tuple[list[Box], list[Box]]:
-    """Advance linear ODE ``dT/dt = M*T + r`` from exact point ``t_start`` over ``[0, dt]`` via ``step_matrix``.
+    """Advance passive difference-form linear ODE from exact point ``t_start`` over ``[0, dt]`` via ``step_matrix``.
 
+    Computes shifted forcing ``G_ik*(T_k - origin)`` directly with zero cancellation blowup.
     Returns ``(t_end_boxes, integral_boxes)`` where ``integral_boxes[i]`` encloses ``int_0^dt T_i(tau) dtau``.
     """
     n = len(t_start)
@@ -622,12 +713,20 @@ def _advance_linear_system(
     dim = 2 * n + 1
     scaled = [[ZERO for _ in range(dim)] for _ in range(dim)]
     for i in range(n):
-        row_sum_m = ZERO
+        cap = Box.exact(caps_list[i])
+        diag_g = ZERO
         for j in range(n):
-            scaled[i][j] = m_mat[i][j] * dt
-            row_sum_m = row_sum_m + m_mat[i][j]
-        # Shift u = (T - origin)/span => du/dt = M*u + (M*origin*1 + r)/span
-        scaled[i][-1] = ((row_sum_m * origin + r_vec[i]) / span) * dt
+            if j == i:
+                continue
+            g_ij = g_ss[i][j]
+            diag_g = diag_g + g_ij
+            scaled[i][j] = (g_ij / cap) * dt
+        affine_q = i_eff[i]
+        for t_anc, g_anc in g_anchors[i]:
+            diag_g = diag_g + g_anc
+            affine_q = affine_q + g_anc * (t_anc - origin)
+        scaled[i][i] = -(diag_g / cap) * dt
+        scaled[i][-1] = (affine_q / (cap * span)) * dt
         scaled[n + i][i] = ONE
 
     y0 = [Box.exact((v - origin) / span) for v in t_start] + [ZERO] * n + [ONE]
@@ -691,8 +790,9 @@ def _certify_picard_step_box(
         c_lo = t_lo + lo_shift - slack
         c_hi = t_hi + hi_shift + slack
         if c_lo < 0:
-            # Clamp candidate trial at 0 only if start is positive; verify containment honestly below!
-            if t_lo > 0 and t_lo + lo_shift > 0:
+            # Clamp candidate trial at 0 when t_lo + lo_shift >= 0 (including valid T_0 = 0 K heated);
+            # lines below still strictly verify img_lo >= 0 on the Picard image!
+            if t_lo + lo_shift >= 0:
                 c_lo = Fraction(0)
             else:
                 return None  # Step too large near 0 K; halve dt!
@@ -733,6 +833,7 @@ def _certify_picard_step_box(
         return None
 
     # 2 Picard contraction sweeps to tighten [L_S, U_S] and [L_A, U_A] before tangent/secant linearization.
+    need_final_alg = False
     for _ in range(2):
         f_cand, p_alg_cert, s_alg_cert = _rhs_on_box(cand)
         changed = False
@@ -750,13 +851,15 @@ def _certify_picard_step_box(
             if new_b.span() != cand[b].span():
                 changed = True
             cand[b] = new_b
+        need_final_alg = changed
         if not changed:
             break
-    # Final algebraic box matching the tightened dynamic box.
-    full_dyn = {**{c: Box.exact(clamped_t[c]) for c in clamped}, **cand}
-    p_alg_cert, s_alg_cert = _solve_algebraic_box(
-        terminals, dyn_nodes, ext_specs, full_dyn, w_net, inj_map, max_sweeps=max_sweeps
-    )
+    # Final algebraic box matching the tightened dynamic box (skip if cand was unchanged on last sweep).
+    if need_final_alg:
+        full_dyn = {**{c: Box.exact(clamped_t[c]) for c in clamped}, **cand}
+        p_alg_cert, s_alg_cert = _solve_algebraic_box(
+            terminals, dyn_nodes, ext_specs, full_dyn, w_net, inj_map, max_sweeps=max_sweeps
+        )
     return cand, p_alg_cert, s_alg_cert
 
 
@@ -801,18 +904,19 @@ def _step_radiative_mode(
     t_s_box, p_alg_box, s_alg_box = picard
 
     # Build certified secant (lower) and tangent (upper) Metzler comparison ODEs!
-    m_sec, r_sec, h_sec, v0_sec = _build_linearized_comparison_ode(
+    g_ss_sec, g_anc_sec, i_eff_sec, h_sec, v0_sec = _build_linearized_comparison_ode(
         terminals, sensible, clamped, clamped_t, ext_specs, caps, p_box, w_net, inj_map, s_alg_box, lin_mode="secant"
     )
-    m_tan, r_tan, h_tan, v0_tan = _build_linearized_comparison_ode(
+    g_ss_tan, g_anc_tan, i_eff_tan, h_tan, v0_tan = _build_linearized_comparison_ode(
         terminals, sensible, clamped, clamped_t, ext_specs, caps, p_box, w_net, inj_map, s_alg_box, lin_mode="tangent"
     )
 
     t_lo_start = [t_cur[n].span()[0] for n in sensible]
     t_hi_start = [t_cur[n].span()[1] for n in sensible]
+    caps_list = [caps[n] for n in sensible]
 
-    y_lo_end, int_lo_s = _advance_linear_system(m_sec, r_sec, t_lo_start, dt)
-    y_hi_end, int_hi_s = _advance_linear_system(m_tan, r_tan, t_hi_start, dt)
+    y_lo_end, int_lo_s = _advance_linear_system(g_ss_sec, g_anc_sec, i_eff_sec, caps_list, t_lo_start, dt)
+    y_hi_end, int_hi_s = _advance_linear_system(g_ss_tan, g_anc_tan, i_eff_tan, caps_list, t_hi_start, dt)
 
     t_next: dict[str, Box] = {}
     int_s_box: dict[str, Box] = {}
@@ -891,6 +995,7 @@ def _step_radiative_mode(
         h_next[c] = _clamp_box(h_cur[c] + de)
 
     e_ext_next: dict[str, Box] = {}
+    e_ext_sub: dict[str, Box] = {}
     for e_name in ext_ports:
         # 1. Network-side cumulative outflow over [0, dt]
         de_net = p_box[e_name] * dt
@@ -905,7 +1010,8 @@ def _step_radiative_mode(
         # 2. Exterior-law cumulative outflow over [0, dt] via tangent/secant flux bounds & monotonic box
         es = ext_specs[e_name]
         a_s, b_s = s_alg_box[e_name].span()
-        q_ext_box = _exterior_outflow_box(a_s, b_s, es) * dt
+        q_ext_rate = _exterior_outflow_box(a_s, b_s, es)
+        q_ext_box = q_ext_rate * dt
         h_lo_f, c_lo_f = _linearize_exterior_flux(es, a_s, b_s, mode="tangent")
         h_hi_f, c_hi_f = _linearize_exterior_flux(es, a_s, b_s, mode="secant")
         area_box = Box.bounds(*es["area"])
@@ -914,6 +1020,16 @@ def _step_radiative_mode(
         e_lin_box = Box.bounds(e_lo_lin.span()[0], e_hi_lin.span()[1])
         de_comb = _box_intersect(_box_intersect(de_net, q_ext_box, f"ext {e_name}"), e_lin_box, f"ext_lin {e_name}")
         e_ext_next[e_name] = _clamp_box(e_ext_cur[e_name] + de_comb)
+
+        # Certified two-sided subinterval hull for E_out(tau) on tau in [0, dt] (sound even when q_ext changes sign!).
+        qlo, qhi = q_ext_rate.span()
+        alo, ahi = e_ext_cur[e_name].span()
+        blo, bhi = e_ext_next[e_name].span()
+        elo = max(alo + min(Fraction(0), qlo) * dt, blo - max(Fraction(0), qhi) * dt)
+        ehi = min(ahi + max(Fraction(0), qhi) * dt, bhi - min(Fraction(0), qlo) * dt)
+        if elo > ehi:
+            raise ValueError(f"subinterval exterior energy enclosure inconsistent at {e_name!r}")
+        e_ext_sub[e_name] = Box.bounds(elo, ehi)
 
     # Compute subinterval state boxes (T_sub, H_sub, Q_sub) on [0, dt] for exact event checking.
     t_sub: dict[str, Box] = {**{c: Box.exact(clamped_t[c]) for c in clamped}, **t_s_box, **p_alg_box}
@@ -950,7 +1066,9 @@ def _step_radiative_mode(
         "t_next": t_next,
         "h_next": h_next,
         "e_ext_next": e_ext_next,
+        "e_ext_sub": e_ext_sub,
         "s_end_alg": s_end_alg,
+        "s_sub": s_alg_box,
         "t_sub": t_sub,
         "h_sub": h_sub,
         "q_sub": q_sub,
@@ -1322,8 +1440,14 @@ def solve_radiative_transient(
     min_dt = max(Fraction(1, 10**9), duration / (10**8))
 
     def _check_step_events(
-        step_res: dict[str, Any], at_stage_start: bool
+        step_res: dict[str, Any],
+        at_stage_start: bool,
+        *,
+        t_init_ref: dict[str, Box] | None = None,
+        h_init_ref: dict[str, Box] | None = None,
     ) -> tuple[bool, dict[str, str | None], dict[str, set[str]], set[str]]:
+        t_ref = t_cur if t_init_ref is None else t_init_ref
+        h_ref = h_cur if h_init_ref is None else h_init_ref
         all_safe = True
         cert_map: dict[str, str | None] = {}
         hit_map: dict[str, set[str]] = {}
@@ -1331,13 +1455,13 @@ def solve_radiative_transient(
         for n in phase_ports:
             safe_sub, _, hits_sub = _node_event_check(
                 specs[n], modes[n], step_res["t_sub"][n], step_res["h_sub"][n], step_res["q_sub"][n],
-                t_init_box=t_cur[n], h_init_box=h_cur[n], at_start=at_stage_start,
+                t_init_box=t_ref[n], h_init_box=h_ref[n], at_start=at_stage_start,
             )
             _, cert_end, hits_end = _node_event_check(
                 specs[n], modes[n], step_res["t_next"][n], step_res["h_next"][n], step_res["q_end"][n],
-                t_init_box=t_cur[n], h_init_box=h_cur[n], at_start=False,
+                t_init_box=t_ref[n], h_init_box=h_ref[n], at_start=False,
             )
-            if not safe_sub:
+            if not safe_sub or hits_end:
                 all_safe = False
             cert_map[n] = cert_end
             if hits_end:
@@ -1348,12 +1472,71 @@ def solve_radiative_transient(
         return all_safe, cert_map, hit_map, end_hit_ports
 
     at_stage_start = True
+    # Strict loop invariant: 0 <= t_lo <= t_hi <= duration ALWAYS (zero overshoot, zero clamping).
     while t_lo < duration:
+        rem_lo = duration - t_hi
         rem_hi = duration - t_lo
-        rem_lo = max(Fraction(0), duration - t_hi)
-        dt = min(base_dt, rem_hi)
 
-        # If t_lo < t_hi and remaining horizon straddles t_hi, evaluate final window hull cleanly.
+        # Phase B: t_hi == duration and t_lo < duration -> accumulate certified union over elapsed [0, rem_hi]!
+        if rem_lo == 0:
+            hull_t = dict(t_cur)
+            hull_h = dict(h_cur)
+            hull_e = dict(e_ext_cur)
+            hull_s = dict(s_cur)
+            w_t, w_h, w_e, w_s = dict(t_cur), dict(h_cur), dict(e_ext_cur), dict(s_cur)
+            w_rem = rem_hi
+            w_start = at_stage_start
+            while w_rem > 0:
+                sub_dt = min(base_dt, w_rem)
+                w_step = _step_radiative_mode(
+                    terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
+                    w_t, w_h, w_e, sub_dt, max_sweeps=max_sweeps,
+                )
+                while w_step is None:
+                    refinements_used += 1
+                    if refinements_used > max_step_refinements or sub_dt <= min_dt:
+                        raise ValueError("radiative transient Picard step certification failed on horizon window")
+                    sub_dt = sub_dt / 2
+                    w_step = _step_radiative_mode(
+                        terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
+                        w_t, w_h, w_e, sub_dt, max_sweeps=max_sweeps,
+                    )
+                hull_t = {n: _box_union([hull_t[n], w_step["t_sub"][n]]) for n in terminals}
+                hull_h = {n: _box_union([hull_h[n], w_step["h_sub"][n]]) for n in specs}
+                hull_e = {n: _box_union([hull_e[n], w_step["e_ext_sub"][n]]) for n in exterior_ports}
+                hull_s = {n: _box_union([hull_s[n], w_step["s_sub"][n]]) for n in exterior_ports}
+                if phase_ports:
+                    w_safe, _, w_hits, _ = _check_step_events(
+                        w_step, w_start, t_init_ref=w_t, h_init_ref=w_h
+                    )
+                    if not w_safe:
+                        return _finish(
+                            "mode_sequence_uncertain",
+                            "mode_sequence_uncertain",
+                            "event_order_or_horizon_unresolved",
+                            t_lo,
+                            duration,
+                            hull_t,
+                            hull_h,
+                            hull_e,
+                            hull_s,
+                            modes,
+                            unresolved_candidates=list(w_hits.keys()),
+                        )
+                w_t = w_step["t_next"]
+                w_h = w_step["h_next"]
+                w_e = w_step["e_ext_next"]
+                w_s = w_step["s_end_alg"]
+                w_rem = w_rem - sub_dt
+                w_start = False
+                steps_taken += 1
+            t_cur, h_cur, e_ext_cur, s_cur = hull_t, hull_h, hull_e, hull_s
+            t_lo = duration
+            t_hi = duration
+            break
+
+        # Phase A: rem_lo = duration - t_hi > 0 -> cap dt <= rem_lo so t_hi + dt <= duration ALWAYS!
+        dt = min(base_dt, rem_lo)
         step_res = _step_radiative_mode(
             terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
             t_cur, h_cur, e_ext_cur, dt, max_sweeps=max_sweeps,
@@ -1369,88 +1552,46 @@ def solve_radiative_transient(
             )
 
         if not phase_ports:
-            if t_lo + dt >= duration and t_lo < t_hi:
-                # Propagate across remaining duration uncertainty [rem_lo, rem_hi] if any.
-                t_cur = step_res["t_next"]
-                h_cur = step_res["h_next"]
-                e_ext_cur = step_res["e_ext_next"]
-                s_cur = step_res["s_end_alg"]
-                t_lo = duration
-                t_hi = duration
-            else:
-                t_cur = step_res["t_next"]
-                h_cur = step_res["h_next"]
-                e_ext_cur = step_res["e_ext_next"]
-                s_cur = step_res["s_end_alg"]
-                t_lo = t_lo + dt
-                t_hi = min(duration, t_hi + dt)
+            t_cur = step_res["t_next"]
+            h_cur = step_res["h_next"]
+            e_ext_cur = step_res["e_ext_next"]
+            s_cur = step_res["s_end_alg"]
+            t_lo = t_lo + dt
+            t_hi = t_hi + dt
             steps_taken += 1
             at_stage_start = False
             continue
 
         safe, cert_map, hit_map, _ = _check_step_events(step_res, at_stage_start)
         if safe:
-            if t_lo + dt >= duration and t_lo < t_hi:
-                # Certified window hull over [rem_lo, rem_hi] (sound even for non-monotone trajectories).
-                if rem_lo > 0 and rem_lo < rem_hi:
-                    s1 = _step_radiative_mode(
-                        terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
-                        t_cur, h_cur, e_ext_cur, rem_lo, max_sweeps=max_sweeps,
-                    )
-                    s2 = (
-                        None
-                        if s1 is None
-                        else _step_radiative_mode(
-                            terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
-                            s1["t_next"], s1["h_next"], s1["e_ext_next"], rem_hi - rem_lo, max_sweeps=max_sweeps,
-                        )
-                    )
-                    if s1 is not None and s2 is not None:
-                        t_cur = s2["t_sub"]
-                        h_cur = s2["h_sub"]
-                        e_ext_cur = {n: _box_union([s1["e_ext_next"][n], s2["e_ext_next"][n]]) for n in exterior_ports}
-                        _, s_cur = _solve_algebraic_box(
-                            terminals, dyn_nodes, ext_specs, {n: t_cur[n] for n in dyn_nodes}, w_net, inj_map, max_sweeps=max_sweeps
-                        )
-                    else:
-                        t_cur = {n: _box_union([t_cur[n], step_res["t_sub"][n]]) for n in terminals}
-                        h_cur = {n: _box_union([h_cur[n], step_res["h_sub"][n]]) for n in specs}
-                        e_ext_cur = {n: _box_union([e_ext_cur[n], step_res["e_ext_next"][n]]) for n in exterior_ports}
-                        _, s_cur = _solve_algebraic_box(
-                            terminals, dyn_nodes, ext_specs, {n: t_cur[n] for n in dyn_nodes}, w_net, inj_map, max_sweeps=max_sweeps
-                        )
-                else:
-                    t_cur = {n: _box_union([t_cur[n], step_res["t_sub"][n]]) for n in terminals}
-                    h_cur = {n: _box_union([h_cur[n], step_res["h_sub"][n]]) for n in specs}
-                    e_ext_cur = {n: _box_union([e_ext_cur[n], step_res["e_ext_next"][n]]) for n in exterior_ports}
-                    _, s_cur = _solve_algebraic_box(
-                        terminals, dyn_nodes, ext_specs, {n: t_cur[n] for n in dyn_nodes}, w_net, inj_map, max_sweeps=max_sweeps
-                    )
-                t_lo = duration
-                t_hi = duration
-            else:
-                t_cur = step_res["t_next"]
-                h_cur = step_res["h_next"]
-                e_ext_cur = step_res["e_ext_next"]
-                s_cur = step_res["s_end_alg"]
-                t_lo = t_lo + dt
-                t_hi = min(duration, t_hi + dt)
+            t_cur = step_res["t_next"]
+            h_cur = step_res["h_next"]
+            e_ext_cur = step_res["e_ext_next"]
+            s_cur = step_res["s_end_alg"]
+            t_lo = t_lo + dt
+            t_hi = t_hi + dt
             steps_taken += 1
             at_stage_start = False
             continue
 
-        # Phase event touched/crossed inside [0, dt]: first ensure step_res certifies a crossing if possible,
-        # then binary-search [0, dt] to advance safe prefix and tighten the certified crossing bracket.
-        if not any(cert_map.values()) and dt < rem_hi and refinements_used < max_step_refinements:
-            dt_ext = min(rem_hi, dt * 2)
+        # Phase event touched/crossed inside [0, dt] (with dt <= duration - t_hi):
+        # first widen a trial dt (bounded) if needed to certify a crossing before duration - t_hi
+        # without needlessly bloating the fallback stop bracket if none is certified.
+        ext_tries = 0
+        dt_try = dt
+        while not any(cert_map.values()) and dt_try < rem_lo and refinements_used < max_step_refinements and ext_tries < 6:
+            ext_tries += 1
+            dt_try = min(rem_lo, dt_try * 2)
             ext_step = _step_radiative_mode(
                 terminals, specs, ext_specs, modes, w_net, inj_map, p_box,
-                t_cur, h_cur, e_ext_cur, dt_ext, max_sweeps=max_sweeps,
+                t_cur, h_cur, e_ext_cur, dt_try, max_sweeps=max_sweeps,
             )
-            if ext_step is not None:
-                _, c_ext, h_ext, _ = _check_step_events(ext_step, at_stage_start)
-                if any(c_ext.values()):
-                    step_res, cert_map, hit_map, dt = ext_step, c_ext, h_ext, dt_ext
+            if ext_step is None:
+                break
+            _, c_ext, h_ext, _ = _check_step_events(ext_step, at_stage_start)
+            if any(c_ext.values()):
+                step_res, cert_map, hit_map, dt = ext_step, c_ext, h_ext, dt_try
+                break
 
         ev_tol = max(Fraction(1, 10**5), duration / (10**5))
         if dt > ev_tol and refinements_used < max_step_refinements:
@@ -1465,18 +1606,17 @@ def solve_radiative_transient(
                 if try_step is None:
                     cur_dt = cur_dt / 2
                     continue
-                s_try, c_try, h_try, end_hits_try = _check_step_events(try_step, at_stage_start)
+                s_try, c_try, h_try, _ = _check_step_events(try_step, at_stage_start)
                 if s_try:
                     t_cur = try_step["t_next"]
                     h_cur = try_step["h_next"]
                     e_ext_cur = try_step["e_ext_next"]
                     s_cur = try_step["s_end_alg"]
                     t_lo = t_lo + cur_dt
-                    t_hi = min(duration, t_hi + cur_dt)
+                    t_hi = t_hi + cur_dt
                     steps_taken += 1
                     at_stage_start = False
-                    # Re-bracket the remaining crossing window dt - cur_dt from the advanced state!
-                    rem_after = min(duration - t_lo, dt - cur_dt)
+                    rem_after = dt - cur_dt
                     if rem_after <= 0:
                         advanced = True
                         break
@@ -1495,7 +1635,7 @@ def solve_radiative_transient(
                         e_ext_cur = rem_step["e_ext_next"]
                         s_cur = rem_step["s_end_alg"]
                         t_lo = t_lo + dt
-                        t_hi = min(duration, t_hi + dt)
+                        t_hi = t_hi + dt
                         steps_taken += 1
                         advanced = True
                         break
@@ -1505,33 +1645,30 @@ def solve_radiative_transient(
                     step_res, cert_map, hit_map = try_step, c_try, h_try
                     dt = cur_dt
                     cur_dt = cur_dt / 2
-                elif not end_hits_try:
-                    # Endpoint is still strictly before the threshold; only Picard subinterval touched it.
-                    # Halve cur_dt to step safely forward!
-                    cur_dt = cur_dt / 2
                 else:
-                    # Endpoint itself straddles the threshold (minimum certifiable width reached).
-                    break
+                    # Endpoint straddles or Picard subinterval touches threshold; keep halving cur_dt
+                    # to push the safe prefix as close to the lower edge of the threshold as possible!
+                    cur_dt = cur_dt / 2
             if advanced:
                 continue
 
-        # Check if an event is strictly certified before rem_lo and has a unique crossing port & target!
+        # Check if an event is strictly certified before duration - t_hi and has a unique crossing port & target!
         cert_nodes = [n for n, tgt in cert_map.items() if tgt is not None]
         hit_nodes = list(hit_map.keys())
         budget_hit = refinements_used >= max_step_refinements or len(events_out) >= max_events
 
         if (
             not cert_nodes
-            or dt > max(Fraction(0), duration - t_hi)
+            or dt > duration - t_hi
             or len(hit_nodes) != 1
             or len(hit_map[hit_nodes[0]]) != 1
             or len(events_out) >= max_events
         ):
-            # Honest stop: enclose union of pre-step and subinterval state!
+            # Honest stop: enclose certified subinterval hull (sound even for non-monotone e_ext / s_sub!).
             t_stop = {n: _box_union([t_cur[n], step_res["t_sub"][n]]) for n in terminals}
             h_stop = {n: _box_union([h_cur[n], step_res["h_sub"][n]]) for n in specs}
-            e_stop = {n: _box_union([e_ext_cur[n], step_res["e_ext_next"][n]]) for n in exterior_ports}
-            s_stop = {n: _box_union([s_cur[n], step_res["s_end_alg"][n]]) for n in exterior_ports}
+            e_stop = {n: _box_union([e_ext_cur[n], step_res["e_ext_sub"][n]]) for n in exterior_ports}
+            s_stop = {n: _box_union([s_cur[n], step_res["s_sub"][n]]) for n in exterior_ports}
             term = "refinement_budget" if budget_hit else "mode_sequence_uncertain"
             reason = (
                 "max_events_budget_reached"
@@ -1543,7 +1680,7 @@ def solve_radiative_transient(
                 term,
                 reason,
                 t_lo,
-                min(duration, t_hi + dt),
+                t_hi + dt,
                 t_stop,
                 h_stop,
                 e_stop,
@@ -1560,8 +1697,8 @@ def solve_radiative_transient(
 
         t_ev = {n: _box_union([t_cur[n], step_res["t_sub"][n]]) for n in terminals}
         h_ev = {n: _box_union([h_cur[n], step_res["h_sub"][n]]) for n in specs}
-        e_ev = {n: _box_union([e_ext_cur[n], step_res["e_ext_next"][n]]) for n in exterior_ports}
-        s_ev = {n: _box_union([s_cur[n], step_res["s_end_alg"][n]]) for n in exterior_ports}
+        e_ev = {n: _box_union([e_ext_cur[n], step_res["e_ext_sub"][n]]) for n in exterior_ports}
+        s_ev = {n: _box_union([s_cur[n], step_res["s_sub"][n]]) for n in exterior_ports}
 
         t_ev[ev_node] = Box.exact(sp_ev.t_tr)
         if ev_target == "plateau":
@@ -1573,7 +1710,7 @@ def solve_radiative_transient(
 
         modes[ev_node] = ev_target
         new_t_lo = t_lo
-        new_t_hi = min(duration, t_hi + dt)
+        new_t_hi = t_hi + dt
 
         # Refresh algebraic exterior bounds at snapped transition state.
         p_ev_alg, s_ev_alg = _solve_algebraic_box(

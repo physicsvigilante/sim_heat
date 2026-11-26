@@ -592,6 +592,185 @@ class TestM07RadiativeTransient(unittest.TestCase):
         self.assertEqual(eq["selectedBackend"], "radiative_transient")
         self.assertIn("sum_exteriors E_out,e", eq["conservationEquation"])
 
+    # ------------------------------------------------------------------
+    # 7. Discriminating review-finding regressions (M07-R01 .. M07-R04)
+    # ------------------------------------------------------------------
+    def test_m07_r01_r03_interval_phase_horizon_and_tight_bisection(self) -> None:
+        # Exact M07-R01 & M07-R03 reproducer: interval conductance W in [10, 10.2] W/K,
+        # phase_substance cooling via pure convection at durations 25 s and 32 s.
+        def _exact_tw(w_val: mp.mpf, dur: mp.mpf) -> mp.mpf:
+            g_eff = (w_val * 10) / (w_val + 10)
+            c_l, c_s, lat = mp.mpf("420"), mp.mpf("210"), mp.mpf("3340")
+            t0, t_tr, t_air = mp.mpf("285"), mp.mpf("273.15"), mp.mpf("200")
+            t1 = (c_l / g_eff) * mp.log((t0 - t_air) / (t_tr - t_air))
+            t2 = t1 + lat / (g_eff * (t_tr - t_air))
+            return t_air + (t_tr - t_air) * mp.exp(-g_eff * (dur - t2) / c_s)
+
+        for dur_str in ("25", "32"):
+            sys_doc = {
+                "schema": THERMAL_SYSTEM_SCHEMA,
+                "id": f"m07_r01_dur_{dur_str}",
+                "nodes": ["w", "e"],
+                "conduction": {
+                    "kind": "rods",
+                    "terminals": ["w", "e"],
+                    "rods": {"r": {"kind": "rod_area", "a": "w", "b": "e", "k": {"low": "10", "high": "10.2"}, "L": "1", "A": "1"}},
+                },
+                "attachments": {
+                    "w": {
+                        "kind": "phase_substance",
+                        "initialTemperatureK": "285",
+                        "transitionTemperatureK": "273.15",
+                        "specificLatentHeatJPerKg": "33400",
+                        "solidSpecificHeatJPerKgK": "2100",
+                        "liquidSpecificHeatJPerKgK": "4200",
+                        "initialSolidKg": "0",
+                        "initialLiquidKg": "0.1",
+                    },
+                    "e": {
+                        "kind": "exterior_surface",
+                        "areaM2": "1",
+                        "enclosureTemperatureK": "200",
+                        "emissivity": "0",
+                        "sigmaWPerM2K4": "0.0000000567",
+                        "airTemperatureK": "200",
+                        "convectionCoefficientWPerM2K": "10",
+                    },
+                },
+                "solve": {"mode": "transient", "durationS": dur_str, "initialSteps": 8},
+            }
+            res = solve_system(sys_doc)
+            self.assertEqual(res["status"], "complete")
+            raw = res["backendResult"]
+            # M07-R03: Event 0 bracket must be tight around the 0.13 s physical interval (< 0.35 s, not 6.25 s!).
+            ev0_lo, ev0_hi = map(Fraction, raw["events"][0]["timeBoundsS"])
+            self.assertLess(float(ev0_hi - ev0_lo), 0.35)
+            # M07-R01: Exact analytical truths for BOTH W=10.0 and W=10.2 MUST be strictly enclosed!
+            dur_mp = mp.mpf(dur_str)
+            _assert_enclosed(self, raw["ports"]["w"]["finalTemperatureBoundsK"], _exact_tw(mp.mpf("10"), dur_mp), msg=f"dur={dur_str} W=10")
+            _assert_enclosed(self, raw["ports"]["w"]["finalTemperatureBoundsK"], _exact_tw(mp.mpf("10.2"), dur_mp), msg=f"dur={dur_str} W=10.2")
+
+    def test_m07_r02_non_monotone_exterior_energy_and_shell_surface_temp(self) -> None:
+        # 1. Non-monotone E_out (heating then cooling across T_air=300 K during tie stop).
+        law1 = DerivedLaw.from_rods(
+            ["body", "surf", "p1", "p2"],
+            {
+                "bs": {"kind": "rod_area", "a": "body", "b": "surf", "k": "20", "L": "1", "A": "1"},
+                "bp1": {"kind": "rod_area", "a": "body", "b": "p1", "k": "2", "L": "1", "A": "1"},
+                "bp2": {"kind": "rod_area", "a": "body", "b": "p2", "k": "2", "L": "1", "A": "1"},
+            },
+            terminals=["body", "surf", "p1", "p2"],
+        )
+        phase_tie = {
+            "kind": "phase_substance",
+            "initialTemperatureK": "273.0",
+            "transitionTemperatureK": "273.15",
+            "specificLatentHeatJPerKg": "334000",
+            "solidSpecificHeatJPerKgK": "2100",
+            "liquidSpecificHeatJPerKgK": "4200",
+            "initialSolidKg": "0.1",
+            "initialLiquidKg": "0",
+        }
+        r1 = solve_radiative_transient(
+            law1,
+            {
+                "body": {"kind": "sensible_body", "heatCapacityJPerK": "500", "initialTemperatureK": "100", "heatInputW": "40000"},
+                "surf": {
+                    "kind": "exterior_surface",
+                    "areaM2": "1",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0",
+                    "sigmaWPerM2K4": "0.0000000567",
+                    "airTemperatureK": "300",
+                    "convectionCoefficientWPerM2K": "20",
+                },
+                "p1": phase_tie,
+                "p2": phase_tie,
+            },
+            "6",
+            initial_steps=1,
+            max_step_refinements=1,
+        )
+        self.assertEqual(r1["status"], "mode_sequence_uncertain")
+        # Must enclose the negative interior minimum (-2395.765 J) and crossing value (-1154.685 J)!
+        _assert_enclosed(self, r1["ports"]["surf"]["cumulativeOutwardEnergyBoundsJ"], mp.mpf("-1154.685"), msg="non-monotone E_out cross")
+        _assert_enclosed(self, r1["ports"]["surf"]["cumulativeOutwardEnergyBoundsJ"], mp.mpf("-2395.765"), msg="non-monotone E_out min")
+
+        # 2. Non-monotone radial_shell outer face temperature s_stop on tie stop.
+        law2 = DerivedLaw.from_rods(
+            ["b1", "b2", "sh", "p1", "p2"],
+            {
+                "b1s": {"kind": "rod_area", "a": "b1", "b": "sh", "k": "10", "L": "1", "A": "1"},
+                "b2s": {"kind": "rod_area", "a": "b2", "b": "sh", "k": "10", "L": "1", "A": "1"},
+                "b1p1": {"kind": "rod_area", "a": "b1", "b": "p1", "k": "0.001", "L": "1", "A": "1"},
+                "b1p2": {"kind": "rod_area", "a": "b1", "b": "p2", "k": "0.001", "L": "1", "A": "1"},
+            },
+            terminals=["b1", "b2", "sh", "p1", "p2"],
+        )
+        p_tie2 = {
+            "kind": "phase_substance",
+            "initialTemperatureK": "272.0",
+            "transitionTemperatureK": "273.15",
+            "specificLatentHeatJPerKg": "334000",
+            "solidSpecificHeatJPerKgK": "2100",
+            "liquidSpecificHeatJPerKgK": "4200",
+            "initialSolidKg": "0.1",
+            "initialLiquidKg": "0",
+            "heatInputW": "110",
+        }
+        r2 = solve_radiative_transient(
+            law2,
+            {
+                "b1": {"kind": "sensible_body", "heatCapacityJPerK": "25", "initialTemperatureK": "1000"},
+                "b2": {"kind": "sensible_body", "heatCapacityJPerK": "200", "initialTemperatureK": "100", "heatInputW": "18000"},
+                "sh": {
+                    "kind": "radial_shell",
+                    "geometry": {"kind": "sphere", "innerRadiusM": "0.1", "layers": [{"outerRadiusM": "0.12", "conductivityWPerMK": "2"}]},
+                    "exterior": {
+                        "airTemperatureK": "300",
+                        "convectionCoefficientWPerM2K": "10",
+                        "enclosureTemperatureK": "300",
+                        "emissivity": "0",
+                        "sigmaWPerM2K4": "0.0000000567",
+                    },
+                },
+                "p1": p_tie2,
+                "p2": p_tie2,
+            },
+            "2.5",
+            initial_steps=1,
+            max_step_refinements=1,
+        )
+        self.assertEqual(r2["status"], "mode_sequence_uncertain")
+        # Endpoints at t=1.25 s (483.005 K) and t=2.5 s (485.301 K) bracket an interior dip to 481.2448 K at t=1.73 s;
+        # s_stop must strictly enclose the interior minimum!
+        _assert_enclosed(self, r2["ports"]["sh"]["outerFaceTemperatureBoundsK"], mp.mpf("481.24482"), msg="non-monotone s_stop")
+
+    def test_m07_r04_zero_kelvin_initial_body_heated_by_enclosure(self) -> None:
+        res = solve_system({
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m07_r04_zero_kelvin_start",
+            "nodes": ["b", "e"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["b", "e"],
+                "rods": {"r": {"kind": "rod_area", "a": "b", "b": "e", "k": "10", "L": "1", "A": "1"}},
+            },
+            "attachments": {
+                "b": {"kind": "sensible_body", "heatCapacityJPerK": "100", "initialTemperatureK": "0"},
+                "e": {
+                    "kind": "exterior_surface",
+                    "areaM2": "1",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0.8",
+                    "sigmaWPerM2K4": "0.0000000567",
+                },
+            },
+            "solve": {"mode": "transient", "durationS": "10"},
+        })
+        self.assertEqual(res["status"], "complete")
+        self.assertGreater(Fraction(res["backendResult"]["ports"]["b"]["finalTemperatureBoundsK"][0]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
