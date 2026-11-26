@@ -581,8 +581,9 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
         self.assertEqual(r2["status"], "unsupported_regime")
         self.assertEqual(r2["unsupportedMechanismPair"], ["radial_shell", "sensible_body"])
 
-        # 3. transient + sensible_body + subcooled phase_substance -> unsupported_regime (M04 scope)
-        r3 = solve_system({
+        # 3. transient + first_exhaustion + subcooled phase_substance -> unsupported_regime
+        #    (while continuation='auto' now solves via M04 enthalpy continuation!)
+        r3_sys = {
             "schema": THERMAL_SYSTEM_SCHEMA,
             "id": "u3",
             "conduction": base_rods,
@@ -599,10 +600,14 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
                     "initialLiquidKg": "0",
                 },
             },
-            "solve": {"mode": "transient", "durationS": "10"},
-        })
+            "solve": {"mode": "transient", "continuation": "first_exhaustion", "durationS": "10"},
+        }
+        r3 = solve_system(r3_sys)
         self.assertEqual(r3["status"], "unsupported_regime")
-        self.assertEqual(r3["unsupportedMechanismPair"], ["sensible_body", "non_coexisting_phase_substance"])
+        self.assertEqual(r3["unsupportedMechanismPair"], ["first_exhaustion", "non_coexisting_phase_substance"])
+        r3_auto = solve_system({**r3_sys, "solve": {"mode": "transient", "durationS": "10"}})
+        self.assertEqual(r3_auto["backend"], "enthalpy")
+        self.assertEqual(r3_auto["status"], "complete")
 
         # 4. CLI roundtrip (--equations-only and full solve)
         sys_doc = {

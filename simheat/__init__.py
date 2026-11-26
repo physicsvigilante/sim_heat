@@ -37,12 +37,21 @@ _SYSTEM_EXPORTS = (
     "solve_system",
 )
 
+_ENTHALPY_EXPORTS = (
+    "ENTHALPY_CONTINUATION_SCHEMA",
+    "solve_enthalpy_continuation",
+)
+
 
 def __getattr__(name: str):
     if name in _SYSTEM_EXPORTS:
         from simheat import system
 
         return getattr(system, name)
+    if name in _ENTHALPY_EXPORTS:
+        from simheat import enthalpy
+
+        return getattr(enthalpy, name)
     raise AttributeError(f"module 'simheat' has no attribute {name!r}")
 
 
@@ -51,6 +60,7 @@ __all__ = [
     "Conduction",
     "DERIVED_LAW_SCHEMA",
     "DerivedLaw",
+    "ENTHALPY_CONTINUATION_SCHEMA",
     "ExactBindings",
     "JOINED_LAW_SCHEMA",
     "ONE",
@@ -73,6 +83,7 @@ __all__ = [
     "join_laws",
     "pi_rational_enclosure",
     "product",
+    "solve_enthalpy_continuation",
     "solve_system",
     "step_matrix",
     "validate_terminal_law",
