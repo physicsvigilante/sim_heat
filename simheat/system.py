@@ -33,6 +33,8 @@ from simheat.laws import (
     ensure_derived_law,
     join_laws,
 )
+from simheat.rod_gen import RodGenerationModel, build_rod_generation_model
+from simheat.stefan import parse_stefan_spec, solve_stefan_from_law
 from tools.multibody_phase_network import solve_from_law as solve_multibody
 from tools.multiport_thermal_network import solve_from_law as solve_multiport
 from tools.offline_investigation import _expect_exact_keys
@@ -51,6 +53,7 @@ VALID_ATTACHMENT_KINDS = (
     "phase_substance",
     "exterior_surface",
     "radial_shell",
+    "stefan_layer",
 )
 
 
@@ -60,7 +63,8 @@ def _resolve_conduction(
     top_nodes: list[str] | None = None,
     base_dir: Path | None = None,
     system_id: str | None = None,
-) -> DerivedLaw:
+    allow_rod_generation: bool = True,
+) -> tuple[DerivedLaw, RodGenerationModel | None]:
     """Recursively resolve a declarative conduction specification into a certified ``DerivedLaw``."""
     if not isinstance(spec, dict):
         raise ValueError("conduction specification must be a mapping")
@@ -78,7 +82,28 @@ def _resolve_conduction(
         nodes = spec.get("nodes", top_nodes)
         rods = spec.get("rods")
         terminals = spec.get("terminals")
-        return DerivedLaw.from_rods(nodes, rods, terminals=terminals, law_id=spec.get("lawId") or system_id)
+        if not isinstance(rods, dict):
+            raise ValueError("conduction(rods).rods must be a mapping")
+        passive_rods: dict[str, dict[str, Any]] = {}
+        has_gen = False
+        for r_name, r_spec in rods.items():
+            if not isinstance(r_spec, dict):
+                raise ValueError(f"rods[{r_name}] must be a mapping")
+            if "generatedPowerW" in r_spec:
+                p_val = decimal_input(r_spec["generatedPowerW"], f"rods[{r_name}].generatedPowerW")
+                if p_val > 0:
+                    if not allow_rod_generation:
+                        raise ValueError(
+                            "rod generatedPowerW inside conduction.join is not supported; "
+                            "author the connected rod graph directly in conduction.rods"
+                        )
+                    has_gen = True
+                passive_rods[r_name] = {k: v for k, v in r_spec.items() if k != "generatedPowerW"}
+            else:
+                passive_rods[r_name] = r_spec
+        law = DerivedLaw.from_rods(nodes, passive_rods, terminals=terminals, law_id=spec.get("lawId") or system_id)
+        rod_gen = build_rod_generation_model(list(nodes), list(law.terminals), rods) if has_gen else None
+        return law, rod_gen
 
     if kind == "h1_study":
         _expect_exact_keys(
@@ -94,16 +119,19 @@ def _resolve_conduction(
                 study_p = base_dir / study_p
             if not root_p.is_absolute():
                 root_p = base_dir / root_p
-        return DerivedLaw.from_h1_study(
-            study_p,
-            root_p,
-            terminals=spec.get("terminals"),
-            law_id=spec.get("lawId"),
+        return (
+            DerivedLaw.from_h1_study(
+                study_p,
+                root_p,
+                terminals=spec.get("terminals"),
+                law_id=spec.get("lawId"),
+            ),
+            None,
         )
 
     if kind == "derived_law":
         _expect_exact_keys(spec, required=("kind", "law"), label="conduction(derived_law)")
-        return ensure_derived_law(spec["law"])
+        return ensure_derived_law(spec["law"]), None
 
     if kind == "derived_law_ref":
         _expect_exact_keys(
@@ -115,7 +143,7 @@ def _resolve_conduction(
         law_p = Path(spec["path"])
         if base_dir is not None and not law_p.is_absolute():
             law_p = base_dir / law_p
-        return DerivedLaw.from_file(law_p, expected_sha256=spec.get("sha256"))
+        return DerivedLaw.from_file(law_p, expected_sha256=spec.get("sha256")), None
 
     if kind == "join":
         _expect_exact_keys(
@@ -124,15 +152,18 @@ def _resolve_conduction(
             optional=("leftPrefix", "rightPrefix", "lawId"),
             label="conduction(join)",
         )
-        left_law = _resolve_conduction(spec["left"], base_dir=base_dir)
-        right_law = _resolve_conduction(spec["right"], base_dir=base_dir)
-        return join_laws(
-            left_law,
-            right_law,
-            spec["contacts"],
-            left_prefix=spec.get("leftPrefix", "left"),
-            right_prefix=spec.get("rightPrefix", "right"),
-            law_id=spec.get("lawId") or system_id,
+        left_law, _ = _resolve_conduction(spec["left"], base_dir=base_dir, allow_rod_generation=False)
+        right_law, _ = _resolve_conduction(spec["right"], base_dir=base_dir, allow_rod_generation=False)
+        return (
+            join_laws(
+                left_law,
+                right_law,
+                spec["contacts"],
+                left_prefix=spec.get("leftPrefix", "left"),
+                right_prefix=spec.get("rightPrefix", "right"),
+                law_id=spec.get("lawId") or system_id,
+            ),
+            None,
         )
 
     raise ValueError(
@@ -339,6 +370,17 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
             out["convectionCoefficientWPerM2K"] = _decimal_str(spec["convectionCoefficientWPerM2K"])
         return out
 
+    if kind == "stefan_layer":
+        parsed = parse_stefan_spec(spec, f"attachments[{name}]")
+        norm_spec = {
+            **{k: (_decimal_str(v) if isinstance(v, str) and k != "kind" else v) for k, v in spec.items()},
+            "geometry": {
+                k: (_decimal_str(v) if isinstance(v, str) and k != "kind" else v)
+                for k, v in spec["geometry"].items()
+            },
+        }
+        return {"kind": "stefan_layer", "spec": norm_spec, "parsed": parsed}
+
     # radial_shell
     _expect_exact_keys(spec, required=("kind", "geometry", "exterior"), label=f"attachments[{name}]")
     geom = spec["geometry"]
@@ -436,6 +478,7 @@ class ThermalSystem:
     initial_steps: int
     observations: tuple[str, ...]
     max_events: int = DEFAULT_MAX_EVENTS
+    rod_generation: RodGenerationModel | None = None
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], *, base_dir: str | Path | None = None) -> ThermalSystem:
@@ -458,7 +501,7 @@ class ThermalSystem:
         if isinstance(conduction, dict) and conduction.get("kind") in (None, "rods") and "terminals" not in conduction:
             if isinstance(payload["attachments"], dict):
                 conduction = {**conduction, "terminals": sorted(payload["attachments"].keys())}
-        derived_law = _resolve_conduction(
+        derived_law, rod_generation = _resolve_conduction(
             conduction,
             top_nodes=top_nodes,
             base_dir=base_path,
@@ -520,6 +563,7 @@ class ThermalSystem:
             initial_steps=initial_steps,
             observations=obs,
             max_events=max_events,
+            rod_generation=rod_generation,
         )
 
     @classmethod
@@ -535,6 +579,8 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
     bodies = [t for t, k in kinds_by_port.items() if k == "sensible_body"]
     phases = [t for t, k in kinds_by_port.items() if k == "phase_substance"]
     exteriors = [t for t, k in kinds_by_port.items() if k in ("exterior_surface", "radial_shell")]
+    stefans = [t for t, k in kinds_by_port.items() if k == "stefan_layer"]
+    has_rod_gen = system.rod_generation is not None
     non_coex_phases = [
         t for t in phases if system.attachments[t]["t0"] != system.attachments[t]["t_tr"]
     ]
@@ -545,6 +591,12 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
     ]
 
     if system.mode == "steady":
+        if stefans:
+            return (
+                None,
+                ["steady_mode", "stefan_layer"],
+                "Quasi-steady Stefan moving-boundary front requires transient mode.",
+            )
         if bodies:
             return (
                 None,
@@ -566,6 +618,34 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
         return "multiport", None, None
 
     # transient mode
+    if stefans:
+        if len(stefans) > 1:
+            return (
+                None,
+                ["stefan_layer", "multiple_stefan_layers"],
+                "Coupled multi-front Stefan layers are not supported (single stefan_layer with maintained terminals only).",
+            )
+        if exteriors:
+            ext_kind = kinds_by_port[exteriors[0]]
+            return (
+                None,
+                [ext_kind, "stefan_layer"],
+                f"Coupled transient {ext_kind} + stefan_layer requires a nonlinear moving-boundary integrator.",
+            )
+        if bodies:
+            return (
+                None,
+                ["stefan_layer", "sensible_body"],
+                "Coupled transient stefan_layer + sensible_body is not supported (single stefan_layer with maintained terminals only).",
+            )
+        if phases:
+            return (
+                None,
+                ["stefan_layer", "phase_substance"],
+                "Coupled transient stefan_layer + phase_substance is not supported (single stefan_layer with maintained terminals only).",
+            )
+        return "stefan", None, None
+
     if exteriors:
         ext_kind = kinds_by_port[exteriors[0]]
         partner = "sensible_body" if bodies else ("phase_substance" if phases else "transient_mode")
@@ -587,6 +667,12 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
                 None,
                 ["first_exhaustion", "heat_input"],
                 "first_exhaustion mode does not accept nonzero heatInputW; use continuation='auto' or 'staged'.",
+            )
+        if has_rod_gen and bodies:
+            return (
+                None,
+                ["first_exhaustion", "rod_generation"],
+                "first_exhaustion multibody mode does not accept rod generatedPowerW; use continuation='auto' or 'staged'.",
             )
         if bodies:
             return "multibody", None, None
@@ -610,6 +696,7 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
         wants_enthalpy = (
             bool(powered)
             or bool(non_coex_phases)
+            or has_rod_gen
             or (system.continuation == "staged" and bool(phases))
             or (system.continuation == "auto" and all_phases_have_heats)
         )
@@ -651,7 +738,7 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
     return (
         None,
         ["transient_mode", "maintained_only"],
-        "Transient solve requires at least one sensible_body or phase_substance attachment.",
+        "Transient solve requires at least one sensible_body, phase_substance, or stefan_layer attachment.",
     )
 
 
@@ -681,6 +768,16 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
             coeff = str(lo) if lo == hi else f"[{lo}, {hi}]"
             row_terms.append(f"({coeff})*T[{j}]")
         conduction_lines.append(f"  Q_supply[{i}] = " + " + ".join(row_terms))
+    if sys_obj.rod_generation is not None:
+        rg = sys_obj.rod_generation
+        conduction_lines.append(
+            f"Uniform rod heat generation (total P_gen = {rg.total_generated_power_w} W) "
+            "Norton-reduced to terminal injections I_Norton[i] (positive into terminal):"
+        )
+        for i in terms:
+            ilo, ihi = rg.terminal_injections_w[i]
+            val = str(ilo) if ilo == ihi else f"[{ilo}, {ihi}]"
+            conduction_lines.append(f"  I_Norton[{i}] = {val} W")
 
     terminal_eqs: dict[str, str] = {}
     for t in terms:
@@ -725,6 +822,29 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 f"[{h_term}{att['emissivity']}*{att['sigmaWPerM2K4']}*(T[{t}]^4 - {att['enclosureTemperatureK']}^4)] "
                 "(outward positive)"
             )
+        elif kind == "stefan_layer":
+            sp = att["spec"]
+            g = sp["geometry"]
+            g_kind = g["kind"]
+            if g_kind == "planar":
+                terminal_eqs[t] = (
+                    f"Quasi-steady planar Stefan front at {t}: rho*L*A*ds/dt = "
+                    f"(T_tr - T_eq_eff)/(R_ext + s/(k*A)), "
+                    f"T_tr={sp['transitionTemperatureK']} K, s(0)={g['initialThicknessM']} m, "
+                    f"k={sp['layerConductivityWPerMK']} W/(m*K), A={g['areaM2']} m^2"
+                )
+            elif g_kind == "cylinder":
+                terminal_eqs[t] = (
+                    f"Quasi-steady cylindrical Stefan front at {t}: rho*L*2*pi*r*L_c*dr/dt = "
+                    f"(T_tr - T_eq_eff)/(R_ext + ln(r/r0)/(2*pi*k*L_c)), "
+                    f"T_tr={sp['transitionTemperatureK']} K, r0={g['coreRadiusM']} m, r(0)={g['initialOuterRadiusM']} m"
+                )
+            else:
+                terminal_eqs[t] = (
+                    f"Quasi-steady spherical Stefan front at {t}: rho*L*4*pi*r^2*dr/dt = "
+                    f"(T_tr - T_eq_eff)/(R_ext + (1/r0 - 1/r)/(4*pi*k)), "
+                    f"T_tr={sp['transitionTemperatureK']} K, r0={g['coreRadiusM']} m, r(0)={g['initialOuterRadiusM']} m"
+                )
         else:  # radial_shell
             g = att["geometry"]
             e = att["exterior"]
@@ -740,13 +860,31 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 f"(T_s[{t}]^4 - {e.get('enclosureTemperatureK')}^4)] (outward positive)"
             )
 
+    has_rod_gen = sys_obj.rod_generation is not None
     if sys_obj.mode == "steady":
-        conservation = "Global steady conservation: sum_i Q_supply[i] = 0 W"
+        conservation = (
+            f"Global steady conservation: sum_i Q_out[i] = {sys_obj.rod_generation.total_generated_power_w} W (rod heat generation)"
+            if has_rod_gen
+            else "Global steady conservation: sum_i Q_supply[i] = 0 W"
+        )
+    elif backend == "stefan":
+        conservation = (
+            "Quasi-steady Stefan moving-boundary latent balance: "
+            "rho * L * dV_solid/dt = (T_tr - T_eq_eff) / (R_ext + R_layer(front)) "
+            "(sensible storage inside growing layer neglected)"
+        )
     else:
         has_power = any(
             sys_obj.attachments[t].get("heat_input", Fraction(0)) != 0 for t in terms
         )
-        rhs = "sum_n P_n * t_stop J" if has_power else "0 J"
+        if has_power and has_rod_gen:
+            rhs = f"(sum_n P_n + {sys_obj.rod_generation.total_generated_power_w}) * t_stop J"
+        elif has_rod_gen:
+            rhs = f"{sys_obj.rod_generation.total_generated_power_w} * t_stop J"
+        elif has_power:
+            rhs = "sum_n P_n * t_stop J"
+        else:
+            rhs = "0 J"
         conservation = (
             "Global transient energy ledger on [0, t_stop]: "
             f"sum_bodies C_i*(T_i(t_stop) - T_i(0)) + sum_phases DeltaH_k + sum_maintained E_in,m = {rhs}"
@@ -761,6 +899,16 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
     else:
         lines.append(f"Selected certified backend: {backend}")
 
+    conduction_summary: dict[str, Any] = {
+        "lineageKind": law.lineage.get("kind"),
+        "exactPointLaw": law.is_exact_point,
+        "signConvention": "Q_supply[i] = sum_j W[i][j] * T[j] positive into network",
+        "eliminatedJunctions": list(law.lineage.get("eliminatedJunctions", ())),
+        "contacts": [dict(c) for c in law.lineage.get("contacts", ())],
+    }
+    if sys_obj.rod_generation is not None:
+        conduction_summary["rodGenerationTotalPowerW"] = str(sys_obj.rod_generation.total_generated_power_w)
+
     return {
         "systemId": sys_obj.system_id,
         "mode": sys_obj.mode,
@@ -768,13 +916,7 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
         "derivedLawSha256": law.content_sha256,
         "selectedBackend": backend,
         "unsupportedRegime": None if unsup_pair is None else {"pair": unsup_pair, "reason": unsup_reason},
-        "conductionSummary": {
-            "lineageKind": law.lineage.get("kind"),
-            "exactPointLaw": law.is_exact_point,
-            "signConvention": "Q_supply[i] = sum_j W[i][j] * T[j] positive into network",
-            "eliminatedJunctions": list(law.lineage.get("eliminatedJunctions", ())),
-            "contacts": [dict(c) for c in law.lineage.get("contacts", ())],
-        },
+        "conductionSummary": conduction_summary,
         "terminalEquations": terminal_eqs,
         "conservationEquation": conservation,
         "equationsText": "\n".join(lines),
@@ -880,11 +1022,64 @@ def _to_enthalpy_ports(system: ThermalSystem) -> dict[str, dict[str, Any]]:
     return ports
 
 
-def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: bool = True) -> dict[str, Any]:
+def _extract_terminal_temps(
+    sys_obj: ThermalSystem, backend: str, raw: dict[str, Any]
+) -> dict[str, tuple[Fraction, Fraction]]:
+    """Extract certified terminal temperature spans (lo, hi) from any backend result."""
+    temps: dict[str, tuple[Fraction, Fraction]] = {}
+    if backend == "multiport":
+        for t in sys_obj.derived_law.terminals:
+            p = raw["ports"][t]
+            b = p["innerFaceTemperatureBoundsK"] if p["kind"] == "radial_shell" else p["temperatureBoundsK"]
+            temps[t] = (Fraction(b[0]), Fraction(b[1]))
+        return temps
+    if backend == "enthalpy":
+        for t in sys_obj.derived_law.terminals:
+            p = raw["ports"][t]
+            if p["kind"] == "maintained":
+                v = Fraction(p["temperatureK"])
+                temps[t] = (v, v)
+            else:
+                b = p["finalTemperatureBoundsK"]
+                temps[t] = (Fraction(b[0]), Fraction(b[1]))
+        return temps
+    if backend == "staged":
+        sp = raw["substancePort"]
+        b = raw["trajectory"]["finalTemperatureBoundsK"]
+        temps[sp] = (Fraction(b[0]), Fraction(b[1]))
+        for t, val in raw["network"]["maintainedReservoirTemperaturesK"].items():
+            v = Fraction(val)
+            temps[t] = (v, v)
+        return temps
+    if backend == "stefan":
+        sp = raw["network"]["stefanPort"]
+        b = raw["stefan"]["finalPortTemperatureBoundsK"]
+        temps[sp] = (Fraction(b[0]), Fraction(b[1]))
+        for t, val in raw["network"]["maintainedReservoirTemperaturesK"].items():
+            v = Fraction(val)
+            temps[t] = (v, v)
+        return temps
+    raise RuntimeError(f"cannot extract terminal temperatures for backend {backend!r}")
+
+
+def solve_system(
+    system: ThermalSystem | dict[str, Any],
+    *,
+    include_equations: bool = True,
+    rod_probe: tuple[str, str | Fraction] | None = None,
+) -> dict[str, Any]:
     """Solve a ``ThermalSystem`` through existing certified backends and return a unified envelope."""
     sys_obj = system if isinstance(system, ThermalSystem) else ThermalSystem.from_dict(system)
     eq_report = describe_equations(sys_obj)
     backend, unsup_pair, unsup_reason = _classify_dispatch(sys_obj)
+
+    parsed_probe: tuple[str, Fraction] | None = None
+    if rod_probe is not None:
+        r_name, x_raw = rod_probe
+        x_val = x_raw if isinstance(x_raw, Fraction) else decimal_input(x_raw, "rod_probe position")
+        if not (0 <= x_val <= 1):
+            raise ValueError("rod_probe position fraction must be in [0, 1]")
+        parsed_probe = (r_name, x_val)
 
     law_summary = {
         "schema": DERIVED_LAW_SCHEMA,
@@ -914,6 +1109,17 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             "backendResult": None,
         }
 
+    rg = sys_obj.rod_generation
+    inj_arg = None if rg is None else rg.terminal_injections_w
+    gen_tot_arg = None if rg is None else rg.total_generated_power_w
+
+    def _with_rod_gen(env: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
+        if rg is None:
+            return env
+        term_temps = _extract_terminal_temps(sys_obj, backend, raw)
+        env["rodGenerationSummary"] = rg.recover_profiles(term_temps, probe=parsed_probe)
+        return env
+
     if backend == "multiport":
         mp_ports = _to_multiport_ports(sys_obj)
         raw = solve_multiport(
@@ -921,6 +1127,8 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             mp_ports,
             duration_s=sys_obj.duration_s,
             max_sweeps=sys_obj.max_sweeps,
+            terminal_injections_w=inj_arg,
+            total_generated_power_w=gen_tot_arg,
         )
         meta = raw["solverMetadata"]
         ps = raw.get("phaseSystem")
@@ -929,13 +1137,16 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             "maxTemperatureWidthK": meta["maxTemperatureWidthK"],
             "maxHeatRateWidthW": meta["maxHeatRateWidthW"],
         }
-        return {
-            **base_envelope,
-            "status": status,
-            "terminationReason": meta["terminationReason"],
-            "achievedWidths": widths,
-            "backendResult": raw,
-        }
+        return _with_rod_gen(
+            {
+                **base_envelope,
+                "status": status,
+                "terminationReason": meta["terminationReason"],
+                "achievedWidths": widths,
+                "backendResult": raw,
+            },
+            raw,
+        )
 
     if backend == "multibody":
         mb_ports = _to_multibody_ports(sys_obj)
@@ -981,6 +1192,7 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             p["initialLiquidKg"],
             sys_obj.duration_s,
             maintained_temperatures_k=maintained,
+            port_norton_injection_w=None if inj_arg is None else inj_arg[phase_port],
         )
         traj = raw["trajectory"]
         tf_lo, tf_hi = map(Fraction, traj["finalTemperatureBoundsK"])
@@ -988,16 +1200,19 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
         term_reason = (
             "mode_sequence_uncertain" if status == "stage_boundary_uncertain" else "resolved"
         )
-        return {
-            **base_envelope,
-            "status": status,
-            "terminationReason": term_reason,
-            "achievedWidths": {
-                "finalTemperatureWidthK": str(tf_hi - tf_lo),
-                "modeledDurationWidthS": "0",
+        return _with_rod_gen(
+            {
+                **base_envelope,
+                "status": status,
+                "terminationReason": term_reason,
+                "achievedWidths": {
+                    "finalTemperatureWidthK": str(tf_hi - tf_lo),
+                    "modeledDurationWidthS": "0",
+                },
+                "backendResult": raw,
             },
-            "backendResult": raw,
-        }
+            raw,
+        )
 
     if backend == "enthalpy":
         ent_ports = _to_enthalpy_ports(sys_obj)
@@ -1007,18 +1222,55 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
             sys_obj.duration_s,
             initial_steps=sys_obj.initial_steps,
             max_events=sys_obj.max_events,
+            terminal_injections_w=inj_arg,
+            total_generated_power_w=gen_tot_arg,
         )
         meta = raw["solverMetadata"]
-        return {
-            **base_envelope,
-            "status": raw["status"],
-            "terminationReason": meta["terminationReason"],
-            "achievedWidths": {
-                "maxFinalTemperatureWidthK": meta["maxFinalTemperatureWidthK"],
-                "modeledDurationWidthS": meta["modeledDurationWidthS"],
+        return _with_rod_gen(
+            {
+                **base_envelope,
+                "status": raw["status"],
+                "terminationReason": meta["terminationReason"],
+                "achievedWidths": {
+                    "maxFinalTemperatureWidthK": meta["maxFinalTemperatureWidthK"],
+                    "modeledDurationWidthS": meta["modeledDurationWidthS"],
+                },
+                "backendResult": raw,
             },
-            "backendResult": raw,
+            raw,
+        )
+
+    if backend == "stefan":
+        stefan_port = next(
+            t for t in sys_obj.derived_law.terminals if sys_obj.attachments[t]["kind"] == "stefan_layer"
+        )
+        maintained = {
+            t: sys_obj.attachments[t]["temperatureK"]
+            for t in sys_obj.derived_law.terminals
+            if t != stefan_port
         }
+        raw = solve_stefan_from_law(
+            sys_obj.derived_law,
+            stefan_port,
+            sys_obj.attachments[stefan_port]["spec"],
+            sys_obj.duration_s,
+            maintained_temperatures_k=maintained,
+            port_norton_injection_w=None if inj_arg is None else inj_arg[stefan_port],
+        )
+        meta = raw["solverMetadata"]
+        return _with_rod_gen(
+            {
+                **base_envelope,
+                "status": raw["stefan"]["status"],
+                "terminationReason": meta["terminationReason"],
+                "achievedWidths": {
+                    "finalThicknessWidthM": meta["finalThicknessWidthM"],
+                    "modeledDurationWidthS": meta["modeledDurationWidthS"],
+                },
+                "backendResult": raw,
+            },
+            raw,
+        )
 
     raise RuntimeError(f"unexpected backend {backend!r}")
 
