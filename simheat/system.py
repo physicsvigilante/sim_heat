@@ -64,6 +64,12 @@ def _resolve_conduction(
         kind = "rods"
 
     if kind == "rods":
+        _expect_exact_keys(
+            spec,
+            required=("rods",),
+            optional=("kind", "nodes", "terminals", "lawId"),
+            label="conduction(rods)",
+        )
         nodes = spec.get("nodes", top_nodes)
         rods = spec.get("rods")
         terminals = spec.get("terminals")
@@ -136,11 +142,31 @@ def _decimal_str(raw: str) -> str:
 
 
 def _fraction_to_decimal_str(val: Fraction) -> str:
-    """Convert an exact terminating binary/decimal Fraction (e.g. m * c) to a decimal string."""
-    d = Decimal(val.numerator) / Decimal(val.denominator)
-    if Fraction(d) != val:
+    """Convert an exact terminating rational Fraction to an unsigned decimal string with arbitrary precision."""
+    if val < 0:
+        raise ValueError(f"negative value {val} cannot be represented as an unsigned decimal")
+    if val == 0:
+        return "0"
+    num = val.numerator
+    den = val.denominator
+    n2 = 0
+    while den % 2 == 0:
+        den //= 2
+        n2 += 1
+    n5 = 0
+    while den % 5 == 0:
+        den //= 5
+        n5 += 1
+    if den != 1:
         raise ValueError(f"non-terminating decimal value {val}")
-    return format(d.normalize(), "f")
+    scale = max(n2, n5)
+    scaled = num * (5 ** (scale - n5)) * (2 ** (scale - n2))
+    if scale == 0:
+        return str(scaled)
+    digits = str(scaled).rjust(scale + 1, "0")
+    whole = digits[:-scale]
+    frac = digits[-scale:].rstrip("0")
+    return f"{whole}.{frac}" if frac else whole
 
 
 def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
@@ -297,7 +323,81 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
     ext = spec["exterior"]
     if not isinstance(geom, dict) or not isinstance(ext, dict):
         raise ValueError(f"attachments[{name}] geometry and exterior must be mappings")
-    return {"kind": "radial_shell", "geometry": geom, "exterior": ext}
+    g_kind = geom.get("kind")
+    if g_kind not in ("sphere", "cylinder"):
+        raise ValueError(f"attachments[{name}].geometry.kind must be 'sphere' or 'cylinder'")
+    if g_kind == "sphere":
+        _expect_exact_keys(
+            geom,
+            required=("kind", "innerRadiusM", "layers"),
+            label=f"attachments[{name}].geometry",
+        )
+        norm_geom: dict[str, Any] = {"kind": "sphere"}
+    else:
+        _expect_exact_keys(
+            geom,
+            required=("kind", "innerRadiusM", "cylinderLengthM", "layers"),
+            label=f"attachments[{name}].geometry",
+        )
+        cyl_len = decimal_input(geom["cylinderLengthM"], f"cylinder length at {name}")
+        if cyl_len <= 0:
+            raise ValueError(f"positive cylinderLengthM required at {name}")
+        norm_geom = {"kind": "cylinder", "cylinderLengthM": _decimal_str(geom["cylinderLengthM"])}
+    r_prev = decimal_input(geom["innerRadiusM"], f"inner radius at {name}")
+    if r_prev <= 0:
+        raise ValueError(f"positive innerRadiusM required at {name}")
+    norm_geom["innerRadiusM"] = _decimal_str(geom["innerRadiusM"])
+    raw_layers = geom["layers"]
+    if not isinstance(raw_layers, list) or not (1 <= len(raw_layers) <= 32):
+        raise ValueError(f"attachments[{name}].geometry.layers must be a list of 1 to 32 layer mappings")
+    norm_layers = []
+    for idx, layer in enumerate(raw_layers):
+        if not isinstance(layer, dict):
+            raise ValueError(f"attachments[{name}].geometry.layers[{idx}] must be a mapping")
+        _expect_exact_keys(
+            layer,
+            required=("outerRadiusM", "conductivityWPerMK"),
+            label=f"attachments[{name}].geometry.layers[{idx}]",
+        )
+        r_out = decimal_input(layer["outerRadiusM"], f"layer {idx} outerRadiusM at {name}")
+        k_val = decimal_input(layer["conductivityWPerMK"], f"layer {idx} conductivityWPerMK at {name}")
+        if r_out <= r_prev or k_val <= 0:
+            raise ValueError(
+                f"attachments[{name}].geometry.layers[{idx}] requires strictly increasing outerRadiusM and positive conductivityWPerMK"
+            )
+        r_prev = r_out
+        norm_layers.append({
+            "outerRadiusM": _decimal_str(layer["outerRadiusM"]),
+            "conductivityWPerMK": _decimal_str(layer["conductivityWPerMK"]),
+        })
+    norm_geom["layers"] = norm_layers
+
+    _expect_exact_keys(
+        ext,
+        required=("enclosureTemperatureK", "emissivity", "sigmaWPerM2K4"),
+        optional=("airTemperatureK", "convectionCoefficientWPerM2K"),
+        label=f"attachments[{name}].exterior",
+    )
+    decimal_input(ext["enclosureTemperatureK"], f"enclosure T at {name}")
+    eps_val = decimal_input(ext["emissivity"], f"emissivity at {name}")
+    sig_val = decimal_input(ext["sigmaWPerM2K4"], f"sigma at {name}")
+    if eps_val > 1 or sig_val <= 0:
+        raise ValueError(f"attachments[{name}].exterior requires emissivity in [0,1] and positive sigma")
+    norm_ext: dict[str, Any] = {
+        "enclosureTemperatureK": _decimal_str(ext["enclosureTemperatureK"]),
+        "emissivity": _decimal_str(ext["emissivity"]),
+        "sigmaWPerM2K4": _decimal_str(ext["sigmaWPerM2K4"]),
+    }
+    if ("airTemperatureK" in ext) != ("convectionCoefficientWPerM2K" in ext):
+        raise ValueError(
+            f"attachments[{name}].exterior must provide both airTemperatureK and convectionCoefficientWPerM2K"
+        )
+    if "airTemperatureK" in ext:
+        decimal_input(ext["airTemperatureK"], f"air T at {name}")
+        decimal_input(ext["convectionCoefficientWPerM2K"], f"h at {name}")
+        norm_ext["airTemperatureK"] = _decimal_str(ext["airTemperatureK"])
+        norm_ext["convectionCoefficientWPerM2K"] = _decimal_str(ext["convectionCoefficientWPerM2K"])
+    return {"kind": "radial_shell", "geometry": norm_geom, "exterior": norm_ext}
 
 
 @dataclass(frozen=True)
@@ -374,7 +474,11 @@ class ThermalSystem:
             decimal_input(duration_raw, "solve.durationS")
             duration_s = _decimal_str(duration_raw)
         max_sweeps = solve.get("maxSweeps", 120)
+        if isinstance(max_sweeps, bool) or not isinstance(max_sweeps, int) or max_sweeps < 1:
+            raise ValueError("solve.maxSweeps must be a positive integer")
         initial_steps = solve.get("initialSteps", 16)
+        if isinstance(initial_steps, bool) or not isinstance(initial_steps, int) or not (1 <= initial_steps <= 256):
+            raise ValueError("solve.initialSteps must be an integer in [1, 256]")
         obs = tuple(solve.get("observations", ()))
         if any(not isinstance(o, str) or not o for o in obs):
             raise ValueError("solve.observations must contain non-empty strings")
@@ -596,8 +700,8 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
             "lineageKind": law.lineage.get("kind"),
             "exactPointLaw": law.is_exact_point,
             "signConvention": "Q_supply[i] = sum_j W[i][j] * T[j] positive into network",
-            "eliminatedJunctions": law.lineage.get("eliminatedJunctions", []),
-            "contacts": law.lineage.get("contacts", []),
+            "eliminatedJunctions": list(law.lineage.get("eliminatedJunctions", ())),
+            "contacts": [dict(c) for c in law.lineage.get("contacts", ())],
         },
         "terminalEquations": terminal_eqs,
         "conservationEquation": conservation,
@@ -680,7 +784,7 @@ def solve_system(system: ThermalSystem | dict[str, Any], *, include_equations: b
         "contentSha256": sys_obj.derived_law.content_sha256,
         "terminals": list(sys_obj.derived_law.terminals),
         "exactPointLaw": sys_obj.derived_law.is_exact_point,
-        "lineage": sys_obj.derived_law.lineage,
+        "lineage": sys_obj.derived_law.to_dict()["lineage"],
     }
     base_envelope: dict[str, Any] = {
         "schema": RESULT_ENVELOPE_SCHEMA,

@@ -3,6 +3,7 @@ import argparse
 from fractions import Fraction as F
 import json
 
+from simheat.laws import validate_terminal_law
 from tools.offline_provenance import offline_provenance
 from tools.radial_phase_bath import bath_inflow_from_law
 from tools.radiating_surface import decimal_input
@@ -16,6 +17,10 @@ def _pair(a, b):
 def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_per_kg,
                    solid_kg, liquid_kg, inner_radius_m, layers, emissivity, sigma, stages,
                    cylinder_length_m=None):
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("radial_phase_exposure requires imposedTemperaturesK on the law")
     transition = decimal_input(transition_k, "transition temperature")
     latent = decimal_input(latent_heat_j_per_kg, "specific latent heat")
     solid = decimal_input(solid_kg, "initial solid mass")

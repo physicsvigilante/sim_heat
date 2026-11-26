@@ -195,7 +195,7 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
             "nodes": ["hot", "junction", "bath", "vessel_in"],
             "conduction": {
                 "rods": {
-                    "facing": {"kind": "rod_area", "a": "hot", "b": "junction", "k": "20", "L": "0.1", "A": "0.02"},
+                    "facing": {"kind": "rod_area", "a": "hot", "b": "junction", "k": {"low": "19.5", "high": "20.5"}, "L": "0.1", "A": "0.02"},
                     "strip": {"kind": "rod_area", "a": "junction", "b": "bath", "k": "10", "L": "0.1", "A": "0.01"},
                     "insert": {"kind": "rod_area", "a": "junction", "b": "vessel_in", "k": "30", "L": "0.1", "A": "0.01"},
                 }
@@ -244,11 +244,18 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
         raw = res["backendResult"]
         bal_lo, bal_hi = map(F, raw["systemEnergyBalanceBoundsW"])
         self.assertTrue(bal_lo <= 0 <= bal_hi)
-        # Vessel inner temp must sit strictly between bath (273.15 K) and hot (400 K).
+        # Vessel inner temp must sit strictly between bath (273.15 K) and hot (400 K),
+        # enclosing both exact endpoints k_facing = 19.5 and k_facing = 20.5.
         t_lo, t_hi = map(F, raw["ports"]["vessel_in"]["innerFaceTemperatureBoundsK"])
         self.assertGreater(t_lo, F("273.15"))
         self.assertLess(t_hi, F("400"))
-        self.assertLess(t_hi - t_lo, F("1e-9"))
+        for k_pt in ("19.5", "20.5"):
+            pt_sys = json.loads(json.dumps(system))
+            pt_sys["conduction"]["rods"]["facing"]["k"] = k_pt
+            pt_res = solve_system(pt_sys)
+            pt_lo, pt_hi = map(F, pt_res["backendResult"]["ports"]["vessel_in"]["innerFaceTemperatureBoundsK"])
+            self.assertLessEqual(t_lo, pt_lo)
+            self.assertGreaterEqual(t_hi, pt_hi)
 
     def test_assembly2_joined_derived_law_equivalence_against_unreduced_full_graph_and_mpmath(self):
         # Principal M03 witness (F-05): join two independent subnetworks into a DerivedLaw
@@ -674,6 +681,162 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
                 )
             with self.assertRaises(ValueError):
                 solve_latent_legacy(bad_law, "cold", "273.15", "334000", "1", "1", "10")
+
+    def test_review_hardening_regressions_m03_r01_through_r08(self):
+        # M03-R01: direct DerivedLaw(...) forgery and in-place matrix mutation must both fail closed.
+        valid_law = DerivedLaw.from_rods(
+            nodes=["a", "b"],
+            rods={"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "2", "L": "1", "A": "1"}},
+        )
+        with self.assertRaises(TypeError):
+            valid_law.matrix["a"]["a"] = (F(100), F(100))  # type: ignore[index]
+        with self.assertRaises(ValueError):
+            DerivedLaw(
+                terminals=("a", "b"),
+                matrix={"a": {"a": (F(100), F(100)), "b": (F(-2), F(-2))}, "b": {"a": (F(-2), F(-2)), "b": (F(100), F(100))}},
+                lineage={"kind": "forged"},
+                content_sha256="0" * 64,
+            )
+
+        # M03-R02: unknown keys on conduction(rods) or rod specs must be refused fail-closed.
+        with self.assertRaisesRegex(ValueError, "unexpected"):
+            DerivedLaw.from_rods(
+                nodes=["a", "b"],
+                rods={"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "10", "L": "1", "A": "1", "temperatureSlopeAlpha": "0.05"}},
+            )
+        with self.assertRaisesRegex(ValueError, "unexpected"):
+            ThermalSystem.from_dict({
+                "schema": THERMAL_SYSTEM_SCHEMA,
+                "id": "bad_key",
+                "conduction": {
+                    "kind": "rods",
+                    "nodes": ["a", "b"],
+                    "rods": {"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "10", "L": "1", "A": "1"}},
+                    "unexpectedTopKey": True,
+                },
+                "attachments": {
+                    "a": {"kind": "maintained", "temperatureK": "400"},
+                    "b": {"kind": "maintained", "temperatureK": "300"},
+                },
+                "solve": {"mode": "steady"},
+            })
+
+        # M03-R03: bogus radial_shell payloads must fail at ThermalSystem.from_dict before describe_equations.
+        for bad_shell in (
+            {"kind": "radial_shell", "geometry": {}, "exterior": {}},
+            {
+                "kind": "radial_shell",
+                "geometry": {"kind": "sphere", "innerRadiusM": "0.1", "layers": "not_a_list"},
+                "exterior": {"enclosureTemperatureK": "300", "emissivity": "0.5", "sigmaWPerM2K4": "0.0000000567"},
+            },
+            {
+                "kind": "radial_shell",
+                "geometry": {"kind": "sphere", "innerRadiusM": "0.1", "layers": [{"outerRadiusM": "0.12", "conductivityWPerMK": "1"}]},
+                "exterior": {"enclosureTemperatureK": "300", "emissivity": "0.5", "sigmaWPerM2K4": "0.0000000567", "airTemperatureK": "300"},
+            },
+        ):
+            with self.assertRaises(ValueError):
+                ThermalSystem.from_dict({
+                    "schema": THERMAL_SYSTEM_SCHEMA,
+                    "id": "bad_shell",
+                    "conduction": {"kind": "rods", "nodes": ["a", "b"], "rods": {"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "10", "L": "1", "A": "1"}}},
+                    "attachments": {"a": {"kind": "maintained", "temperatureK": "400"}, "b": bad_shell},
+                    "solve": {"mode": "steady"},
+                })
+
+        # M03-R04: DerivedLaw.from_dict(good_pinned_law) must work across ALL 6 legacy entry points!
+        good_dl = DerivedLaw.from_dict(terminal_response(*COMPOSITE_WALL_INPUTS))
+        self.assertEqual(
+            solve_radial_bath_legacy(
+                good_dl, "hot", "cold", "273.15", "334000", "1", "1", "10",
+                "0.1", [("0.12", "1")], "300", "0.5", "0.0000000567",
+            )["schema"],
+            "sim_heat.offline_radial_phase_bath/1",
+        )
+        self.assertEqual(
+            solve_radial_exp_legacy(
+                good_dl, "hot", "cold", "273.15", "334000", "1", "1",
+                "0.1", [("0.12", "1")], "0.5", "0.0000000567",
+                [("s1", "300", "10", "300", "10")],
+            )["schema"],
+            "sim_heat.offline_radial_phase_exposure/1",
+        )
+
+        # M03-R05: H1 model with component named junction_1 plus an internal ownerless junction must not collide.
+        with tempfile.TemporaryDirectory() as tmp:
+            tdir = Path(tmp)
+            mo = (
+                "within;\n"
+                "model JunctionCollision\n"
+                "  SimHeat.FixedTemperature junction_1(T=400);\n"
+                "  SimHeat.FixedTemperature cold(T=300);\n"
+                "  SimHeat.RodArea r1(k=10, L=1, A=1);\n"
+                "  SimHeat.RodArea r2(k=10, L=1, A=1);\n"
+                "equation\n"
+                "  connect(junction_1.port, r1.port_a);\n"
+                "  connect(r1.port_b, r2.port_a);\n"
+                "  connect(r2.port_b, cold.port);\n"
+                "end JunctionCollision;\n"
+            )
+            mo_path = tdir / "model.mo"
+            mo_path.write_bytes(mo.encode("utf-8"))
+            st = {
+                "schema": "sim_heat.study/1",
+                "id": "JunctionCollision",
+                "model": {"path": "model.mo", "sha256": sha256(mo_path.read_bytes()).hexdigest()},
+                "mode": "steady",
+                "requests": [{"id": "q", "op": "heatFlow", "target": "r1"}],
+                "analysis": {},
+                "provenance": [
+                    {"target": target, "kind": "illustrative", "locator": "test", "note": "test"}
+                    for target in ("junction_1.T", "cold.T", "r1.k", "r1.L", "r1.A", "r2.k", "r2.L", "r2.A")
+                ] + [{"target": "@model", "kind": "adopted_assumption", "locator": "test", "note": "test"}],
+            }
+            st_path = tdir / "study.json"
+            st_path.write_text(json.dumps(st), encoding="utf-8")
+            j_law = DerivedLaw.from_h1_study(st_path, tdir)
+            self.assertEqual(set(j_law.terminals), {"junction_1", "cold"})
+            self.assertEqual(j_law.matrix["junction_1"]["junction_1"], (F(5), F(5)))
+
+        # M03-R07: >28-digit terminating massKg * specificHeatJPerKgK must succeed exactly.
+        hi_prec = ThermalSystem.from_dict({
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "high_prec_mc",
+            "conduction": {"kind": "rods", "nodes": ["a", "b"], "rods": {"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "10", "L": "1", "A": "1"}}},
+            "attachments": {
+                "a": {"kind": "maintained", "temperatureK": "400"},
+                "b": {
+                    "kind": "sensible_body",
+                    "massKg": "1.00000000000001",
+                    "specificHeatJPerKgK": "4200.000000000003",
+                    "initialTemperatureK": "300",
+                },
+            },
+            "solve": {"mode": "transient", "durationS": "1"},
+        })
+        self.assertEqual(
+            F(hi_prec.attachments["b"]["heatCapacityJPerK"]),
+            F("1.00000000000001") * F("4200.000000000003"),
+        )
+
+        # M03-R08: invalid maxSweeps / initialSteps must be refused regardless of mode.
+        for bad_solve in (
+            {"mode": "steady", "initialSteps": -999},
+            {"mode": "steady", "initialSteps": True},
+            {"mode": "transient", "durationS": "1", "maxSweeps": "not_an_int"},
+            {"mode": "transient", "durationS": "1", "maxSweeps": 0},
+        ):
+            with self.assertRaises(ValueError):
+                ThermalSystem.from_dict({
+                    "schema": THERMAL_SYSTEM_SCHEMA,
+                    "id": "bad_solve",
+                    "conduction": {"kind": "rods", "nodes": ["a", "b"], "rods": {"r": {"kind": "rod_area", "a": "a", "b": "b", "k": "10", "L": "1", "A": "1"}}},
+                    "attachments": {
+                        "a": {"kind": "maintained", "temperatureK": "400"},
+                        "b": {"kind": "maintained", "temperatureK": "300"},
+                    },
+                    "solve": bad_solve,
+                })
 
 
 if __name__ == "__main__":

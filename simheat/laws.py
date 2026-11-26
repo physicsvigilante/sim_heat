@@ -18,7 +18,8 @@ from fractions import Fraction
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from h1.study import checked_path, load_study
 from simheat.core import (
@@ -271,8 +272,28 @@ def _verify_joint_passive_feasibility(terminals, parsed):
         raise ValueError("passive terminal response network is disconnected in every feasible realization")
 
 
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({k: _deep_freeze(v) for k, v in value.items()})
+    if isinstance(value, list):
+        return tuple(_deep_freeze(v) for v in value)
+    if isinstance(value, tuple):
+        return tuple(_deep_freeze(v) for v in value)
+    return value
+
+
+def _deep_unfreeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {k: _deep_unfreeze(v) for k, v in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_unfreeze(v) for v in value]
+    if isinstance(value, list):
+        return [_deep_unfreeze(v) for v in value]
+    return value
+
+
 def _canonical_json_bytes(obj: Any) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return json.dumps(_deep_unfreeze(obj), sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def _parse_positive_param(value: Any, label: str) -> tuple[Fraction, Fraction]:
@@ -623,17 +644,86 @@ def _compute_law_sha256(
     return sha256(_canonical_json_bytes(payload)).hexdigest()
 
 
+_PREVALIDATED_SENTINEL = object()
+
+
 @dataclass(frozen=True)
 class DerivedLaw:
-    """Validated, immutable, exact-rational passive terminal conductance law."""
+    """Validated, deeply immutable, exact-rational passive terminal conductance law."""
 
     terminals: tuple[str, ...]
-    matrix: dict[str, dict[str, tuple[Fraction, Fraction]]]
-    lineage: dict[str, Any]
+    matrix: Mapping[str, Mapping[str, tuple[Fraction, Fraction]]]
+    lineage: Mapping[str, Any]
     content_sha256: str
-    reference_temperatures_k: dict[str, Fraction] | None = None
+    reference_temperatures_k: Mapping[str, Fraction] | None = None
     law_id: str | None = None
-    legacy_provenance: dict[str, Any] | None = None
+    legacy_provenance: Mapping[str, Any] | None = None
+    _prevalidated: object = None
+
+    def __post_init__(self) -> None:
+        if self._prevalidated is _PREVALIDATED_SENTINEL:
+            object.__setattr__(self, "_prevalidated", None)
+            return
+        # Direct DerivedLaw(...) instantiation must enforce full immutability, passivity,
+        # reference temperature bounds, and exact contentSha256 attestation.
+        if not isinstance(self.terminals, (tuple, list)):
+            raise ValueError("terminals must be a tuple or list of strings")
+        term_tuple = tuple(self.terminals)
+        if not isinstance(self.matrix, Mapping):
+            raise ValueError("matrix must be a mapping")
+        norm_matrix: dict[str, dict[str, tuple[Fraction, Fraction]]] = {}
+        for i in term_tuple:
+            if i not in self.matrix or not isinstance(self.matrix[i], Mapping):
+                raise ValueError(f"matrix row {i!r} missing or not a mapping")
+            norm_matrix[i] = {}
+            for j in term_tuple:
+                if j not in self.matrix[i]:
+                    raise ValueError(f"matrix entry ({i!r}, {j!r}) missing")
+                pair = self.matrix[i][j]
+                if (
+                    not isinstance(pair, (tuple, list))
+                    or len(pair) != 2
+                    or not isinstance(pair[0], Fraction)
+                    or not isinstance(pair[1], Fraction)
+                ):
+                    raise ValueError(f"matrix entry ({i!r}, {j!r}) must be a (Fraction, Fraction) pair")
+                norm_matrix[i][j] = (pair[0], pair[1])
+        if set(self.matrix) != set(term_tuple) or any(set(self.matrix[i]) != set(term_tuple) for i in term_tuple):
+            raise ValueError("terminal law matrix rows and columns must match terminals exactly")
+        validate_passive_matrix(term_tuple, norm_matrix, run_simplex=True)
+        if not isinstance(self.lineage, Mapping) or not isinstance(self.lineage.get("kind"), str):
+            raise ValueError("lineage must be a mapping with string 'kind'")
+        if self.reference_temperatures_k is not None:
+            if not isinstance(self.reference_temperatures_k, Mapping) or set(self.reference_temperatures_k) != set(term_tuple):
+                raise ValueError("reference_temperatures_k must match terminals exactly")
+            for name, temp in self.reference_temperatures_k.items():
+                if not isinstance(temp, Fraction) or temp < 0:
+                    raise ValueError(f"reference temperature at {name!r} must be a nonnegative Fraction")
+        expected_sha = _compute_law_sha256(term_tuple, norm_matrix, _deep_unfreeze(self.lineage))
+        if self.content_sha256 != expected_sha:
+            raise ValueError(
+                f"derived law contentSha256 mismatch: declared {self.content_sha256!r}, computed {expected_sha!r}"
+            )
+        object.__setattr__(self, "terminals", term_tuple)
+        object.__setattr__(
+            self,
+            "matrix",
+            MappingProxyType({i: MappingProxyType(norm_matrix[i]) for i in term_tuple}),
+        )
+        object.__setattr__(self, "lineage", _deep_freeze(self.lineage))
+        object.__setattr__(
+            self,
+            "reference_temperatures_k",
+            None
+            if self.reference_temperatures_k is None
+            else MappingProxyType({k: self.reference_temperatures_k[k] for k in term_tuple}),
+        )
+        object.__setattr__(
+            self,
+            "legacy_provenance",
+            None if self.legacy_provenance is None else _deep_freeze(self.legacy_provenance),
+        )
+        object.__setattr__(self, "_prevalidated", None)
 
     @classmethod
     def _build(
@@ -655,21 +745,25 @@ class DerivedLaw:
             for name, temp in reference_temperatures_k.items():
                 if not isinstance(temp, Fraction) or temp < 0:
                     raise ValueError(f"reference temperature at {name!r} must be a nonnegative Fraction")
-        digest = _compute_law_sha256(term_tuple, matrix, lineage)
-        frozen_matrix = {i: {j: matrix[i][j] for j in term_tuple} for i in term_tuple}
+        plain_lineage = _deep_unfreeze(lineage)
+        digest = _compute_law_sha256(term_tuple, matrix, plain_lineage)
+        frozen_matrix = MappingProxyType(
+            {i: MappingProxyType({j: matrix[i][j] for j in term_tuple}) for i in term_tuple}
+        )
         frozen_refs = (
-            {k: reference_temperatures_k[k] for k in term_tuple}
+            MappingProxyType({k: reference_temperatures_k[k] for k in term_tuple})
             if reference_temperatures_k is not None
             else None
         )
         return cls(
             terminals=term_tuple,
             matrix=frozen_matrix,
-            lineage=lineage,
+            lineage=_deep_freeze(plain_lineage),
             content_sha256=digest,
             reference_temperatures_k=frozen_refs,
             law_id=law_id,
-            legacy_provenance=legacy_provenance,
+            legacy_provenance=None if legacy_provenance is None else _deep_freeze(legacy_provenance),
+            _prevalidated=_PREVALIDATED_SENTINEL,
         )
 
     @property
@@ -699,7 +793,7 @@ class DerivedLaw:
             "signConvention": LAW_SIGN_CONVENTION,
             "endpointMeaning": ENDPOINT_MEANING,
             "supplyResponseBoundsWPerK": _serialize_matrix(self.terminals, self.matrix),
-            "lineage": self.lineage,
+            "lineage": _deep_unfreeze(self.lineage),
             "contentSha256": self.content_sha256,
             "nativeExecuted": False,
             "nativeQualified": False,
@@ -726,11 +820,11 @@ class DerivedLaw:
     def provenance_block(self) -> dict[str, Any]:
         """Uniform offline provenance block for engines consuming this law."""
         if self.legacy_provenance is not None:
-            return dict(self.legacy_provenance)
+            return _deep_unfreeze(self.legacy_provenance)
         return {
             "derivedLawSchema": DERIVED_LAW_SCHEMA,
             "derivedLawSha256": self.content_sha256,
-            "derivedLawLineage": self.lineage,
+            "derivedLawLineage": _deep_unfreeze(self.lineage),
             "nativeExecuted": False,
             "nativeQualified": False,
             "independentlyCertifiedReference": False,
@@ -777,6 +871,18 @@ class DerivedLaw:
             if not isinstance(name, str) or not name or not isinstance(spec, dict):
                 raise ValueError(f"invalid rod specification for {name!r}")
             kind = spec.get("kind")
+            if kind in ("rod_area", "RodArea"):
+                expected_keys = {"kind", "a", "b", "k", "L", "A"}
+            elif kind in ("rod_circular", "RodCircular"):
+                expected_keys = {"kind", "a", "b", "k", "L", "d"}
+            else:
+                raise ValueError(f"unsupported rod kind {kind!r} on rod {name!r}")
+            extra = sorted(set(spec) - expected_keys)
+            missing = sorted(expected_keys - set(spec))
+            if extra or missing:
+                raise ValueError(
+                    f"rod {name!r} keys mismatch (missing={missing}, unexpected={extra})"
+                )
             a = spec.get("a")
             b = spec.get("b")
             if a not in node_set or b not in node_set or a == b:
@@ -794,7 +900,7 @@ class DerivedLaw:
                     "kind": "rod_area", "a": a, "b": b,
                     "k": [str(k_lo), str(k_hi)], "L": [str(l_lo), str(l_hi)], "A": [str(a_lo), str(a_hi)],
                 }
-            elif kind in ("rod_circular", "RodCircular"):
+            else:
                 d_lo, d_hi = _parse_positive_param(spec.get("d"), f"rods[{name}].d")
                 if pi_box is None:
                     pi_lo, pi_hi = pi_rational_enclosure()
@@ -807,8 +913,6 @@ class DerivedLaw:
                     "kind": "rod_circular", "a": a, "b": b,
                     "k": [str(k_lo), str(k_hi)], "L": [str(l_lo), str(l_hi)], "d": [str(d_lo), str(d_hi)],
                 }
-            else:
-                raise ValueError(f"unsupported rod kind {kind!r} on rod {name!r}")
             if g_lo <= 0:
                 raise ValueError(f"rod {name!r} conductance lower bound must be positive")
             rational_edges.append((name, a, b, g_lo, g_hi))
@@ -967,11 +1071,11 @@ class DerivedLaw:
             groups.setdefault(find(port_name), []).append(port_name)
 
         # Assign canonical node names: owner name for Body/FixedTemperature ports,
-        # deterministic junction_<k> for ownerless junctions.
+        # collision-free junction_<k> for ownerless junctions.
         root_to_node: dict[str, str] = {}
         owner_terminals: list[str] = []
         ref_temps: dict[str, Fraction] = {}
-        junction_counter = 0
+        ownerless_roots: list[str] = []
 
         for root_key in sorted(groups):
             members = groups[root_key]
@@ -990,8 +1094,18 @@ class DerivedLaw:
                 t_val = comp.fields["T"].value if comp.kind == "FixedTemperature" else comp.fields["T_initial"].value
                 ref_temps[owner_name] = Fraction(t_val)
             else:
+                ownerless_roots.append(root_key)
+
+        used_node_names = set(owner_terminals)
+        junction_counter = 0
+        for root_key in ownerless_roots:
+            while True:
                 junction_counter += 1
-                root_to_node[root_key] = f"junction_{junction_counter}"
+                cand = f"junction_{junction_counter}"
+                if cand not in used_node_names:
+                    used_node_names.add(cand)
+                    root_to_node[root_key] = cand
+                    break
 
         nodes = sorted(root_to_node.values())
         term_list = sorted(owner_terminals) if terminals is None else list(terminals)
@@ -1143,6 +1257,8 @@ class DerivedLaw:
                     raise ValueError(
                         f"derived law contentSha256 mismatch: declared {declared_sha}, computed {expected_sha}"
                     )
+            if all(k in payload for k in ("modelSha256", "studySha256", "factsSha256")):
+                legacy_prov = offline_provenance(payload)
 
         return cls._build(
             terminals,
@@ -1157,10 +1273,11 @@ class DerivedLaw:
     @classmethod
     def from_file(cls, path: str | Path, *, expected_sha256: str | None = None) -> DerivedLaw:
         """Load and validate a serialized law JSON file with optional byte-exact SHA-256 check."""
-        file_path = Path(path)
-        if not file_path.is_file() or any(p.is_symlink() for p in (file_path, *file_path.parents)):
+        file_path = Path(path).expanduser()
+        abs_path = file_path.absolute()
+        if not abs_path.is_file() or any(p.is_symlink() for p in (abs_path, *abs_path.parents)):
             raise ValueError(f"invalid law file path: {path}")
-        raw = file_path.read_bytes()
+        raw = abs_path.read_bytes()
         if expected_sha256 is not None:
             if not isinstance(expected_sha256, str) or not _SHA256_RE.fullmatch(expected_sha256):
                 raise ValueError("expected_sha256 must be a 64-lowercase-hex SHA-256")

@@ -41,6 +41,10 @@ def bath_inflow_from_law(law, phase_port, surface_port, transition, inner_radius
 def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_per_kg,
                    solid_kg, liquid_kg, duration_s, inner_radius_m, layers, enclosure_k,
                    emissivity, sigma, cylinder_length_m=None, *, air_k=None, h_w_per_m2_k=None):
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("radial_phase_bath requires imposedTemperaturesK on the law")
     phase = phase_inputs(transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
     low, high, details = bath_inflow_from_law(
         law, phase_port, surface_port, phase[0], inner_radius_m, layers, enclosure_k,
