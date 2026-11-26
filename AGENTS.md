@@ -1,5 +1,7 @@
 # SIM_HEAT contribution and review boundaries
 
+> **Active Policy & Architecture Baseline (post-M02):** [docs/PROJECT_POLICY.md](docs/PROJECT_POLICY.md) supplements this file and supersedes conflicting workflow/review clauses (retaining owner merge approval, zero automatic OpenModelica CI, and record preservation). [docs/ARCHITECTURE_RECORD.md](docs/ARCHITECTURE_RECORD.md) records the authoritative physical, numerical, and architectural invariants. Live status and owner decisions are maintained in GitHub Issue #204.
+
 Source of truth for shared two-ChatGPT coordination: [review_sandbox/PROTOCOL.md](https://github.com/physicsvigilante/review_sandbox/blob/main/PROTOCOL.md) and [REVIEW-RISK-POLICY.md](https://github.com/physicsvigilante/review_sandbox/blob/main/REVIEW-RISK-POLICY.md). The central repository stores **review requests, prompts, and reviewer findings only**. This project repository owns Modelica, Python, tests, CI, original inputs, and native evidence.
 
 Read [docs/H1_IMPLEMENTATION_CONTRACT.md](docs/H1_IMPLEMENTATION_CONTRACT.md), [docs/H1_OFFLINE_AMENDMENT.md](docs/H1_OFFLINE_AMENDMENT.md), and [qualification/h1_c1/FREEZE.md](qualification/h1_c1/FREEZE.md) before changing physics, authoring grammar, numerical/error limits, observation semantics, or native provenance. Earlier reports and failed attempts are immutable historical records, not automatically current acceptance.
