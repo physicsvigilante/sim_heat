@@ -1047,7 +1047,11 @@ class DerivedLaw:
         """Read-only H1 AST adapter: derive a certified ``DerivedLaw`` directly from
         ``model.mo`` + ``study.json`` without hand-written ``facts.json`` or editing ``h1/*``.
         """
-        study = load_study(Path(study_path), Path(root_path))
+        study_abs = Path(study_path).expanduser().absolute()
+        root_abs = Path(root_path).expanduser().absolute()
+        if any(p.is_symlink() for p in (study_abs, *study_abs.parents, root_abs, *root_abs.parents)):
+            raise ValueError("H1 study and root paths must not contain symlinks")
+        study = load_study(study_abs.resolve(strict=True), root_abs.resolve(strict=True))
         if not study.request_report.get("admitted"):
             raise ValueError(f"H1 study was refused: {study.request_report}")
         folder = study.path.parent

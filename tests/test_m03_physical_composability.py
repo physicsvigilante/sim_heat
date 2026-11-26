@@ -764,7 +764,7 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
 
         # M03-R05: H1 model with component named junction_1 plus an internal ownerless junction must not collide.
         with tempfile.TemporaryDirectory() as tmp:
-            tdir = Path(tmp)
+            tdir = Path(tmp).resolve(strict=True)
             mo = (
                 "within;\n"
                 "model JunctionCollision\n"
