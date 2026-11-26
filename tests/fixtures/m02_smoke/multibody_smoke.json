@@ -1,0 +1,23 @@
+{
+  "source": {
+    "studyPath": "studies/composite_wall/study.json",
+    "rootPath": "studies/composite_wall",
+    "factsPath": "studies/composite_wall/facts.json",
+    "factsSha256": "f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b"
+  },
+  "ports": {
+    "hot": {
+      "kind": "lumped_body",
+      "heatCapacityJPerK": "4200",
+      "initialBodyTemperatureK": "373"
+    },
+    "cold": {
+      "kind": "phase_bath",
+      "transitionTemperatureK": "273",
+      "specificLatentHeatJPerKg": "334000",
+      "initialSolidKg": "1",
+      "initialLiquidKg": "0"
+    }
+  },
+  "durationS": "10"
+}

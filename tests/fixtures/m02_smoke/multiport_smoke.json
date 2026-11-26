@@ -1,0 +1,34 @@
+{
+  "source": {
+    "studyPath": "studies/composite_wall/study.json",
+    "rootPath": "studies/composite_wall",
+    "factsPath": "studies/composite_wall/facts.json",
+    "factsSha256": "f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b"
+  },
+  "ports": {
+    "hot": {
+      "kind": "maintained",
+      "temperatureK": "400"
+    },
+    "cold": {
+      "kind": "radial_shell",
+      "geometry": {
+        "kind": "sphere",
+        "innerRadiusM": "0.1",
+        "layers": [
+          {
+            "outerRadiusM": "0.11",
+            "conductivityWPerMK": "400"
+          }
+        ]
+      },
+      "exterior": {
+        "enclosureTemperatureK": "300",
+        "emissivity": "0.8",
+        "sigmaWPerM2K4": "0.0000000567",
+        "airTemperatureK": "300",
+        "convectionCoefficientWPerM2K": "10"
+      }
+    }
+  }
+}

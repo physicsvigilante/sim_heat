@@ -312,9 +312,16 @@ def solve_from_law(
     # Determine global monotone regime.
     if eq_lo == eq_hi == t0:
         regime = "equilibrium"
-        final_stage = (
-            "solid_sensible" if t0 < t_tr else ("liquid_sensible" if t0 > t_tr else "coexisting_equilibrium")
-        )
+        if t0 < t_tr:
+            final_stage = "solid_sensible"
+        elif t0 > t_tr:
+            final_stage = "liquid_sensible"
+        elif solid0 > 0 and liquid0 > 0:
+            final_stage = "coexisting_equilibrium"
+        elif solid0 > 0:
+            final_stage = "solid_equilibrium"
+        else:
+            final_stage = "liquid_equilibrium"
         t1_box = None
         t2_box = None
         t_final = Box.exact(t0)

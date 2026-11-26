@@ -23,6 +23,7 @@ from tools.multiport_thermal_network import (
 )
 from tools.offline_provenance import OFFLINE_FLAG_KEYS
 from tools.radial_phase_bath import investigate as radial_phase_investigate
+from tools.radiating_radial_layers import solve as rrl_solve
 from tools.terminal_response import investigate as terminal_response
 
 
@@ -404,7 +405,11 @@ class MultiportThermalNetworkTests(TestCase):
             "sigmaWPerM2K4": "0.0000000567",
         }
         # Only A is anchored; C and D can float to any temperature when G_BC = 0 -> MUST refuse.
-        with self.assertRaisesRegex(ValueError, "not guaranteed to be connected to an active temperature anchor"):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"independent-edge lower-bound anchoring test inconclusive for terminals \['C', 'D'\]; "
+            r"the correlated feasible set may still be anchored",
+        ):
             solve_from_law(
                 bridge_law,
                 {
@@ -541,3 +546,530 @@ class MultiportThermalNetworkTests(TestCase):
                         "cold": {"kind": "maintained", "temperatureK": "300"},
                     },
                 )
+
+    def test_f02_i5_radial_shell_grid_and_radiating_radial_layers_equivalence(self):
+        # Full 42-case Opus I5 grid: all widths < 1e-9 K, enclosing 45-digit mpmath oracle,
+        # residualCertified=True, terminationReason="converged".
+        link_law = terminal_response(*LINK)
+        with mp.workdps(50):
+            eps_mp, sig_mp = mp.mpf("0.8"), mp.mpf("5.67e-8")
+            for geom in ("sphere", "cylinder"):
+                for k_s in ("0.04", "0.2", "1", "15", "50", "200", "400"):
+                    for h_s in ("2", "10", "50"):
+                        g = {
+                            "kind": geom,
+                            "innerRadiusM": "0.1",
+                            "layers": [{"outerRadiusM": "0.11", "conductivityWPerMK": k_s}],
+                        }
+                        if geom == "cylinder":
+                            g["cylinderLengthM"] = "1"
+                        res = solve_from_law(
+                            link_law,
+                            {
+                                "hot": {"kind": "maintained", "temperatureK": "400"},
+                                "cold": {
+                                    "kind": "radial_shell",
+                                    "geometry": g,
+                                    "exterior": {
+                                        "enclosureTemperatureK": "300",
+                                        "emissivity": "0.8",
+                                        "sigmaWPerM2K4": "0.0000000567",
+                                        "airTemperatureK": "300",
+                                        "convectionCoefficientWPerM2K": h_s,
+                                    },
+                                },
+                            },
+                        )
+                        meta = res["solverMetadata"]
+                        self.assertTrue(meta["residualCertified"])
+                        self.assertEqual(meta["terminationReason"], "converged")
+                        self.assertLess(F(meta["maxTemperatureWidthK"]), F(1, 10**9))
+                        kk, hh = mp.mpf(k_s), mp.mpf(h_s)
+                        if geom == "sphere":
+                            r_sh = (1 / mp.mpf("0.1") - 1 / mp.mpf("0.11")) / (4 * mp.pi * kk)
+                            area = 4 * mp.pi * mp.mpf("0.11") ** 2
+                        else:
+                            r_sh = mp.log(mp.mpf("0.11") / mp.mpf("0.1")) / (2 * mp.pi * kk)
+                            area = 2 * mp.pi * mp.mpf("0.11")
+                        ti, ts = mp.findroot(
+                            lambda Ti, Ts: [
+                                2 * (400 - Ti) - (Ti - Ts) / r_sh,
+                                (Ti - Ts) / r_sh - area * (hh * (Ts - 300) + eps_mp * sig_mp * (Ts**4 - 300**4)),
+                            ],
+                            (mp.mpf(350), mp.mpf(340)),
+                        )
+                        po = res["ports"]["cold"]
+                        _assert_encloses(self, po["innerFaceTemperatureBoundsK"], ti, max_width=F(1, 10**9))
+                        _assert_encloses(self, po["outerFaceTemperatureBoundsK"], ts, max_width=F(1, 10**9))
+
+        # Equivalence with radiating_radial_layers.solve to 1e-12 W on copper sphere & cylinder.
+        for geom in ("sphere", "cylinder"):
+            cyl = "1" if geom == "cylinder" else None
+            ref = rrl_solve(
+                link_law, "cold", "0.1", [("0.11", "400")], "300", "0.8", "0.0000000567", cyl,
+                air_k="300", h_w_per_m2_k="10",
+            )
+            g = {"kind": geom, "innerRadiusM": "0.1", "layers": [{"outerRadiusM": "0.11", "conductivityWPerMK": "400"}]}
+            if cyl is not None:
+                g["cylinderLengthM"] = cyl
+            res = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": link_law["imposedTemperaturesK"]["hot"]},
+                    "cold": {
+                        "kind": "radial_shell",
+                        "geometry": g,
+                        "exterior": {
+                            "enclosureTemperatureK": "300",
+                            "emissivity": "0.8",
+                            "sigmaWPerM2K4": "0.0000000567",
+                            "airTemperatureK": "300",
+                            "convectionCoefficientWPerM2K": "10",
+                        },
+                    },
+                },
+            )
+            q_ref = list(map(F, ref["outwardHeatRateBoundsW"]))
+            q_mp = list(map(F, res["ports"]["cold"]["outwardHeatRateBoundsW"]))
+            _assert_intervals_overlap(self, ref["outwardHeatRateBoundsW"], res["ports"]["cold"]["outwardHeatRateBoundsW"])
+            self.assertLess(max(abs(q_mp[0] - q_ref[0]), abs(q_mp[1] - q_ref[1])), F(1, 10**12))
+
+    def test_f02_copper_sphere_phase_bath_star_and_exact_linear_and_sweep_limit(self):
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+        link_law = terminal_response(*LINK)
+
+        # 1) Copper sphere + phase bath on STAR at T_ext in {100, 120, 150, 170, 180} K: no refusal.
+        for ext_t in ("100", "120", "150", "170", "180"):
+            res = solve_from_law(
+                star_law,
+                {
+                    "cool": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273.15",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": "1",
+                    },
+                    "middle": {"kind": "maintained", "temperatureK": star_law["imposedTemperaturesK"]["middle"]},
+                    "warm": {
+                        "kind": "radial_shell",
+                        "geometry": {
+                            "kind": "sphere",
+                            "innerRadiusM": "0.1",
+                            "layers": [{"outerRadiusM": "0.11", "conductivityWPerMK": "400"}],
+                        },
+                        "exterior": {
+                            "enclosureTemperatureK": ext_t,
+                            "emissivity": "0.8",
+                            "sigmaWPerM2K4": "0.0000000567",
+                            "airTemperatureK": ext_t,
+                            "convectionCoefficientWPerM2K": "10",
+                        },
+                    },
+                },
+                duration_s="100",
+            )
+            self.assertEqual(res["solverMetadata"]["terminationReason"], "converged")
+            self.assertEqual(res["ports"]["cool"]["phaseProcess"], "melting")
+            if ext_t == "180":
+                q_lo, q_hi = map(F, res["ports"]["cool"]["bathInflowDuringPlateauBoundsW"])
+                self.assertGreater(q_lo, F("46.4"))
+                self.assertLess(q_hi, F("46.6"))
+
+        # 2) WEAK_FILMS exact rational linear path.
+        weak = solve_from_law(
+            link_law,
+            {
+                "hot": {
+                    "kind": "radiating_surface",
+                    "areaM2": "0.01",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0",
+                    "sigmaWPerM2K4": "0.0000000567",
+                    "airTemperatureK": "350",
+                    "convectionCoefficientWPerM2K": "2",
+                },
+                "cold": {
+                    "kind": "radiating_surface",
+                    "areaM2": "0.01",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0",
+                    "sigmaWPerM2K4": "0.0000000567",
+                    "airTemperatureK": "250",
+                    "convectionCoefficientWPerM2K": "2",
+                },
+            },
+        )
+        self.assertEqual(weak["solverMetadata"]["terminationReason"], "exact_linear")
+        self.assertEqual(weak["solverMetadata"]["maxTemperatureWidthK"], "0")
+        self.assertEqual(weak["solverMetadata"]["maxHeatRateWidthW"], "0")
+        self.assertEqual(weak["ports"]["hot"]["temperatureBoundsK"], ["60350/201", "60350/201"])
+        self.assertEqual(weak["ports"]["cold"]["temperatureBoundsK"], ["60250/201", "60250/201"])
+
+        # 3) eps = 0 radial_shell has interval g_shell and area, so MUST NOT take exact_linear.
+        eps0_shell = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "400"},
+                "cold": {
+                    "kind": "radial_shell",
+                    "geometry": {
+                        "kind": "sphere",
+                        "innerRadiusM": "0.1",
+                        "layers": [{"outerRadiusM": "0.11", "conductivityWPerMK": "400"}],
+                    },
+                    "exterior": {
+                        "enclosureTemperatureK": "300",
+                        "emissivity": "0",
+                        "sigmaWPerM2K4": "0.0000000567",
+                        "airTemperatureK": "300",
+                        "convectionCoefficientWPerM2K": "10",
+                    },
+                },
+            },
+        )
+        self.assertEqual(eps0_shell["solverMetadata"]["terminationReason"], "converged")
+        self.assertLess(F(eps0_shell["solverMetadata"]["maxTemperatureWidthK"]), F(1, 10**9))
+
+        # 4) 0-sweep cases (all fixed or t_min == t_max) report terminationReason == "converged".
+        all_fixed = solve_from_law(
+            link_law,
+            {"hot": {"kind": "maintained", "temperatureK": "380"}, "cold": {"kind": "maintained", "temperatureK": "280"}},
+        )
+        self.assertEqual(all_fixed["solverMetadata"]["terminationReason"], "converged")
+        self.assertEqual(all_fixed["solverMetadata"]["sweeps"], 0)
+        self.assertEqual(all_fixed["solverMetadata"]["maxTemperatureWidthK"], "0")
+
+        # 5) Forced max_sweeps=1: reports sweep_limit, and resolution-limit refusal precedes sign refusal.
+        lim = solve_from_law(
+            link_law,
+            {
+                "hot": {
+                    "kind": "radiating_surface",
+                    "areaM2": "0.01",
+                    "enclosureTemperatureK": "400",
+                    "emissivity": "0.1",
+                    "sigmaWPerM2K4": "0.0000000567",
+                },
+                "cold": {
+                    "kind": "radiating_surface",
+                    "areaM2": "0.01",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0.1",
+                    "sigmaWPerM2K4": "0.0000000567",
+                },
+            },
+            max_sweeps=1,
+        )
+        self.assertEqual(lim["solverMetadata"]["terminationReason"], "sweep_limit")
+        self.assertEqual(lim["solverMetadata"]["sweeps"], 1)
+        self.assertGreater(F(lim["solverMetadata"]["maxTemperatureWidthK"]), F(0))
+        self.assertGreater(F(lim["solverMetadata"]["maxHeatRateWidthW"]), F(0))
+
+        # Phase-bath straddle at max_sweeps=1 raises resolution-limit refusal naming sweep_limit & width,
+        # while the same problem resolves cleanly at default max_sweeps.
+        straddle_ports = {
+            "cool": {
+                "kind": "phase_bath",
+                "transitionTemperatureK": "420",
+                "specificLatentHeatJPerKg": "334000",
+                "initialSolidKg": "1",
+                "initialLiquidKg": "1",
+            },
+            "warm": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "500",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+            "middle": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "200",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+        }
+        with self.assertRaisesRegex(ValueError, r"sweep_limit.*max_sweeps=1.*Width"):
+            solve_from_law(star_law, straddle_ports, duration_s="100", max_sweeps=1)
+        resolved = solve_from_law(star_law, straddle_ports, duration_s="100")
+        self.assertEqual(resolved["solverMetadata"]["terminationReason"], "converged")
+
+    def test_f02_fixed_to_fixed_interval_edge_does_not_enter_exact_linear(self):
+        # EH-01 witness: STAR with exact unknown-incident edges (cool,warm)=1, (cool,middle)=3/2
+        # and interval fixed<->fixed edge (warm,middle)=[1/2, 7/10]. Exact linear path must NOT
+        # trigger; Q_middle must enclose [62, 82] W and Q_warm must enclose [-162, -142] W.
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        law = copy.deepcopy(terminal_response(*star_inputs))
+        law["supplyResponseBoundsWPerK"] = {
+            "warm": {"warm": ["3/2", "17/10"], "middle": ["-7/10", "-1/2"], "cool": ["-1", "-1"]},
+            "middle": {"warm": ["-7/10", "-1/2"], "middle": ["2", "11/5"], "cool": ["-3/2", "-3/2"]},
+            "cool": {"warm": ["-1", "-1"], "middle": ["-3/2", "-3/2"], "cool": ["5/2", "5/2"]},
+        }
+        res = solve_from_law(
+            law,
+            {
+                "warm": {"kind": "maintained", "temperatureK": "400"},
+                "middle": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "10",
+                    "initialLiquidKg": "10",
+                },
+                "cool": {
+                    "kind": "radiating_surface",
+                    "areaM2": "1",
+                    "enclosureTemperatureK": "300",
+                    "emissivity": "0",
+                    "sigmaWPerM2K4": "0.0000000567",
+                    "airTemperatureK": "300",
+                    "convectionCoefficientWPerM2K": "10",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertNotEqual(res["solverMetadata"]["terminationReason"], "exact_linear")
+        self.assertEqual(res["solverMetadata"]["terminationReason"], "converged")
+        self.assertTrue(res["solverMetadata"]["residualCertified"])
+        t_cool_lo, t_cool_hi = map(F, res["ports"]["cool"]["temperatureBoundsK"])
+        self.assertLessEqual(t_cool_lo, F(308))
+        self.assertGreaterEqual(t_cool_hi, F(308))
+        q_mid_lo, q_mid_hi = map(F, res["ports"]["middle"]["bathInflowDuringPlateauBoundsW"])
+        self.assertLessEqual(q_mid_lo, F(62))
+        self.assertGreaterEqual(q_mid_hi, F(82))
+        q_warm_lo, q_warm_hi = map(F, res["ports"]["warm"]["inflowFromNetworkBoundsW"])
+        self.assertLessEqual(q_warm_lo, F(-162))
+        self.assertGreaterEqual(q_warm_hi, F(-142))
+        exh_lo, exh_hi = map(F, res["ports"]["middle"]["exhaustionTimeBoundsS"])
+        self.assertLessEqual(exh_lo, F(10000, 82))
+        self.assertGreaterEqual(exh_hi, F(10000, 62))
+
+    def test_f04_pure_phase_bath_regimes_epsilon_limit_and_multi_bath_start_exhaustion(self):
+        link_law = terminal_response(*LINK)
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+
+        # 1) Pure solid + melting inflow: exact oracle and eps in {1e-9, 1e-12} criterion.
+        pure_s = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "373"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(pure_s["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_s["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertIs(pure_s["ports"]["cold"]["exhaustedAtStart"], False)
+        self.assertIsNone(pure_s["ports"]["cold"]["exhaustedPhase"])
+        self.assertEqual(pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"], ["20000", "20000"])
+        for eps_s in ("0.000000001", "0.000000000001"):
+            eps = F(eps_s)
+            ref = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": eps_s,
+                    },
+                },
+                duration_s="100",
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+                ref["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["remainingSolidBoundsKg"],
+                ref["ports"]["cold"]["remainingSolidBoundsKg"],
+            )
+            self.assertEqual(
+                [F(x) for x in pure_s["ports"]["cold"]["remainingLiquidBoundsKg"]],
+                [F(x) - eps for x in ref["ports"]["cold"]["remainingLiquidBoundsKg"]],
+            )
+
+        # 2) Pure liquid + freezing outflow mirror.
+        pure_l = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "200"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "0",
+                    "initialLiquidKg": "1",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(pure_l["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_l["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(pure_l["ports"]["cold"]["phaseProcess"], "freezing")
+        self.assertEqual(pure_l["ports"]["cold"]["latentEnergyIntoBathBoundsJ"], ["-14600", "-14600"])
+
+        # 3) Regime (b): pure solid + outflow -> exhaustedAtStart=True (including duration == 0).
+        for dur_s in ("100", "0"):
+            exh = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "200"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                duration_s=dur_s,
+            )
+            self.assertEqual(exh["phaseSystem"]["plateauStatus"], "exhausted")
+            self.assertIs(exh["phaseSystem"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["phaseSystem"]["firstExhaustionTimeBoundsS"], ["0", "0"])
+            self.assertEqual(exh["phaseSystem"]["modeledDurationBoundsS"], ["0", "0"])
+            self.assertEqual(exh["phaseSystem"]["firstExhaustedCandidatePorts"], ["cold"])
+            self.assertIs(exh["ports"]["cold"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["ports"]["cold"]["exhaustedPhase"], "liquid")
+            self.assertEqual(exh["ports"]["cold"]["remainingSolidBoundsKg"], ["1", "1"])
+            self.assertEqual(exh["ports"]["cold"]["remainingLiquidBoundsKg"], ["0", "0"])
+
+        # 4) Multi-bath multiport with one pure bath in regime (b): system status exhausted at [0, 0].
+        mb = solve_from_law(
+            star_law,
+            {
+                "warm": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "400",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",  # pure solid losing heat -> regime (b)!
+                },
+                "cool": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "1",
+                },
+                "middle": {"kind": "maintained", "temperatureK": "330"},
+            },
+            duration_s="100",
+        )
+        self.assertEqual(mb["phaseSystem"]["plateauStatus"], "exhausted")
+        self.assertIs(mb["phaseSystem"]["exhaustedAtStart"], True)
+        self.assertEqual(mb["phaseSystem"]["firstExhaustionTimeBoundsS"], ["0", "0"])
+        self.assertEqual(mb["phaseSystem"]["firstExhaustedCandidatePorts"], ["warm"])
+        self.assertIs(mb["ports"]["warm"]["exhaustedAtStart"], True)
+        self.assertEqual(mb["ports"]["warm"]["exhaustedPhase"], "liquid")
+        self.assertIs(mb["ports"]["cool"]["exhaustedAtStart"], False)
+        self.assertIsNone(mb["ports"]["cool"]["exhaustedPhase"])
+        self.assertEqual(mb["ports"]["cool"]["statusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+
+        # 5) Regime (c) exact equilibrium & duration == 0 in regime (a).
+        eq = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "maintained", "temperatureK": "273"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            duration_s="100",
+        )
+        self.assertEqual(eq["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(eq["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(eq["ports"]["cold"]["phaseProcess"], "equilibrium")
+
+        # 6) Regime (d) CR-11: unresolved sign straddle still refuses even at duration == 0.
+        pure_straddle_ports = {
+            "cool": {
+                "kind": "phase_bath",
+                "transitionTemperatureK": "420",
+                "specificLatentHeatJPerKg": "334000",
+                "initialSolidKg": "1",
+                "initialLiquidKg": "0",
+            },
+            "warm": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "500",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+            "middle": {
+                "kind": "radiating_surface",
+                "areaM2": "0.1",
+                "enclosureTemperatureK": "200",
+                "emissivity": "0.8",
+                "sigmaWPerM2K4": "0.0000000567",
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "sweep_limit"):
+            solve_from_law(star_law, pure_straddle_ports, duration_s="0", max_sweeps=1)
+
+        # 7) Zero total mass still refused.
+        with self.assertRaises(ValueError):
+            solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "maintained", "temperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "0",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                duration_s="10",
+            )
+
+    def test_f10_correlated_triangle_anchoring_decision_unchanged_with_accurate_message(self):
+        # M01 CORRELATED_ANCHOR witness: exact diagonals 2 and off-diagonals in [-2, 0] force every
+        # feasible edge to 1, yet independent-edge lower bounds are 0 -> still refuses with F-10 wording.
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        synthetic = copy.deepcopy(terminal_response(*star_inputs))
+        synthetic["supplyResponseBoundsWPerK"] = {
+            i: {j: ["2", "2"] if i == j else ["-2", "0"] for j in synthetic["terminals"]}
+            for i in synthetic["terminals"]
+        }
+        adiabatic = {
+            "kind": "radiating_surface",
+            "areaM2": "0.01",
+            "enclosureTemperatureK": "300",
+            "emissivity": "0",
+            "sigmaWPerM2K4": "0.0000000567",
+            "airTemperatureK": "280",
+            "convectionCoefficientWPerM2K": "0",
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            r"independent-edge lower-bound anchoring test inconclusive for terminals \['cool', 'middle'\]; "
+            r"the correlated feasible set may still be anchored",
+        ):
+            solve_from_law(
+                synthetic,
+                {
+                    "warm": {"kind": "maintained", "temperatureK": "380"},
+                    "middle": adiabatic,
+                    "cool": adiabatic,
+                },
+            )

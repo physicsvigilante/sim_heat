@@ -361,3 +361,347 @@ class MultibodyPhaseNetworkTests(TestCase):
                     },
                     "100",
                 )
+
+    def test_f03_near_miss_star_r_9999_and_999999_and_triangle_two_bath_candidates(self):
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+        tri_inputs = (CASES / "triangle" / "study.json", CASES / "triangle", CASES / "triangle" / "facts.json", TRIANGLE)
+        tri_law = terminal_response(*tri_inputs)
+
+        # 1) STAR r = 0.9999 and r = 0.999999 with initial_steps=16:
+        # Exact peak E_peak = 100*(276/5 - 48/5*ln(27/4)) ~ 3686.8390066 J; liquid exhausts at 353.293930845 s.
+        with mp.workdps(80):
+            e_peak_star = 100 * (mp.mpf(276) / 5 - mp.mpf(48) / 5 * mp.log(mp.mpf(27) / 4))
+            e_fn = lambda t: mp.mpf(-24) * t + mp.mpf(6480) * (1 - mp.exp(-t / 40))
+            t_liq_star = mp.findroot(lambda t: e_fn(t) + 2000, (mp.mpf(300), mp.mpf(400)))
+            tb_liq_star = 338 + 162 * mp.exp(-t_liq_star / 40)
+            em_liq_star = -(mp.mpf(100) * (tb_liq_star - 500) + mp.mpf(-2000))
+
+            for ratio_s in ("0.9999", "0.999999"):
+                solid_str = mp.nstr(e_peak_star / mp.mpf(ratio_s), 16)
+                ports = {
+                    "warm": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "350",
+                        "specificLatentHeatJPerKg": "1",
+                        "initialSolidKg": solid_str,
+                        "initialLiquidKg": "2000",
+                    },
+                    "cool": {"kind": "lumped_body", "heatCapacityJPerK": "100", "initialBodyTemperatureK": "500"},
+                    "middle": {"kind": "maintained", "temperatureK": "330"},
+                }
+                res = solve_from_law(star_law, ports, "400", initial_steps=16)
+                self.assertEqual(res["phaseSystem"]["plateauStatus"], "exhausted")
+                self.assertEqual(res["phaseSystem"]["firstExhaustedCandidatePorts"], ["warm"])
+                self.assertEqual(res["ports"]["warm"]["exhaustedPhase"], "liquid")
+                self.assertEqual(res["solverMetadata"]["terminationReason"], "resolved")
+                _assert_encloses(self, res["modeledDurationBoundsS"], t_liq_star, max_width=F(1, 10**4))
+                _assert_encloses(self, res["ports"]["cool"]["finalBodyTemperatureBoundsK"], tb_liq_star, max_width=F(1, 10**2))
+                _assert_encloses(
+                    self, res["ports"]["middle"]["integratedEnergyIntoReservoirBoundsJ"], em_liq_star, max_width=F(1)
+                )
+
+            # 2) Two-bath candidate case on TRIANGLE (actual M01 geometry):
+            # middle has near-miss peak (r = 0.9999 and 0.999999), cool genuinely exhausts solid later.
+            m_tri = tri_law["supplyResponseBoundsWPerK"]
+            w_wm = -mp.mpf(F(m_tri["warm"]["middle"][0]).numerator) / F(m_tri["warm"]["middle"][0]).denominator
+            w_wc = -mp.mpf(F(m_tri["warm"]["cool"][0]).numerator) / F(m_tri["warm"]["cool"][0]).denominator
+            w_mc = -mp.mpf(F(m_tri["middle"]["cool"][0]).numerator) / F(m_tri["middle"]["cool"][0]).denominator
+            g_w = w_wm + w_wc
+            teq_w = (w_wm * 350 + w_wc * 300) / g_w
+            tau_w = mp.mpf(100) / g_w
+            q_mid = lambda t: w_wm * (teq_w + (500 - teq_w) * mp.exp(-t / tau_w) - 350) + w_mc * (300 - 350)
+            e_mid = lambda t: (
+                w_wm * ((teq_w - 350) * t + (500 - teq_w) * tau_w * (1 - mp.exp(-t / tau_w)))
+                + w_mc * (300 - 350) * t
+            )
+            e_cool = lambda t: (
+                w_wc * ((teq_w - 300) * t + (500 - teq_w) * tau_w * (1 - mp.exp(-t / tau_w)))
+                + w_mc * (350 - 300) * t
+            )
+            t_star_mid = mp.findroot(q_mid, (mp.mpf(1), mp.mpf(100)))
+            e_peak_mid = e_mid(t_star_mid)
+            cool_s = e_cool(200) * mp.mpf("0.7")
+            t_cool_exh = mp.findroot(lambda t: e_cool(t) - cool_s, (mp.mpf(10), mp.mpf(200)))
+
+            for ratio_s in ("0.9999", "0.999999"):
+                ports_2b = {
+                    "warm": {"kind": "lumped_body", "heatCapacityJPerK": "100", "initialBodyTemperatureK": "500"},
+                    "middle": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "350",
+                        "specificLatentHeatJPerKg": "1",
+                        "initialSolidKg": mp.nstr(e_peak_mid / mp.mpf(ratio_s), 16),
+                        "initialLiquidKg": "100000",
+                    },
+                    "cool": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "300",
+                        "specificLatentHeatJPerKg": "1",
+                        "initialSolidKg": mp.nstr(cool_s, 14),
+                        "initialLiquidKg": "100000",
+                    },
+                }
+                res_2b = solve_from_law(tri_law, ports_2b, "200", initial_steps=16)
+                self.assertEqual(res_2b["phaseSystem"]["plateauStatus"], "exhausted")
+                self.assertEqual(res_2b["phaseSystem"]["firstExhaustedCandidatePorts"], ["cool"])
+                self.assertEqual(res_2b["ports"]["cool"]["exhaustedPhase"], "solid")
+                self.assertEqual(res_2b["solverMetadata"]["terminationReason"], "resolved")
+                _assert_encloses(self, res_2b["modeledDurationBoundsS"], t_cool_exh, max_width=F(1, 10**4))
+
+    def test_f03_coexisting_near_miss_cert_hi_none_and_forced_small_budget_soundness(self):
+        # CR-02 discriminating witness: STAR solid=3687.2079161, liquid=5000, D=400.
+        # Bath never exhausts; exact coexisting state at D=400: T_cool ~ 338.0073548 K, E_warm ~ -3120.294192 J.
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+        ports_coex = {
+            "warm": {
+                "kind": "phase_bath",
+                "transitionTemperatureK": "350",
+                "specificLatentHeatJPerKg": "1",
+                "initialSolidKg": "3687.2079161",
+                "initialLiquidKg": "5000",
+            },
+            "cool": {"kind": "lumped_body", "heatCapacityJPerK": "100", "initialBodyTemperatureK": "500"},
+            "middle": {"kind": "maintained", "temperatureK": "330"},
+        }
+        with mp.workdps(80):
+            t_400 = mp.mpf(338) + mp.mpf(162) * mp.exp(mp.mpf(-10))
+            e_warm_400 = mp.mpf(-24) * 400 + mp.mpf(6480) * (1 - mp.exp(mp.mpf(-10)))
+            e_mid_400 = -(mp.mpf(100) * (t_400 - 500) + e_warm_400)
+
+            # Forced tiny prune budget -> cert_hi is None, exhaustion_time_uncertain, MUST enclose state_at(duration)!
+            unc = solve_from_law(
+                star_law, ports_coex, "400", initial_steps=16, max_prune_refinements=2, max_bisect_refinements=2
+            )
+            self.assertEqual(unc["phaseSystem"]["plateauStatus"], "exhaustion_time_uncertain")
+            self.assertEqual(unc["solverMetadata"]["terminationReason"], "refinement_budget")
+            self.assertEqual(unc["solverMetadata"]["pruneRefinementsUsed"], 2)
+            _assert_encloses(self, unc["ports"]["cool"]["finalBodyTemperatureBoundsK"], t_400, max_width=F(500))
+            _assert_encloses(self, unc["ports"]["warm"]["latentEnergyIntoBathBoundsJ"], e_warm_400, max_width=F(20000))
+            _assert_encloses(
+                self, unc["ports"]["middle"]["integratedEnergyIntoReservoirBoundsJ"], e_mid_400, max_width=F(50000)
+            )
+
+            # Default budgets resolve the near-miss peak completely -> coexisting!
+            ok = solve_from_law(star_law, ports_coex, "400", initial_steps=16)
+            self.assertEqual(ok["phaseSystem"]["plateauStatus"], "coexisting")
+            self.assertEqual(ok["solverMetadata"]["terminationReason"], "resolved")
+            _assert_encloses(self, ok["ports"]["cool"]["finalBodyTemperatureBoundsK"], t_400)
+            _assert_encloses(self, ok["ports"]["warm"]["latentEnergyIntoBathBoundsJ"], e_warm_400)
+            _assert_encloses(self, ok["ports"]["middle"]["integratedEnergyIntoReservoirBoundsJ"], e_mid_400)
+
+            # Forced small budgets on exhausted case: sound & reports refinement_budget.
+            ports_exh = copy.deepcopy(ports_coex)
+            ports_exh["warm"]["initialLiquidKg"] = "2000"
+            e_fn = lambda t: mp.mpf(-24) * t + mp.mpf(6480) * (1 - mp.exp(-t / 40))
+            t_liq = mp.findroot(lambda t: e_fn(t) + 2000, (mp.mpf(300), mp.mpf(400)))
+            tb_liq = 338 + 162 * mp.exp(-t_liq / 40)
+            em_liq = -(mp.mpf(100) * (tb_liq - 500) + mp.mpf(-2000))
+            exh_small = solve_from_law(
+                star_law, ports_exh, "400", initial_steps=16, max_prune_refinements=2, max_bisect_refinements=2
+            )
+            self.assertEqual(exh_small["phaseSystem"]["plateauStatus"], "exhausted")
+            self.assertEqual(exh_small["solverMetadata"]["terminationReason"], "refinement_budget")
+            _assert_encloses(self, exh_small["modeledDurationBoundsS"], t_liq, max_width=F(400))
+            _assert_encloses(self, exh_small["ports"]["cool"]["finalBodyTemperatureBoundsK"], tb_liq, max_width=F(500))
+            _assert_encloses(self, exh_small["ports"]["warm"]["latentEnergyIntoBathBoundsJ"], mp.mpf(-2000), max_width=F(10000))
+            _assert_encloses(
+                self, exh_small["ports"]["middle"]["integratedEnergyIntoReservoirBoundsJ"], em_liq, max_width=F(50000)
+            )
+
+    def test_f04_pure_phase_regimes_epsilon_limit_zero_flux_and_small_first_cell(self):
+        link_law = terminal_response(*LINK)
+        star_inputs = (CASES / "star" / "study.json", CASES / "star", CASES / "star" / "facts.json", STAR)
+        star_law = terminal_response(*star_inputs)
+
+        # 1) Pure solid ice + inflow (Opus P1 case): LINK, 1 kg ice at 273 K, 373 K body C=4200, D=10 s.
+        # Exact oracle: tau = C / G = 4200 / 2 = 2100 s, E(10) = 4200*100*(1 - exp(-10/2100)).
+        pure_s = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "373"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            "10",
+        )
+        self.assertEqual(pure_s["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_s["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertIs(pure_s["ports"]["cold"]["exhaustedAtStart"], False)
+        self.assertIsNone(pure_s["ports"]["cold"]["exhaustedPhase"])
+        with mp.workdps(80):
+            e_ex = mp.mpf(420000) * (1 - mp.exp(-mp.mpf(10) / 2100))
+            t_ex = mp.mpf(273) + mp.mpf(100) * mp.exp(-mp.mpf(10) / 2100)
+            m_melt = e_ex / mp.mpf(334000)
+            _assert_encloses(self, pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"], e_ex)
+            _assert_encloses(self, pure_s["ports"]["hot"]["finalBodyTemperatureBoundsK"], t_ex)
+            _assert_encloses(self, pure_s["ports"]["cold"]["remainingSolidBoundsKg"], mp.mpf(1) - m_melt)
+            _assert_encloses(self, pure_s["ports"]["cold"]["remainingLiquidBoundsKg"], m_melt)
+
+        # Epsilon-convergence check (eps in {1e-9, 1e-12})
+        for eps_s in ("0.000000001", "0.000000000001"):
+            eps = F(eps_s)
+            ref = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": eps_s,
+                    },
+                },
+                "10",
+            )
+            self.assertEqual(pure_s["modeledDurationBoundsS"], ref["modeledDurationBoundsS"])
+            self.assertEqual(
+                pure_s["ports"]["hot"]["finalBodyTemperatureBoundsK"],
+                ref["ports"]["hot"]["finalBodyTemperatureBoundsK"],
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+                ref["ports"]["cold"]["latentEnergyIntoBathBoundsJ"],
+            )
+            self.assertEqual(
+                pure_s["ports"]["cold"]["remainingSolidBoundsKg"],
+                ref["ports"]["cold"]["remainingSolidBoundsKg"],
+            )
+            lo0, hi0 = map(F, pure_s["ports"]["cold"]["remainingLiquidBoundsKg"])
+            loe, hie = map(F, ref["ports"]["cold"]["remainingLiquidBoundsKg"])
+            self.assertLessEqual(abs(lo0 - (loe - eps)), (hi0 - lo0) + (hie - loe) + F(1, 10**30))
+
+        # 2) Pure liquid + freezing outflow mirror.
+        pure_l = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "200"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "0",
+                    "initialLiquidKg": "1",
+                },
+            },
+            "10",
+        )
+        self.assertEqual(pure_l["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(pure_l["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertLess(F(pure_l["ports"]["cold"]["latentEnergyIntoBathBoundsJ"][1]), F(0))
+
+        # 3) Regime (b): pure solid + outflow -> exhaustedAtStart=True (for both D=10 and D=0).
+        for dur_s in ("10", "0"):
+            exh = solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "200"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "1",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                dur_s,
+            )
+            self.assertEqual(exh["phaseSystem"]["plateauStatus"], "exhausted")
+            self.assertIs(exh["phaseSystem"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["phaseSystem"]["firstExhaustionTimeBoundsS"], ["0", "0"])
+            self.assertEqual(exh["modeledDurationBoundsS"], ["0", "0"])
+            self.assertEqual(exh["phaseSystem"]["firstExhaustedCandidatePorts"], ["cold"])
+            self.assertIs(exh["ports"]["cold"]["exhaustedAtStart"], True)
+            self.assertEqual(exh["ports"]["cold"]["exhaustedPhase"], "liquid")
+            self.assertEqual(exh["ports"]["cold"]["remainingSolidBoundsKg"], ["1", "1"])
+            self.assertEqual(exh["ports"]["cold"]["remainingLiquidBoundsKg"], ["0", "0"])
+
+        # 4) Regime (c): exact equilibrium -> coexisting at T_tr, exhaustedAtStart=False.
+        eq = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "273"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0",
+                },
+            },
+            "100",
+        )
+        self.assertEqual(eq["phaseSystem"]["plateauStatus"], "coexisting")
+        self.assertIs(eq["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(eq["ports"]["cold"]["remainingSolidBoundsKg"], ["1", "1"])
+        self.assertEqual(eq["ports"]["cold"]["remainingLiquidBoundsKg"], ["0", "0"])
+
+        # 5) Regime (d) OQ-C3: zero initial flux with nonzero derivative (both Q'(0)>0 and Q'(0)<0 on STAR)
+        #    returns conservative exhaustion_time_uncertain modeled from t = 0.
+        for t_tr, t_0 in (("310", "298"), ("350", "362")):
+            zf = solve_from_law(
+                star_law,
+                {
+                    "warm": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": t_tr,
+                        "specificLatentHeatJPerKg": "1000",
+                        "initialSolidKg": "50",
+                        "initialLiquidKg": "0",
+                    },
+                    "cool": {"kind": "lumped_body", "heatCapacityJPerK": "100", "initialBodyTemperatureK": t_0},
+                    "middle": {"kind": "maintained", "temperatureK": "330"},
+                },
+                "120",
+            )
+            self.assertEqual(zf["phaseSystem"]["plateauStatus"], "exhaustion_time_uncertain")
+            self.assertIs(zf["phaseSystem"]["exhaustedAtStart"], False)
+            self.assertEqual(zf["modeledDurationBoundsS"][0], "0")
+
+        # 6) Small solid inventory on the first cell [0, b]: solid exhaustion inside [0, b] MUST be caught!
+        # LINK: hot=373 K, C=4200, cold pure solid 0.001 kg (L=1000 -> e_solid=1 J), D=160 s -> grid[1]=10 s.
+        # Q(0) = 200 W, so solid exhausts at t ~ 0.005 s << grid[1]=10 s!
+        small_inv = solve_from_law(
+            link_law,
+            {
+                "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "373"},
+                "cold": {
+                    "kind": "phase_bath",
+                    "transitionTemperatureK": "273",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "0.001",
+                    "initialLiquidKg": "0",
+                },
+            },
+            "160",
+            initial_steps=16,
+        )
+        self.assertEqual(small_inv["phaseSystem"]["plateauStatus"], "exhausted")
+        self.assertIs(small_inv["phaseSystem"]["exhaustedAtStart"], False)
+        self.assertEqual(small_inv["ports"]["cold"]["exhaustedPhase"], "solid")
+        self.assertEqual(small_inv["ports"]["cold"]["remainingSolidBoundsKg"], ["0", "0"])
+        self.assertLess(F(small_inv["modeledDurationBoundsS"][1]), F("0.01"))
+
+        # 7) Zero total mass still refused.
+        with self.assertRaises(ValueError):
+            solve_from_law(
+                link_law,
+                {
+                    "hot": {"kind": "lumped_body", "heatCapacityJPerK": "4200", "initialBodyTemperatureK": "373"},
+                    "cold": {
+                        "kind": "phase_bath",
+                        "transitionTemperatureK": "273",
+                        "specificLatentHeatJPerKg": "334000",
+                        "initialSolidKg": "0",
+                        "initialLiquidKg": "0",
+                    },
+                },
+                "10",
+            )

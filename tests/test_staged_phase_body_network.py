@@ -289,3 +289,21 @@ class StagedPhaseBodyNetworkTests(TestCase):
             solve_from_law(wide_three, "c", "200", "273.15", "334000", "2100", "4200", "0.1", "0", "100")
         with self.assertRaisesRegex(ValueError, "initial heat-flow direction is unresolved"):
             solve_from_law(wide_three, "c", "300", "273.15", "334000", "2100", "4200", "0", "0.1", "100")
+
+    def test_f07_equilibrium_at_transition_temperature_labels_follow_inventory(self):
+        for solid_s, liquid_s, expected_stage in (
+            ("1", "0", "solid_equilibrium"),
+            ("0", "1", "liquid_equilibrium"),
+            ("0.5", "0.5", "coexisting_equilibrium"),
+        ):
+            with self.subTest(solid=solid_s, liquid=liquid_s):
+                res = investigate(
+                    LINK, "cold", "273.15", "273.15", "334000", "2100", "4200", solid_s, liquid_s, "120",
+                    maintained_temperatures_k={"hot": "273.15"},
+                )
+                tr = res["trajectory"]
+                self.assertEqual(tr["regime"], "equilibrium")
+                self.assertEqual(tr["finalStage"], expected_stage)
+                self.assertEqual(tr["remainingSolidBoundsKg"], [str(F(solid_s)), str(F(solid_s))])
+                self.assertEqual(tr["remainingLiquidBoundsKg"], [str(F(liquid_s)), str(F(liquid_s))])
+                self.assertEqual(tr["totalEnergyIntoSubstanceBoundsJ"], ["0", "0"])

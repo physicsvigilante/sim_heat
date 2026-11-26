@@ -1,12 +1,29 @@
+import copy
 from fractions import Fraction as F
+import itertools
 from unittest import TestCase
 
 from mpmath import mp
 
-from qualification.h1_n13.conduction import interval
+from qualification.h1_n13.conduction import Box, ZERO, interval
 from tests.test_loaded_thermal_ports import LINK
 from tests.test_terminal_response import CASES, STAR
-from tools.body_phase_bath_exchange import exp_neg_box, investigate, solve_from_law
+from tools.body_phase_bath_exchange import (
+    _bisect_threshold,
+    exp_neg_box,
+    exp_neg_interval,
+    investigate,
+    solve_from_law,
+)
+from tools.offline_investigation import (
+    InvestigationRequest,
+    LumpedBodySpec,
+    PhaseBathSpec,
+    run_investigation,
+    validate_pinned_law,
+)
+from tools.radiating_surface import physical_port
+from tools.spherical_conduction import radial_log
 from tools.terminal_response import investigate as terminal_response
 
 
@@ -266,3 +283,183 @@ class BodyPhaseBathExchangeTests(TestCase):
         self.assertLessEqual(f_lo, f_hi)
         self.assertLess(abs(f_lo - t_first_approx), F(1))
         self.assertLess(abs(f_hi - t_first_approx), F(1))
+
+    @staticmethod
+    def _widened_star_law(delta):
+        case = CASES / "star"
+        base = terminal_response(case / "study.json", case, case / "facts.json", STAR)
+        g0 = {("cool", "middle"): F(3, 2), ("cool", "warm"): F(1), ("middle", "warm"): F(3, 5)}
+        law = copy.deepcopy(base)
+        m = law["supplyResponseBoundsWPerK"]
+        for (a, b), g in g0.items():
+            m[a][b] = m[b][a] = [str(-(g + delta)), str(-(g - delta))]
+        for a in law["terminals"]:
+            s = sum(g for (x, y), g in g0.items() if a in (x, y))
+            m[a][a] = [str(s - 2 * delta), str(s + 2 * delta)]
+        validate_pinned_law(law)
+        return law
+
+    def test_f01_reversing_opposite_phase_exhaustion_encloses_27_realizations_both_routes_and_mirrors(self):
+        # F-01 regression (P6-equivalent): widened passive STAR interval law at delta = 1e-2 and 1e-6,
+        # tested in both melting-first and freezing-first mirror regimes, on both direct solve_from_law
+        # and typed offline_investigation.run_investigation routes.
+        cases = [
+            # (delta, t_tr, t0, solid, liquid, expected_proc, expected_phase)
+            (F(1, 100), "350", "363", "100000", "0.001", "reversing_melting_to_freezing", "liquid"),
+            (F(1, 10**6), "350", "362.0001", "100000", "0.0000000001", "reversing_melting_to_freezing", "liquid"),
+            (F(1, 100), "310", "297", "0.001", "100000", "reversing_freezing_to_melting", "solid"),
+            (F(1, 10**6), "310", "297.9999", "0.0000000001", "100000", "reversing_freezing_to_melting", "solid"),
+        ]
+        with mp.workdps(60):
+            for delta, t_tr_s, t0_s, sol_s, liq_s, exp_proc, exp_phase in cases:
+                law = self._widened_star_law(delta)
+                direct = solve_from_law(law, "warm", "cool", t_tr_s, "1", sol_s, liq_s, "100", t0_s, "10")
+                req = InvestigationRequest(
+                    composition="body_phase_bath_exchange",
+                    source=law,
+                    duration_s="10",
+                    phase_bath=PhaseBathSpec("warm", t_tr_s, "1", sol_s, liq_s),
+                    body=LumpedBodySpec("cool", "100", t0_s),
+                )
+                typed = run_investigation(req)
+                self.assertEqual(typed["rawResult"], direct)
+
+                for route_name, ex_pair, tf_pair, de_pair, status, phase, proc in (
+                    (
+                        "direct",
+                        direct["exhaustionTimeBoundsS"],
+                        direct["finalBodyTemperatureBoundsK"],
+                        direct["bodyEnergyChangeBoundsJ"],
+                        direct["plateauStatus"],
+                        direct["exhaustedPhase"],
+                        direct["phaseProcess"],
+                    ),
+                    (
+                        "typed",
+                        typed["status"]["exhaustionTimeS"]["bounds"],
+                        typed["quantities"]["finalBodyTemperatureK"]["bounds"],
+                        typed["quantities"]["bodyEnergyChangeJ"]["bounds"],
+                        typed["status"]["plateauStatus"],
+                        typed["status"]["exhaustedPhase"],
+                        typed["status"]["phaseProcess"],
+                    ),
+                ):
+                    with self.subTest(delta=str(delta), proc=exp_proc, route=route_name):
+                        self.assertEqual(proc, exp_proc)
+                        self.assertEqual(status, "exhausted")
+                        self.assertEqual(phase, exp_phase)
+                        ex_lo, ex_hi = map(F, ex_pair)
+                        tf_lo, tf_hi = map(F, tf_pair)
+                        de_lo, de_hi = map(F, de_pair)
+                        d_mp = mp.mpf(delta.numerator) / delta.denominator
+                        t_tr = mp.mpf(t_tr_s)
+                        t0 = mp.mpf(t0_s)
+                        t_m = mp.mpf("330")
+                        c_mp = mp.mpf("100")
+                        limit = -mp.mpf(liq_s) if exp_phase == "liquid" else mp.mpf(sol_s)
+
+                        for s in itertools.product((-1, 0, 1), repeat=3):
+                            gwc = mp.mpf(1) + s[0] * d_mp
+                            gwm = mp.mpf(3) / 5 + s[1] * d_mp
+                            gcm = mp.mpf(3) / 2 + s[2] * d_mp
+                            g_b = gwc + gcm
+                            teq = (gwc * t_tr + gcm * t_m) / g_b
+                            tau = c_mp / g_b
+                            q_inf = gwc * (teq - t_tr) + gwm * (t_m - t_tr)
+                            q_tr = gwc * (t0 - teq)
+                            e_fn = lambda t: q_inf * t + tau * q_tr * (1 - mp.exp(-t / tau))
+                            tpk = tau * mp.log(-q_tr / q_inf)
+                            lo, hi = tpk, mp.mpf(10)
+                            for _ in range(140):
+                                mid = (lo + hi) / 2
+                                if (e_fn(mid) > limit) if exp_phase == "liquid" else (e_fn(mid) < limit):
+                                    lo = mid
+                                else:
+                                    hi = mid
+                            t_ex = hi
+                            t_b = teq + (t0 - teq) * mp.exp(-t_ex / tau)
+                            d_e = c_mp * (t_b - t0)
+                            self.assertTrue(
+                                ex_lo <= F(mp.nstr(t_ex, 45)) <= ex_hi,
+                                f"t_ex={mp.nstr(t_ex, 15)} excluded from [{float(ex_lo)}, {float(ex_hi)}]",
+                            )
+                            self.assertTrue(
+                                tf_lo <= F(mp.nstr(t_b, 45)) <= tf_hi,
+                                f"T_b={mp.nstr(t_b, 15)} excluded from [{float(tf_lo)}, {float(tf_hi)}]",
+                            )
+                            self.assertTrue(
+                                de_lo <= F(mp.nstr(d_e, 45)) <= de_hi,
+                                f"dE={mp.nstr(d_e, 15)} excluded from [{float(de_lo)}, {float(de_hi)}]",
+                            )
+
+    def test_f01_bisect_threshold_default_rejects_unsafe_lo_and_supports_pure_e0_mirrors(self):
+        # 1) Default lo_proved_safe=False must refuse to certify lo when before(lo) is False.
+        ex_lo, ex_hi = _bisect_threshold(lambda t: Box.exact(t), F(5), F(6), F(10), increasing=True)
+        self.assertIsNone(ex_lo)
+        self.assertEqual(ex_hi, F(6))
+        ex_lo2, ex_hi2 = _bisect_threshold(lambda t: Box.exact(-t), F(-5), F(6), F(10), increasing=False)
+        self.assertIsNone(ex_lo2)
+        self.assertEqual(ex_hi2, F(6))
+        ex_lo3, ex_hi3 = _bisect_threshold(lambda t: Box.bounds(F(4), F(6)), F(5), F(0), F(10), increasing=True)
+        self.assertIsNone(ex_lo3)
+        self.assertIsNone(ex_hi3)
+
+        # 2) Pure-phase e = 0 mirror (both melting-first and freezing-first) via direct
+        #    _bisect_threshold(..., target=0, lo=ts_lo, ..., lo_proved_safe=True) per CR-13.
+        delta = F(1, 100)
+        law = self._widened_star_law(delta)
+        for melting_first, t_tr, t0 in ((True, F(350), F(363)), (False, F(310), F(297))):
+            maintained = {**law["imposedTemperaturesK"], "warm": str(t_tr)}
+            opens, port_r = physical_port({**law, "imposedTemperaturesK": maintained}, "cool")
+            t_eq = Box.bounds(*opens)
+            tau = Box.exact(F(100)) * Box.bounds(*port_r)
+            row_p = law["supplyResponseBoundsWPerK"]["warm"]
+            row_b = law["supplyResponseBoundsWPerK"]["cool"]
+            g_pb = -interval(row_p["cool"])
+            g_bm = -interval(row_b["middle"])
+            share = Box.exact(1) / (Box.exact(1) + g_bm / g_pb)
+            q_inf = g_pb * (t_eq - t_tr) + (-interval(row_p["middle"])) * (F(maintained["middle"]) - t_tr)
+            q_tr = g_pb * (t0 - t_eq)
+            tau_q_tr = Box.exact(F(100)) * share * (t0 - t_eq)
+            ratio = -q_tr / q_inf
+            r_lo, r_hi = ratio.span()
+            t_star = tau * Box.bounds(radial_log(r_lo).span()[0], radial_log(r_hi).span()[1])
+            ts_lo, _ = t_star.span()
+
+            def energy_at(t, q_inf=q_inf, tau_q_tr=tau_q_tr, tau=tau):
+                if t == 0:
+                    return ZERO
+                return q_inf * t + tau_q_tr * (Box.exact(1) - exp_neg_interval(Box.exact(t) / tau))
+
+            # Verify interval dependency makes default lo_proved_safe=False return None at ts_lo.
+            default_lo, _ = _bisect_threshold(
+                energy_at, F(0), ts_lo, F(10), increasing=not melting_first,
+            )
+            self.assertIsNone(default_lo)
+
+            # With lo_proved_safe=True, ts_lo is retained as lower bound and encloses all 27 realizations.
+            ex_lo, ex_hi = _bisect_threshold(
+                energy_at, F(0), ts_lo, F(10), increasing=not melting_first, lo_proved_safe=True,
+            )
+            self.assertEqual(ex_lo, ts_lo)
+            self.assertIsNotNone(ex_hi)
+            self.assertLess(ex_lo, ex_hi)
+            with mp.workdps(70):
+                d_mp = mp.mpf(delta.numerator) / delta.denominator
+                for s in itertools.product((-1, 0, 1), repeat=3):
+                    gwc = mp.mpf(1) + s[0] * d_mp
+                    gwm = mp.mpf(3) / 5 + s[1] * d_mp
+                    gcm = mp.mpf(3) / 2 + s[2] * d_mp
+                    teq_m = (gwc * mp.mpf(int(t_tr)) + gcm * mp.mpf(330)) / (gwc + gcm)
+                    tau_m = mp.mpf(100) / (gwc + gcm)
+                    qinf_m = gwc * (teq_m - mp.mpf(int(t_tr))) + gwm * (mp.mpf(330) - mp.mpf(int(t_tr)))
+                    qtr_m = gwc * (mp.mpf(int(t0)) - teq_m)
+                    e_fn = lambda t: qinf_m * t + tau_m * qtr_m * (1 - mp.exp(-t / tau_m))
+                    lo, hi = tau_m * mp.log(-qtr_m / qinf_m), mp.mpf(10)
+                    for _ in range(200):
+                        mid = (lo + hi) / 2
+                        if (e_fn(mid) > 0) if melting_first else (e_fn(mid) < 0):
+                            lo = mid
+                        else:
+                            hi = mid
+                    self.assertTrue(ex_lo <= F(mp.nstr(hi, 55)) <= ex_hi)

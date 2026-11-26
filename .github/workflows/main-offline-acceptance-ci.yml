@@ -75,6 +75,31 @@ jobs:
           python -B -m tools.phase_shell_conductivity --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --surface-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --duration-s 120 --melted-kg 0.0095 0.0096 --inner-radius-m 0.1 --layer 0.2 ? --air-k 293.15 --h-w-per-m2-k 10 --enclosure-k 300 --emissivity 0.8 --sigma 0.0000000567 > main_evidence/phase-shell-conductivity.json
           python -B -m tools.radial_radiation_shields --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --surface-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --duration-s 300 --inner-radius-m 0.1 --layer 0.2 2 --surface-emissivity 0.8 --shield 0.25 0.05 0.05 --shield 0.35 0.05 0.05 --enclosure-radius-m 0.5 --enclosure-emissivity 0.8 --enclosure-k 350 --sigma 0.0000000567 > main_evidence/radial-radiation-shields.json
           python -B -m tools.body_phase_bath_exchange --study studies/composite_wall/study.json --root studies/composite_wall --facts studies/composite_wall/facts.json --facts-sha256 f4687ad77987ba5b5452d19b4c3aaa7a17ee3ab2320b8b8a3ddca73b177b4d5b --phase-port hot --body-port cold --transition-k 273.15 --latent-heat-j-per-kg 334000 --solid-kg 0.02 --liquid-kg 0.03 --capacity-j-per-k 200 --initial-k 373.15 --duration-s 100 > main_evidence/body-phase-bath-exchange.json
+          python -B -m tools.multiport_thermal_network --request tests/fixtures/m02_smoke/multiport_smoke.json > main_evidence/multiport-smoke.json
+          python -B -m tools.staged_phase_body_network --request tests/fixtures/m02_smoke/staged_smoke.json > main_evidence/staged-smoke.json
+          python -B -m tools.multibody_phase_network --request tests/fixtures/m02_smoke/multibody_smoke.json > main_evidence/multibody-smoke.json
+          python -B - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = (
+              ("main_evidence/multiport-smoke.json", "sim_heat.offline_multiport_network/1"),
+              ("main_evidence/staged-smoke.json", "sim_heat.offline_staged_phase_body/1"),
+              ("main_evidence/multibody-smoke.json", "sim_heat.offline_multibody_phase_network/1"),
+          )
+          flags = (
+              "nativeExecuted",
+              "nativeQualified",
+              "independentlyCertifiedReference",
+              "runnerConsumable",
+          )
+          for path, schema in expected:
+              data = json.loads(Path(path).read_text(encoding="utf-8"))
+              assert data["schema"] == schema, (path, data.get("schema"))
+              for flag in flags:
+                  assert data[flag] is False, (path, flag, data[flag])
+                  assert data["evidence"][flag] is False, (path, "evidence", flag, data["evidence"][flag])
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
