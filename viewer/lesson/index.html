@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIM_HEAT · Interactive Calorimetry &amp; Critical-Radius Lesson</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #16343b;
+      background: #f4f7f6;
+      line-height: 1.5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 18px max(22px, calc((100vw - 1180px) / 2));
+      background: #143740;
+      color: #ffffff;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    header .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #235964;
+      color: #d7f2ec;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 22px; }
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #21767d;
+      font-weight: 800;
+    }
+    h1 { font: 600 clamp(26px, 4vw, 38px)/1.18 Georgia, serif; margin: 8px 0 12px; }
+    h2 { font-size: 18px; margin: 4px 0 10px; }
+    .banner {
+      border-left: 4px solid #21767d;
+      background: #e8f4f1;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+      gap: 18px;
+    }
+    .panel {
+      background: #ffffff;
+      border: 1px solid #d1dfda;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 16px;
+      min-width: 0;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+    select, input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      font: inherit;
+      padding: 8px 10px;
+      border: 1px solid #b0c2be;
+      border-radius: 7px;
+      background: #fbfdfd;
+    }
+    textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; min-height: 220px; }
+    .ctrl-row { display: grid; grid-template-columns: 1fr 100px; gap: 10px; align-items: center; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 650;
+      padding: 9px 14px;
+      border-radius: 7px;
+      border: 1px solid #1a5861;
+      background: #1a5861;
+      color: #ffffff;
+      cursor: pointer;
+    }
+    button.secondary { background: #ffffff; color: #1a5861; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .pill {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 650;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #e5f2ed;
+      color: #1f6468;
+      margin-right: 6px;
+    }
+    .pill.warn { background: #fff2e6; color: #8c4814; }
+    .pill.err { background: #fdecea; color: #8b1e1e; }
+    .callout {
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .callout.warn { background: #fff4e8; border: 1px solid #dfaa74; color: #733c10; }
+    .callout.err { background: #fdeeee; border: 1px solid #d48a8a; color: #7a1c1c; }
+    pre {
+      background: #f5f9f8;
+      border: 1px solid #d9e5e1;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 8px 0 0;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e1ebe7; vertical-align: top; }
+    th { font-size: 12px; color: #4b686e; background: #f8fbfa; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+    .small { font-size: 12px; color: #537076; }
+    .hidden { display: none !important; }
+    svg.chart { width: 100%; height: 220px; background: #f9fcfb; border: 1px solid #dce7e3; border-radius: 8px; }
+    footer { border-top: 1px solid #ccd9d4; padding: 18px 22px; font-size: 12px; color: #547176; text-align: center; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><strong>SIM / HEAT</strong> · Interactive Loopback Lesson (M05)</div>
+    <span class="badge">Python Certified Offline Engine · Zero JS Physics · Zero OpenModelica</span>
+  </header>
+
+  <main>
+    <div class="eyebrow">Thin Interactive Teaching Front-End</div>
+    <h1>Calorimetry &amp; Critical-Radius Thermal Lab</h1>
+    <div class="banner">
+      <strong>Single-source certified Python physics.</strong> Every equation derivation and interval enclosure shown below is computed directly by the local Python <code>simheat.system</code> backend over loopback (<code>127.0.0.1</code>). JavaScript performs zero physical calculations and never silences <code>unsupported_regime</code>, <code>mode_sequence_uncertain</code>, or input refusals. Offline flags remain honestly <code>false</code> (<code>nativeExecuted=false</code>, <code>nativeQualified=false</code>).
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="eyebrow">01 · Select Lesson &amp; Parameters</div>
+        <h2>ThermalSystem Authoring</h2>
+        <label for="preset-select">Preset scenario</label>
+        <select id="preset-select" disabled><option>Loading presets from Python…</option></select>
+        <p id="preset-summary" class="small"></p>
+
+        <div id="controls-container"></div>
+
+        <div class="actions">
+          <button id="btn-solve" type="button" disabled>Solve via Python</button>
+          <button id="btn-describe" type="button" class="secondary" disabled>Derive Equations Only</button>
+          <button id="btn-sweep" type="button" class="secondary hidden" disabled>Compare 5 Radii via Python</button>
+        </div>
+
+        <label for="json-editor">Canonical <code>sim_heat.thermal_system/1</code> JSON (editable)</label>
+        <textarea id="json-editor" spellcheck="false" aria-label="ThermalSystem JSON"></textarea>
+        <p class="small">Editing JSON directly and clicking <strong>Solve via Python</strong> sends your exact payload to <code>POST /api/solve</code>. Invalid keys, non-passive laws, or out-of-scope regimes return preserved backend refusals.</p>
+      </section>
+
+      <div>
+        <section class="panel">
+          <div class="eyebrow">02 · Certified Python Result Envelope</div>
+          <h2>Status, Backend &amp; Provenance</h2>
+          <div id="status-badges">
+            <span class="pill">Ready</span>
+          </div>
+          <div id="alert-box" class="callout hidden" role="alert"></div>
+          <p id="provenance-line" class="small mono"></p>
+          <p id="widths-line" class="small mono"></p>
+        </section>
+
+        <section class="panel">
+          <div class="eyebrow">03 · Terminal States &amp; Conservation</div>
+          <h2>Certified Exact-Rational Enclosures</h2>
+          <div id="ports-container" class="small">Run a solve to inspect certified bounds.</div>
+          <p id="conservation-line" class="small mono"></p>
+        </section>
+
+        <section id="events-panel" class="panel hidden">
+          <div class="eyebrow">04 · Enthalpy Mode Transitions</div>
+          <h2>Certified Event Timeline</h2>
+          <div id="events-container"></div>
+        </section>
+
+        <section id="sweep-panel" class="panel hidden">
+          <div class="eyebrow">04b · Critical Radius Comparison (5 Python Solves)</div>
+          <h2>Steady Heat Loss vs. Insulation Outer Radius</h2>
+          <svg id="sweep-chart" class="chart" viewBox="0 0 560 220" role="img" aria-label="Critical radius heat loss comparison chart from Python solves"></svg>
+          <p class="small">Each bar is returned verbatim by an independent <code>POST /api/solve</code> call to Python <code>multiport</code>.</p>
+        </section>
+
+        <section class="panel">
+          <div class="eyebrow">05 · Governing Equations (Python AST Derivation)</div>
+          <h2>Derived System Equations</h2>
+          <pre id="equations-pre">Select a preset and click Derive Equations or Solve via Python.</pre>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    SIM_HEAT M05 Loopback Lesson · Certified Python backend (<code>simheat.system</code>) · Zero JavaScript solver physics · No OpenModelica execution.
+  </footer>
+
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
