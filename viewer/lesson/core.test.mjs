@@ -63,12 +63,13 @@ test('verifyOfflineEnvelope enforces honest False flags and refuses forged promo
 test('formatRationalPreview and formatIntervalPair use exact BigInt display formatting', () => {
   assert.equal(formatRationalPreview('1/3', 6), '0.333333');
   assert.equal(formatRationalPreview('-5/2', 2), '-2.50');
+  assert.equal(formatRationalPreview('3/2', 0), '2');
   assert.equal(formatIntervalPair(['27315/100', '27315/100'], 'K', 2), '273.15 K');
   assert.equal(formatIntervalPair(['100', '101'], 'W', 1), '[100.0, 101.0] W');
 });
 
-test('extractPortRows and buildSweepBarModel strictly reflect Python payloads', () => {
-  const rows = extractPortRows({
+test('extractPortRows covers multiport, staged, and multibody phase_bath backends cleanly', () => {
+  const mpRows = extractPortRows({
     backendResult: {
       ports: {
         vessel_in: {
@@ -80,10 +81,53 @@ test('extractPortRows and buildSweepBarModel strictly reflect Python payloads', 
       },
     },
   });
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'vessel_in');
-  assert.match(rows[0].energyOrPowerDisplay, /40\.0000 W/);
+  assert.equal(mpRows.length, 1);
+  assert.equal(mpRows[0].name, 'vessel_in');
+  assert.match(mpRows[0].energyOrPowerDisplay, /40\.0000 W/);
 
+  // M05-R01: staged backend (trajectory + maintainedReservoirTemperaturesK, no ports)
+  const stRows = extractPortRows({
+    backendResult: {
+      substancePort: 'sample',
+      network: { maintainedReservoirTemperaturesK: { cryostat: '210' } },
+      trajectory: {
+        finalStage: 'solid_sensible',
+        finalTemperatureBoundsK: ['220', '221'],
+        totalEnergyIntoSubstanceBoundsJ: ['-35000', '-34900'],
+        remainingSolidBoundsKg: ['8/100', '8/100'],
+        remainingLiquidBoundsKg: ['0', '0'],
+      },
+    },
+  });
+  assert.equal(stRows.length, 2);
+  assert.equal(stRows[0].name, 'sample');
+  assert.equal(stRows[0].kind, 'staged_phase_substance');
+  assert.match(stRows[0].temperatureDisplay, /220\.00000/);
+  assert.match(stRows[0].detailDisplay, /solid_sensible/);
+  assert.equal(stRows[1].name, 'cryostat');
+  assert.equal(stRows[1].temperatureDisplay, '210.00000 K');
+
+  // M05-R01: multibody phase_bath port (transitionTemperatureK + latentEnergyIntoBathBoundsJ)
+  const mbRows = extractPortRows({
+    backendResult: {
+      ports: {
+        ice: {
+          kind: 'phase_bath',
+          transitionTemperatureK: '273.15',
+          latentEnergyIntoBathBoundsJ: ['1500', '1501'],
+          plateauStatusAtModeledStop: 'coexisting',
+          remainingSolidBoundsKg: ['1/2', '1/2'],
+          remainingLiquidBoundsKg: ['1/4', '1/4'],
+        },
+      },
+    },
+  });
+  assert.equal(mbRows.length, 1);
+  assert.equal(mbRows[0].temperatureDisplay, '273.15 K');
+  assert.match(mbRows[0].energyOrPowerDisplay, /1500\.00/);
+  assert.match(mbRows[0].detailDisplay, /coexisting.*solid/);
+
+  // M05-R04: buildSweepBarModel handles sub-watt and negative heat rates cleanly
   const bars = buildSweepBarModel([
     { radiusM: '0.045', heatLossBoundsW: ['25', '25'] },
     { radiusM: '0.08', heatLossBoundsW: ['50', '50'] },
@@ -91,6 +135,13 @@ test('extractPortRows and buildSweepBarModel strictly reflect Python payloads', 
   assert.equal(bars.length, 2);
   assert.equal(bars[1].barFraction, 1);
   assert.equal(bars[0].barFraction, 0.5);
+
+  const smallBars = buildSweepBarModel([
+    { radiusM: '0.05', heatLossBoundsW: ['1/100', '1/100'] },
+    { radiusM: '0.10', heatLossBoundsW: ['1/50', '1/50'] },
+  ]);
+  assert.equal(smallBars[1].barFraction, 1);
+  assert.equal(smallBars[0].barFraction, 0.5);
 });
 
 test('architectural invariant: zero second physics implementation in viewer/lesson JavaScript', () => {

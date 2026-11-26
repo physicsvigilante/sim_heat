@@ -1,4 +1,4 @@
-"""M05 loopback lesson server, security/refusal preservation, critical-radius physics, and blind trial tests."""
+"""M05 loopback lesson server, security/refusal preservation, critical-radius physics, and JS guard tests."""
 from __future__ import annotations
 
 from fractions import Fraction as F
@@ -55,10 +55,12 @@ class M05LessonLoopbackTests(unittest.TestCase):
         return status, resp_hdrs, json.loads(resp_body.decode("utf-8"))
 
     def test_static_assets_headers_and_presets_route(self):
-        # Root redirects to /viewer/lesson/
+        # Root redirects to /viewer/lesson/ with full security headers (M05-R05)
         st, hdrs, _ = self._request("GET", "/")
         self.assertEqual(st, 302)
         self.assertEqual(hdrs.get("Location"), "/viewer/lesson/")
+        self.assertEqual(hdrs.get("X-Content-Type-Options"), "nosniff")
+        self.assertIn("default-src 'none'", hdrs.get("Content-Security-Policy", ""))
 
         # Static HTML & ESM assets served with strict CSP & nosniff
         for route, mime_prefix in (
@@ -251,6 +253,58 @@ class M05LessonLoopbackTests(unittest.TestCase):
         )
         self.assertEqual(st, 400)
         self.assertFalse(err_uk["ok"])
+
+        # 8. M05-R02 regressions: deep join nesting (> 32) and malformed non-iterable fields return clean 400 JSON (no crash!)
+        deep = {"kind": "rods", "nodes": ["a", "b"], "terminals": ["a", "b"], "rods": {}}
+        for _ in range(40):
+            deep = {"kind": "join", "left": deep, "right": {"kind": "rods", "nodes": ["a", "b"], "terminals": ["a", "b"], "rods": {}}, "contacts": [{"leftPort": "b", "rightPort": "a"}]}
+        st, _, err_deep = self._post_json(
+            "/api/describe",
+            {"schema": "sim_heat.thermal_system/1", "id": "deep", "conduction": deep, "attachments": {}, "solve": {"mode": "steady"}},
+        )
+        self.assertEqual(st, 400)
+        self.assertIn("nesting exceeds", err_deep["error"])
+        self.assertIs(err_deep["nativeExecuted"], False)
+
+        # Malformed TypeError-inducing solve.observations=123 -> clean HTTP 400 JSON (no server crash!)
+        bad_obs = json.loads(json.dumps(build_presets()[1]["system"]))
+        bad_obs["solve"]["observations"] = 123
+        st, _, err_obs = self._post_json("/api/describe", bad_obs)
+        self.assertEqual(st, 400)
+        self.assertFalse(err_obs["ok"])
+        self.assertIs(err_obs["nativeExecuted"], False)
+
+        # 9. M05-R03 regressions: oversized maxSweeps/maxEvents refused (400), Transfer-Encoding refused (400), OPTIONS/TRACE return 405 with CSP!
+        huge_sweeps = json.loads(json.dumps(build_presets()[1]["system"]))
+        huge_sweeps["solve"]["maxSweeps"] = 10**9
+        st, _, err_sw = self._post_json("/api/solve", huge_sweeps)
+        self.assertEqual(st, 400)
+        self.assertIn("exceeds HTTP loopback limit", err_sw["error"])
+
+        huge_events = json.loads(json.dumps(build_presets()[0]["system"]))
+        huge_events["solve"]["maxEvents"] = 10**9
+        st, _, err_ev = self._post_json("/api/solve", huge_events)
+        self.assertEqual(st, 400)
+        self.assertIn("exceeds HTTP loopback limit", err_ev["error"])
+
+        st, hdrs_opt, _ = self._request("OPTIONS", "/api/solve")
+        self.assertEqual(st, 405)
+        self.assertIn("default-src 'none'", hdrs_opt.get("Content-Security-Policy", ""))
+        st, _, _ = self._request("OPTIONS", "/api/solve", headers={"Host": "evil.example:80"})
+        self.assertEqual(st, 421)
+
+        st, _, err_te = self._request(
+            "POST",
+            "/api/describe",
+            body=b"2\r\n{}\r\n0\r\n\r\n",
+            headers={
+                "Content-Type": "application/json",
+                "Transfer-Encoding": "chunked",
+                "Origin": f"http://127.0.0.1:{self.port}",
+            },
+        )
+        self.assertEqual(st, 400)
+        self.assertFalse(json.loads(err_te.decode("utf-8"))["ok"])
 
     def test_zero_physics_static_guard_on_lesson_javascript(self):
         lesson_dir = ROOT / "viewer" / "lesson"

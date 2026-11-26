@@ -28,6 +28,9 @@ from tools.offline_provenance import OFFLINE_FLAG_KEYS
 
 LESSON_DIR = ROOT / "viewer" / "lesson"
 MAX_POST_BYTES = 262144  # 256 KiB hard ceiling on incoming JSON payloads
+MAX_HTTP_JOIN_DEPTH = 32
+MAX_HTTP_SWEEPS = 1000
+MAX_HTTP_EVENTS = 64
 FORBIDDEN_HTTP_CONDUCTION_KINDS = frozenset({"h1_study", "derived_law_ref"})
 
 CSP_HEADER = (
@@ -326,23 +329,44 @@ def build_presets() -> list[dict[str, Any]]:
 
 
 def _check_http_conduction_safe(conduction: Any) -> None:
-    """Refuse filesystem-reading conduction kinds (h1_study, derived_law_ref) over HTTP."""
-    if not isinstance(conduction, dict):
-        return
-    kind = conduction.get("kind")
-    if kind in FORBIDDEN_HTTP_CONDUCTION_KINDS:
-        raise ValueError(
-            f"conduction kind {kind!r} reads local filesystem paths and is disabled over the HTTP loopback API"
-        )
-    if kind == "join":
-        _check_http_conduction_safe(conduction.get("left"))
-        _check_http_conduction_safe(conduction.get("right"))
+    """Iteratively check conduction tree: refuse disk-reading kinds and excessive join nesting."""
+    stack: list[tuple[Any, int]] = [(conduction, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_HTTP_JOIN_DEPTH:
+            raise ValueError(
+                f"conduction join nesting exceeds HTTP loopback limit of {MAX_HTTP_JOIN_DEPTH}"
+            )
+        if not isinstance(node, dict):
+            continue
+        kind = node.get("kind")
+        if kind in FORBIDDEN_HTTP_CONDUCTION_KINDS:
+            raise ValueError(
+                f"conduction kind {kind!r} reads local filesystem paths and is disabled over the HTTP loopback API"
+            )
+        if kind == "join":
+            stack.append((node.get("left"), depth + 1))
+            stack.append((node.get("right"), depth + 1))
 
 
 def _validate_http_system_payload(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object matching sim_heat.thermal_system/1")
     _check_http_conduction_safe(payload.get("conduction"))
+    solve = payload.get("solve")
+    if isinstance(solve, dict):
+        max_sweeps = solve.get("maxSweeps")
+        if max_sweeps is not None and not isinstance(max_sweeps, bool) and isinstance(max_sweeps, int):
+            if max_sweeps > MAX_HTTP_SWEEPS:
+                raise ValueError(
+                    f"solve.maxSweeps ({max_sweeps}) exceeds HTTP loopback limit of {MAX_HTTP_SWEEPS}"
+                )
+        max_events = solve.get("maxEvents")
+        if max_events is not None and not isinstance(max_events, bool) and isinstance(max_events, int):
+            if max_events > MAX_HTTP_EVENTS:
+                raise ValueError(
+                    f"solve.maxEvents ({max_events}) exceeds HTTP loopback limit of {MAX_HTTP_EVENTS}"
+                )
     return payload
 
 
@@ -447,6 +471,10 @@ class LessonHandler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", "/viewer/lesson/")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+            self.send_header("Content-Security-Policy", CSP_HEADER)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -491,11 +519,31 @@ class LessonHandler(BaseHTTPRequestHandler):
             )
             return
 
-        raw_len = self.headers.get("Content-Length")
-        try:
-            length = int(raw_len) if raw_len is not None else -1
-        except ValueError:
-            length = -1
+        if self.headers.get_all("Transfer-Encoding", []):
+            self._send_json(
+                400,
+                {
+                    "ok": False,
+                    "error": "Transfer-Encoding is not supported on the local loopback API; send Content-Length",
+                    **{k: False for k in OFFLINE_FLAG_KEYS},
+                },
+                close=True,
+            )
+            return
+
+        cl_headers = self.headers.get_all("Content-Length", [])
+        if len(cl_headers) != 1 or not cl_headers[0].strip().isdigit():
+            self._send_json(
+                400,
+                {
+                    "ok": False,
+                    "error": "single positive integer Content-Length header required",
+                    **{k: False for k in OFFLINE_FLAG_KEYS},
+                },
+                close=True,
+            )
+            return
+        length = int(cl_headers[0].strip())
         if length <= 0:
             self._send_json(
                 400,
@@ -504,6 +552,7 @@ class LessonHandler(BaseHTTPRequestHandler):
                     "error": "positive Content-Length header required",
                     **{k: False for k in OFFLINE_FLAG_KEYS},
                 },
+                close=True,
             )
             return
         if length > MAX_POST_BYTES:
@@ -538,7 +587,7 @@ class LessonHandler(BaseHTTPRequestHandler):
             else:
                 result = solve_system(payload, include_equations=True)
                 self._send_json(200, {"ok": True, "result": result, **{k: False for k in OFFLINE_FLAG_KEYS}})
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError, RecursionError) as exc:
             self._send_json(
                 400,
                 {
@@ -547,11 +596,23 @@ class LessonHandler(BaseHTTPRequestHandler):
                     **{k: False for k in OFFLINE_FLAG_KEYS},
                 },
             )
+        except Exception:
+            self._send_json(
+                500,
+                {
+                    "ok": False,
+                    "error": "internal loopback server error",
+                    **{k: False for k in OFFLINE_FLAG_KEYS},
+                },
+                close=True,
+            )
 
-    def do_PUT(self) -> None:
-        self._send(405, b"Method not allowed\n", "text/plain; charset=utf-8")
+    def _method_not_allowed(self) -> None:
+        if self._check_host() is None:
+            return
+        self._send(405, b"Method not allowed\n", "text/plain; charset=utf-8", close=True)
 
-    do_DELETE = do_PATCH = do_PUT
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_TRACE = do_CONNECT = _method_not_allowed
 
 
 def create_server(port: int = 0, *, lesson_dir: Path = LESSON_DIR) -> ThreadingHTTPServer:

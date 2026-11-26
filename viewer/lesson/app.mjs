@@ -260,24 +260,29 @@ async function runDescribe() {
     setAlert('err', `Invalid JSON: ${err.message}`);
     return;
   }
-  const { status, data } = await postJson('/api/describe', payload);
-  if (status !== 200 || !data.ok) {
-    setBadges([['Refused (HTTP ' + status + ')', 'err']]);
-    setAlert('err', data.error || 'Equation derivation refused by Python backend.');
-    return;
+  try {
+    const { status, data } = await postJson('/api/describe', payload);
+    if (status !== 200 || !data.ok) {
+      setBadges([['Refused (HTTP ' + status + ')', 'err']]);
+      setAlert('err', data.error || 'Equation derivation refused by Python backend.');
+      return;
+    }
+    const eq = data.equations;
+    els.equations.textContent = eq.equationsText || '';
+    const badges = [[`Mode: ${eq.mode}`, '']];
+    if (eq.unsupportedRegime) {
+      badges.push(['unsupported_regime', 'warn']);
+      setAlert('warn', `${eq.unsupportedRegime.pair.join(' + ')}: ${eq.unsupportedRegime.reason}`);
+    } else {
+      badges.push([`Backend: ${eq.selectedBackend}`, '']);
+    }
+    setBadges(badges);
+    els.provenance.textContent =
+      `nativeExecuted=${data.nativeExecuted} · nativeQualified=${data.nativeQualified} · derivedLawSha256=${eq.derivedLawSha256.slice(0, 16)}…`;
+  } catch (err) {
+    setBadges([['Loopback error', 'err']]);
+    setAlert('err', String(err.message || err));
   }
-  const eq = data.equations;
-  els.equations.textContent = eq.equationsText || '';
-  const badges = [[`Mode: ${eq.mode}`, '']];
-  if (eq.unsupportedRegime) {
-    badges.push(['unsupported_regime', 'warn']);
-    setAlert('warn', `${eq.unsupportedRegime.pair.join(' + ')}: ${eq.unsupportedRegime.reason}`);
-  } else {
-    badges.push([`Backend: ${eq.selectedBackend}`, '']);
-  }
-  setBadges(badges);
-  els.provenance.textContent =
-    `nativeExecuted=${data.nativeExecuted} · nativeQualified=${data.nativeQualified} · derivedLawSha256=${eq.derivedLawSha256.slice(0, 16)}…`;
 }
 
 async function runSolve() {
@@ -326,6 +331,9 @@ async function runSolve() {
         .join(' · ');
     renderPorts(r);
     renderEvents(r);
+  } catch (err) {
+    setBadges([['Loopback error', 'err']]);
+    setAlert('err', String(err.message || err));
   } finally {
     els.btnSolve.disabled = false;
   }
@@ -346,10 +354,19 @@ async function runCriticalRadiusSweep() {
         setAlert('err', `Sweep at r=${rVal} m refused: ${data.error}`);
         return;
       }
-      const portData = data.result.backendResult.ports[spec.metricPort];
+      const portData = data.result?.backendResult?.ports?.[spec.metricPort];
+      if (!portData || !portData.outwardHeatRateBoundsW) {
+        setAlert(
+          'warn',
+          `Sweep at r=${rVal} m returned status=${data.result?.status} without steady radial_shell heat loss bounds.`
+        );
+        return;
+      }
       points.push({ radiusM: rVal, heatLossBoundsW: portData.outwardHeatRateBoundsW });
     }
     renderSweepChart(points);
+  } catch (err) {
+    setAlert('err', String(err.message || err));
   } finally {
     els.btnSweep.disabled = false;
   }

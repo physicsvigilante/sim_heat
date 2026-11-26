@@ -132,6 +132,7 @@ Enthalpy $H$ is measured relative to pure solid at $T_{\text{tr}}$: `solid` ($H 
 | `transient` + 1 `phase_substance` (with `c_s`, `c_l`, `heatInputW=0`) + `maintained` only | `staged` | Exact closed-form 3-stage rational exponential/logarithm enclosure. |
 | `transient` + `sensible_body` + coexisting `phase_substance` (without `c_s`/`c_l` or `continuation: "first_exhaustion"`) | `multibody` | Coupled multi-body transient stopping at certified first exhaustion. |
 | `transient` + `sensible_body` / multiple `phase_substance` (with `c_s`, `c_l`) or nonzero `heatInputW` | `enthalpy` | Certified sequential `solid` ↔ `plateau` ↔ `liquid` continuation with reversals, exact symmetry-tie proofs, energy conservation checks, and honest `mode_sequence_uncertain` stops. |
+| `transient` + `maintained` only (no `sensible_body` or `phase_substance`) | `unsupported_regime` | Structured refusal (`["transient_mode", "maintained_only"]`); requires at least one storage/phase attachment. |
 
 ---
 

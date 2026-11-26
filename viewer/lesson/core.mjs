@@ -103,6 +103,9 @@ export function formatRationalPreview(token, places = 6) {
   // Rounded half-up display preview (exact endpoints remain displayed verbatim alongside).
   const scaled = (num * scale * 2n + den) / (den * 2n);
   const whole = scaled / scale;
+  if (places === 0) {
+    return `${neg ? '-' : ''}${whole.toString()}`;
+  }
   const frac = (scaled % scale).toString().padStart(places, '0');
   return `${neg ? '-' : ''}${whole.toString()}.${frac}`;
 }
@@ -126,37 +129,74 @@ export function formatIntervalPair(pair, unit = '', places = 6) {
 
 /** Extract normalized display rows for all terminals from a certified sim_heat.thermal_result/1. */
 export function extractPortRows(result) {
-  if (!result || !result.backendResult || !result.backendResult.ports) {
+  if (!result || !result.backendResult) {
     return [];
   }
-  const ports = result.backendResult.ports;
+  const raw = result.backendResult;
+  // Staged backend returns substance trajectory + maintainedReservoirTemperaturesK (no raw.ports).
+  if (!raw.ports && raw.trajectory && raw.substancePort) {
+    const rows = [];
+    const traj = raw.trajectory;
+    const subPort = raw.substancePort;
+    rows.push({
+      name: subPort,
+      kind: 'staged_phase_substance',
+      temperatureDisplay: formatIntervalPair(traj.finalTemperatureBoundsK, 'K', 5),
+      exactTemperatureBounds: traj.finalTemperatureBoundsK,
+      energyOrPowerDisplay: formatIntervalPair(traj.totalEnergyIntoSubstanceBoundsJ, 'J', 2),
+      detailDisplay:
+        `${traj.finalStage} (solid ${formatIntervalPair(traj.remainingSolidBoundsKg, 'kg', 4)}, ` +
+        `liq ${formatIntervalPair(traj.remainingLiquidBoundsKg, 'kg', 4)})`,
+    });
+    const maintained = (raw.network && raw.network.maintainedReservoirTemperaturesK) || {};
+    for (const [mName, mTemp] of Object.entries(maintained)) {
+      const pair = [mTemp, mTemp];
+      rows.push({
+        name: mName,
+        kind: 'maintained',
+        temperatureDisplay: formatIntervalPair(pair, 'K', 5),
+        exactTemperatureBounds: pair,
+        energyOrPowerDisplay: '—',
+        detailDisplay: 'maintained reservoir',
+      });
+    }
+    return rows;
+  }
+  if (!raw.ports) {
+    return [];
+  }
   const rows = [];
-  for (const [name, p] of Object.entries(ports)) {
+  for (const [name, p] of Object.entries(raw.ports)) {
     const tempPair =
       p.finalTemperatureBoundsK ||
       p.finalBodyTemperatureBoundsK ||
       p.innerFaceTemperatureBoundsK ||
       p.temperatureBoundsK ||
-      (p.temperatureK ? [p.temperatureK, p.temperatureK] : null);
+      (p.temperatureK ? [p.temperatureK, p.temperatureK] : null) ||
+      (p.transitionTemperatureK ? [p.transitionTemperatureK, p.transitionTemperatureK] : null);
     const outerTempPair = p.outerFaceTemperatureBoundsK || p.outerSurfaceTemperatureBoundsK || null;
     const energyOrPower =
       p.enthalpyChangeBoundsJ
         ? formatIntervalPair(p.enthalpyChangeBoundsJ, 'J', 2)
-        : p.bodyEnergyChangeBoundsJ
-          ? formatIntervalPair(p.bodyEnergyChangeBoundsJ, 'J', 2)
-          : p.integratedEnergyIntoReservoirBoundsJ
-            ? formatIntervalPair(p.integratedEnergyIntoReservoirBoundsJ, 'J', 2)
-            : p.outwardHeatRateBoundsW
-              ? formatIntervalPair(p.outwardHeatRateBoundsW, 'W', 4)
-              : p.inflowFromNetworkBoundsW
-                ? formatIntervalPair(p.inflowFromNetworkBoundsW, 'W', 4)
-                : '—';
+        : p.latentEnergyIntoBathBoundsJ
+          ? formatIntervalPair(p.latentEnergyIntoBathBoundsJ, 'J', 2)
+          : p.bodyEnergyChangeBoundsJ
+            ? formatIntervalPair(p.bodyEnergyChangeBoundsJ, 'J', 2)
+            : p.integratedEnergyIntoReservoirBoundsJ
+              ? formatIntervalPair(p.integratedEnergyIntoReservoirBoundsJ, 'J', 2)
+              : p.outwardHeatRateBoundsW
+                ? formatIntervalPair(p.outwardHeatRateBoundsW, 'W', 4)
+                : p.inflowFromNetworkBoundsW
+                  ? formatIntervalPair(p.inflowFromNetworkBoundsW, 'W', 4)
+                  : '—';
     const phaseNote =
       p.finalMode
         ? `${p.finalMode} (solid ${formatIntervalPair(p.remainingSolidBoundsKg, 'kg', 4)}, liq ${formatIntervalPair(p.remainingLiquidBoundsKg, 'kg', 4)})`
-        : outerTempPair
-          ? `outer T_s ${formatIntervalPair(outerTempPair, 'K', 4)}`
-          : p.plateauStatusAtModeledStop || '—';
+        : p.plateauStatusAtModeledStop
+          ? `${p.plateauStatusAtModeledStop} (solid ${formatIntervalPair(p.remainingSolidBoundsKg, 'kg', 4)}, liq ${formatIntervalPair(p.remainingLiquidBoundsKg, 'kg', 4)})`
+          : outerTempPair
+            ? `outer T_s ${formatIntervalPair(outerTempPair, 'K', 4)}`
+            : '—';
     rows.push({
       name,
       kind: p.kind || 'unknown',
@@ -181,12 +221,14 @@ export function buildSweepBarModel(sweepPoints) {
       lo,
       hi,
       mid,
+      negative: mid < 0,
       label: formatIntervalPair(pt.heatLossBoundsW, 'W', 3),
     };
   });
-  const maxVal = Math.max(...parsed.map((p) => p.hi), 1);
+  const maxAbs = Math.max(...parsed.map((p) => Math.max(Math.abs(p.lo), Math.abs(p.hi))), 0);
+  const denom = maxAbs > 0 ? maxAbs : 1;
   return parsed.map((p) => ({
     ...p,
-    barFraction: Math.max(0, Math.min(1, p.mid / maxVal)),
+    barFraction: Math.max(0, Math.min(1, Math.abs(p.mid) / denom)),
   }));
 }
