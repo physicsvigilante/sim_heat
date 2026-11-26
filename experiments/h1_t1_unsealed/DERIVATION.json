@@ -1,0 +1,64 @@
+{
+  "canonicalOriginal": "review_sandbox/projects/sim_heat/h1-t1/intake/FIRST_ATTEMPT_V1_COMMENT_6982616288.raw.md",
+  "caseFiles": [
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "5adce99ae6b83a6d1a29256912a413112798a786",
+      "path": "experiments/h1_t1_unsealed/S/model.mo"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "535e5cbb5c2b53de98fa7246a9fdcf5f63e61118",
+      "path": "experiments/h1_t1_unsealed/S/study.json"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "7c62594558fa0ee9280e789d11636aff360e02c9",
+      "path": "experiments/h1_t1_unsealed/S/AUTHOR_NOTES.md"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "849eaa197a5e8c1a1a2a019f044c2d7e05ade722",
+      "path": "experiments/h1_t1_unsealed/T/model.mo"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "5af21bc6f80c0b28602edf2c50b91c4022d93d5a",
+      "path": "experiments/h1_t1_unsealed/T/study.json"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "3f1a796b3e222d710c0eb43e554b44bb74329a01",
+      "path": "experiments/h1_t1_unsealed/T/AUTHOR_NOTES.md"
+    },
+    {
+      "derivedFromFirstAttempt": true,
+      "gitBlobSha1": "5409e203a9badb56be2e1c9b406c2dc4c1ba01e7",
+      "path": "experiments/h1_t1_unsealed/X/REFUSAL.md"
+    }
+  ],
+  "derivation": "For each uniquely labelled original Markdown fenced code block: extract contents between opening LF and closing LF fence, append exactly one terminal LF. This preserves author-reported LF-terminated self-hashed model bytes but is NOT an independently uploaded original file; original entire comment remains authoritative.",
+  "evaluationMode": "retrospective_public_task",
+  "limits": [
+    "This branch is evaluation evidence only; must not merge to production main",
+    "No OpenModelica or numerical heat solution",
+    "H1 admission results are not physical-source truth",
+    "All observations remain not_computed",
+    "Key-unavailable means no originally precommitted hidden-scorer validation"
+  ],
+  "nativeExecuted": false,
+  "noModelPhysicsCorrections": true,
+  "originalAuthorEntireCommentSHA256": "fa96e40b24fe3b039e823a78f54546bdf0ed2400e0f3b1b9519bbeb764e3c893",
+  "originalAuthorIssueCommentId": 6982616288,
+  "originalKeyUnavailableCommentSHA256": "2123c5e51db849c1189df3b6f31551c5453c1bb8736a970b5724d505750df340",
+  "originalKeyUnavailableIssueCommentId": 6982883843,
+  "originalPrivateKeyStatus": "UNAVAILABLE",
+  "originalTaskEntireCommentSHA256": "8f45ad3d4a763952e25d60658ae4d8eeae37fd266bd372b3cd80fb19b81fa2a2",
+  "originalTaskIssueCommentId": 6981681502,
+  "pinnedBaselineGitTree": "0c44961b473d23737b0c9f3b3f2cd3db65b9f264",
+  "pinnedBaselineMain": "f52613c39c539b2d4543a9838e5658d526fca10e",
+  "precommittedPrivateEvaluatorKeyVerified": false,
+  "schema": "sim_heat.h1_t1_unsealed_derivation/1",
+  "selectorKeyOriginalSHA256Commitment": "49cc3397ae5bbbabff823e674491d9d44d8341bbd8b9556694c86f5ffffb6319",
+  "trial": "H1-T1-UNSEALED"
+}

@@ -1,0 +1,313 @@
+{
+  "schema": "sim_heat.study/1",
+  "id": "H1T1TFirstAttemptV1",
+  "model": {
+    "path": "model.mo",
+    "sha256": "2c60e40f1ad8d85f46968f03712d23e8cd6b9c656cf6099a38a97d198d0873ae"
+  },
+  "mode": "transient",
+  "requests": [
+    {
+      "id": "t_ridge_temp",
+      "op": "temperature",
+      "target": "T_Ridge.port"
+    },
+    {
+      "id": "t_collar_temp",
+      "op": "temperature",
+      "target": "T_Collar.port"
+    },
+    {
+      "id": "t_plug_temp",
+      "op": "temperature",
+      "target": "T_Plug.port"
+    },
+    {
+      "id": "t_ridge_energy",
+      "op": "energyChange",
+      "target": "T_Ridge"
+    },
+    {
+      "id": "t_plug_energy",
+      "op": "energyChange",
+      "target": "T_Plug"
+    },
+    {
+      "id": "t_collar_to_plug",
+      "op": "heatFlow",
+      "target": "T06"
+    },
+    {
+      "id": "t_upper_lower_link",
+      "op": "heatFlow",
+      "target": "T10"
+    },
+    {
+      "id": "t_upper_minus_cool",
+      "op": "temperatureDifference",
+      "a": "T03.port_a",
+      "b": "T_Cool.port"
+    }
+  ],
+  "analysis": {
+    "startTime": 0,
+    "stopTime": 2400,
+    "intervals": 2400,
+    "solver": "dassl",
+    "tolerance": 1e-08
+  },
+  "provenance": [
+    {
+      "target": "T_Warm.T",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T maintained node W",
+      "note": "Selector-invented teaching thermostat temperature 367 K; absolute SI, not a textbook given."
+    },
+    {
+      "target": "T_Cool.T",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T maintained node K",
+      "note": "Selector-invented teaching thermostat temperature 289 K; absolute SI, not a textbook given."
+    },
+    {
+      "target": "T_Ridge.m",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Ridge at node R",
+      "note": "Selector-invented teaching block mass 0.32 kg; not a textbook given."
+    },
+    {
+      "target": "T_Ridge.c",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Ridge at node R",
+      "note": "Selector-invented teaching specific heat 460 J/(kg K); not a textbook given."
+    },
+    {
+      "target": "T_Ridge.T_initial",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Ridge at node R",
+      "note": "Selector-invented teaching initial absolute temperature 337 K; not a textbook given."
+    },
+    {
+      "target": "T_Collar.m",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Collar at node B",
+      "note": "Selector-invented teaching block mass 0.24 kg; not a textbook given."
+    },
+    {
+      "target": "T_Collar.c",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Collar at node B",
+      "note": "Selector-invented teaching specific heat 830 J/(kg K); not a textbook given."
+    },
+    {
+      "target": "T_Collar.T_initial",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Collar at node B",
+      "note": "Selector-invented teaching initial absolute temperature 303 K; not a textbook given."
+    },
+    {
+      "target": "T_Plug.m",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Plug at node P",
+      "note": "Selector-invented teaching block mass 0.41 kg; not a textbook given."
+    },
+    {
+      "target": "T_Plug.c",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Plug at node P",
+      "note": "Selector-invented teaching specific heat 390 J/(kg K); not a textbook given."
+    },
+    {
+      "target": "T_Plug.T_initial",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T block row T_Plug at node P",
+      "note": "Selector-invented teaching initial absolute temperature 318 K; not a textbook given."
+    },
+    {
+      "target": "T01.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T01",
+      "note": "Selector-invented teaching thermal conductivity 65 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T01.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T01",
+      "note": "Selector-invented teaching rod length 0.28 m; not a textbook given."
+    },
+    {
+      "target": "T01.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T01",
+      "note": "Selector-invented teaching section area 0.00016 m²; not a textbook given."
+    },
+    {
+      "target": "T02.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T02",
+      "note": "Selector-invented teaching thermal conductivity 45 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T02.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T02",
+      "note": "Selector-invented teaching rod length 0.34 m; not a textbook given."
+    },
+    {
+      "target": "T02.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T02",
+      "note": "Selector-invented teaching section area 0.00023 m²; not a textbook given."
+    },
+    {
+      "target": "T03.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T03",
+      "note": "Selector-invented teaching thermal conductivity 180 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T03.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T03",
+      "note": "Selector-invented teaching rod length 0.19 m; not a textbook given."
+    },
+    {
+      "target": "T03.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T03",
+      "note": "Selector-invented teaching section area 0.0001 m²; not a textbook given."
+    },
+    {
+      "target": "T04.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T04",
+      "note": "Selector-invented teaching thermal conductivity 25 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T04.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T04",
+      "note": "Selector-invented teaching rod length 0.26 m; not a textbook given."
+    },
+    {
+      "target": "T04.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T04",
+      "note": "Selector-invented teaching section area 0.00016 m²; not a textbook given."
+    },
+    {
+      "target": "T05.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T05",
+      "note": "Selector-invented teaching thermal conductivity 42 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T05.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T05",
+      "note": "Selector-invented teaching rod length 0.30 m; not a textbook given."
+    },
+    {
+      "target": "T05.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T05",
+      "note": "Selector-invented teaching section area 0.00025 m²; not a textbook given."
+    },
+    {
+      "target": "T06.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T06",
+      "note": "Selector-invented teaching thermal conductivity 75 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T06.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T06",
+      "note": "Selector-invented teaching rod length 0.22 m; not a textbook given."
+    },
+    {
+      "target": "T06.d",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T06",
+      "note": "Selector-invented teaching circular diameter 0.016 m; not a textbook given."
+    },
+    {
+      "target": "T07.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T07",
+      "note": "Selector-invented teaching thermal conductivity 120 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T07.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T07",
+      "note": "Selector-invented teaching rod length 0.33 m; not a textbook given."
+    },
+    {
+      "target": "T07.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T07",
+      "note": "Selector-invented teaching section area 0.00014 m²; not a textbook given."
+    },
+    {
+      "target": "T08.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T08",
+      "note": "Selector-invented teaching thermal conductivity 20 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T08.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T08",
+      "note": "Selector-invented teaching rod length 0.24 m; not a textbook given."
+    },
+    {
+      "target": "T08.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T08",
+      "note": "Selector-invented teaching section area 0.00028 m²; not a textbook given."
+    },
+    {
+      "target": "T09.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T09",
+      "note": "Selector-invented teaching thermal conductivity 16 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T09.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T09",
+      "note": "Selector-invented teaching rod length 0.27 m; not a textbook given."
+    },
+    {
+      "target": "T09.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T09",
+      "note": "Selector-invented teaching section area 0.00021 m²; not a textbook given."
+    },
+    {
+      "target": "T10.k",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T10",
+      "note": "Selector-invented teaching thermal conductivity 95 W/(m K); not a textbook given."
+    },
+    {
+      "target": "T10.L",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T10",
+      "note": "Selector-invented teaching rod length 0.40 m; not a textbook given."
+    },
+    {
+      "target": "T10.A",
+      "kind": "illustrative",
+      "locator": "H1-T1 locked T1-T rod row T10",
+      "note": "Selector-invented teaching section area 0.00013 m²; not a textbook given."
+    },
+    {
+      "target": "@model",
+      "kind": "adopted_assumption",
+      "locator": "H1-T1 locked T1-T physical assumptions / H1 public author packet",
+      "note": "Uniform-temperature finite-storage blocks with constant positive specific heat; storage-free constant-property Fourier rods, ideal contacts and ownerless ideal junctions; insulated exteriors; no convection, radiation, phase change, mechanical work or variable properties; both thermostats held fixed for 0–2400 s."
+    }
+  ]
+}
