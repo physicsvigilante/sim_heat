@@ -838,6 +838,37 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
                     "solve": bad_solve,
                 })
 
+        # M03-R10: direct DerivedLaw(...) with forged legacy_provenance, extra keys, or bad law_id must fail closed.
+        for bad_kwargs in (
+            {
+                "legacy_provenance": {
+                    "modelSha256": "a" * 64,
+                    "studySha256": "b" * 64,
+                    "factsSha256": "c" * 64,
+                    "nativeQualified": True,
+                }
+            },
+            {
+                "legacy_provenance": {
+                    "modelSha256": "a" * 64,
+                    "studySha256": "b" * 64,
+                    "factsSha256": "c" * 64,
+                    "ports": "OVERWRITTEN",
+                }
+            },
+            {"legacy_provenance": {"modelSha256": "bad", "studySha256": "bad", "factsSha256": "bad"}},
+            {"law_id": ""},
+            {"law_id": 123},
+        ):
+            with self.assertRaises(ValueError):
+                DerivedLaw(
+                    terminals=valid_law.terminals,
+                    matrix=valid_law.matrix,
+                    lineage=valid_law.lineage,
+                    content_sha256=valid_law.content_sha256,
+                    **bad_kwargs,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,7 +30,7 @@ from simheat.core import (
     pi_rational_enclosure,
     verified_barrier_enclosure,
 )
-from tools.offline_provenance import OFFLINE_FLAG_KEYS, _SHA256_RE, offline_provenance
+from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS, _SHA256_RE, offline_provenance
 from tools.radiating_surface import decimal_input
 
 ENDPOINT_MEANING = "exact_rational_closed_enclosure"
@@ -704,6 +704,17 @@ class DerivedLaw:
             raise ValueError(
                 f"derived law contentSha256 mismatch: declared {self.content_sha256!r}, computed {expected_sha!r}"
             )
+        if self.law_id is not None and (not isinstance(self.law_id, str) or not self.law_id.strip()):
+            raise ValueError("law_id must be a non-empty string when provided")
+        validated_legacy = None
+        if self.legacy_provenance is not None:
+            if not isinstance(self.legacy_provenance, Mapping):
+                raise ValueError("legacy_provenance must be a mapping when provided")
+            allowed_legacy_keys = set(SOURCE_HASH_KEYS) | set(OFFLINE_FLAG_KEYS)
+            extra_legacy = sorted(set(self.legacy_provenance) - allowed_legacy_keys)
+            if extra_legacy:
+                raise ValueError(f"legacy_provenance contains unexpected keys: {extra_legacy}")
+            validated_legacy = offline_provenance(dict(self.legacy_provenance))
         object.__setattr__(self, "terminals", term_tuple)
         object.__setattr__(
             self,
@@ -721,7 +732,7 @@ class DerivedLaw:
         object.__setattr__(
             self,
             "legacy_provenance",
-            None if self.legacy_provenance is None else _deep_freeze(self.legacy_provenance),
+            None if validated_legacy is None else _deep_freeze(validated_legacy),
         )
         object.__setattr__(self, "_prevalidated", None)
 
