@@ -213,11 +213,13 @@ export function extractPortRows(result) {
             ? formatIntervalPair(p.bodyEnergyChangeBoundsJ, 'J', 2)
             : p.integratedEnergyIntoReservoirBoundsJ
               ? formatIntervalPair(p.integratedEnergyIntoReservoirBoundsJ, 'J', 2)
-              : p.outwardHeatRateBoundsW
-                ? formatIntervalPair(p.outwardHeatRateBoundsW, 'W', 4)
-                : p.inflowFromNetworkBoundsW
-                  ? formatIntervalPair(p.inflowFromNetworkBoundsW, 'W', 4)
-                  : '—';
+              : p.cumulativeOutwardEnergyBoundsJ
+                ? formatIntervalPair(p.cumulativeOutwardEnergyBoundsJ, 'J', 2)
+                : p.outwardHeatRateBoundsW
+                  ? formatIntervalPair(p.outwardHeatRateBoundsW, 'W', 4)
+                  : p.inflowFromNetworkBoundsW
+                    ? formatIntervalPair(p.inflowFromNetworkBoundsW, 'W', 4)
+                    : '—';
     const phaseNote =
       p.finalMode
         ? `${p.finalMode} (solid ${formatIntervalPair(p.remainingSolidBoundsKg, 'kg', 4)}, liq ${formatIntervalPair(p.remainingLiquidBoundsKg, 'kg', 4)})`

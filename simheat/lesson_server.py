@@ -290,14 +290,14 @@ def build_presets() -> list[dict[str, Any]]:
             "title": "Lesson 4 · Preserved Refusals (unsupported_regime & mode_sequence_uncertain)",
             "category": "refusals",
             "summary": (
-                "Demonstrates honest physical boundaries: a transient radiating shell returns "
-                "structured unsupported_regime (never fake steady math); switch mode or try the "
-                "interval-conductance tie to observe certified mode_sequence_uncertain."
+                "Demonstrates honest physical boundaries: a coupled transient radiating shell + "
+                "moving Stefan freezing front returns structured unsupported_regime (never fake "
+                "steady math); try the interval-conductance tie for certified mode_sequence_uncertain."
             ),
             "controls": [],
             "system": {
                 "schema": THERMAL_SYSTEM_SCHEMA,
-                "id": "lesson_unsupported_transient_radiation",
+                "id": "lesson_unsupported_stefan_radiation",
                 "nodes": ["core", "shell_in"],
                 "conduction": {
                     "kind": "rods",
@@ -307,7 +307,14 @@ def build_presets() -> list[dict[str, Any]]:
                     },
                 },
                 "attachments": {
-                    "core": {"kind": "sensible_body", "heatCapacityJPerK": "400", "initialTemperatureK": "500"},
+                    "core": {
+                        "kind": "stefan_layer",
+                        "geometry": {"kind": "planar", "areaM2": "1", "initialThicknessM": "0.01"},
+                        "transitionTemperatureK": "273.15",
+                        "densityKgPerM3": "917",
+                        "specificLatentHeatJPerKg": "334000",
+                        "layerConductivityWPerMK": "2.2",
+                    },
                     "shell_in": {
                         "kind": "radial_shell",
                         "geometry": {

@@ -148,6 +148,24 @@ test('extractPortRows covers multiport, staged, and multibody phase_bath backend
   assert.equal(sfRows[1].name, 'air');
   assert.equal(sfRows[1].temperatureDisplay, '263.15 K');
 
+  // M07: radiative_transient radial_shell cumulativeOutwardEnergyBoundsJ display row
+  const rtRows = extractPortRows({
+    backendResult: {
+      ports: {
+        shell_in: {
+          kind: 'radial_shell',
+          innerFaceTemperatureBoundsK: ['420', '421'],
+          outerFaceTemperatureBoundsK: ['380', '381'],
+          cumulativeOutwardEnergyBoundsJ: ['12500', '12550'],
+        },
+      },
+    },
+  });
+  assert.equal(rtRows.length, 1);
+  assert.equal(rtRows[0].name, 'shell_in');
+  assert.match(rtRows[0].energyOrPowerDisplay, /12500\.00/);
+  assert.match(rtRows[0].detailDisplay, /outer T_s/);
+
   // M05-R04: buildSweepBarModel handles sub-watt and negative heat rates cleanly
   const bars = buildSweepBarModel([
     { radiusM: '0.045', heatLossBoundsW: ['25', '25'] },

@@ -52,6 +52,11 @@ _ROD_GEN_EXPORTS = (
     "build_rod_generation_model",
 )
 
+_RADIATIVE_TRANSIENT_EXPORTS = (
+    "RADIATIVE_TRANSIENT_SCHEMA",
+    "solve_radiative_transient",
+)
+
 
 def __getattr__(name: str):
     if name in _SYSTEM_EXPORTS:
@@ -70,6 +75,10 @@ def __getattr__(name: str):
         from simheat import rod_gen
 
         return getattr(rod_gen, name)
+    if name in _RADIATIVE_TRANSIENT_EXPORTS:
+        from simheat import radiative_transient
+
+        return getattr(radiative_transient, name)
     raise AttributeError(f"module 'simheat' has no attribute {name!r}")
 
 
@@ -83,6 +92,7 @@ __all__ = [
     "JOINED_LAW_SCHEMA",
     "ONE",
     "PINNED_LAW_SCHEMA",
+    "RADIATIVE_TRANSIENT_SCHEMA",
     "RESULT_ENVELOPE_SCHEMA",
     "RodGenerationModel",
     "SCALE",
@@ -105,6 +115,7 @@ __all__ = [
     "pi_rational_enclosure",
     "product",
     "solve_enthalpy_continuation",
+    "solve_radiative_transient",
     "solve_stefan_from_law",
     "solve_system",
     "step_matrix",

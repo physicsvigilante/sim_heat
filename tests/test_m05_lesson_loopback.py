@@ -128,7 +128,7 @@ class M05LessonLoopbackTests(unittest.TestCase):
         st_u, _, su = self._post_json("/api/solve", presets["refusal_and_uncertainty"]["system"])
         self.assertEqual(st_u, 200)
         self.assertEqual(su["result"]["status"], "unsupported_regime")
-        self.assertEqual(su["result"]["unsupportedMechanismPair"], ["radial_shell", "sensible_body"])
+        self.assertEqual(su["result"]["unsupportedMechanismPair"], ["radial_shell", "stefan_layer"])
         self.assertIsNone(su["result"]["backendResult"])
 
     def test_preserved_mode_sequence_uncertain_and_security_refusals(self):
