@@ -10,7 +10,15 @@ import tempfile
 import textwrap
 import unittest
 
-from tools.verify_n1_plan_maintenance import BASELINE_COMMIT, SOURCE_PINS_SHA256, verify as verify_n1
+from tools.verify_n1_plan_maintenance import (
+    AUTHORIZED_STUDY_NEW_LINE,
+    AUTHORIZED_STUDY_OLD_LINE,
+    BASELINE_COMMIT,
+    HISTORICAL_DRIFT_EXEMPT,
+    SOURCE_PINS_SHA256,
+    prepare_stage,
+    verify as verify_n1,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -110,11 +118,17 @@ class AuditCIScopeTests(unittest.TestCase):
             ['git', '-C', str(ROOT), 'show', f'{BASELINE_COMMIT}:AGENTS.md'],
             capture_output=True, check=False,
         )
+        git_study = subprocess.run(
+            ['git', '-C', str(ROOT), 'show', f'{BASELINE_COMMIT}:h1/study.py'],
+            capture_output=True, check=False,
+        )
         with tempfile.TemporaryDirectory() as tmp:
-            mirror = Path(tmp)
+            mirror = Path(tmp) / 'mirror'
+            stage_check = Path(tmp) / 'stage-check'
             shutil.copytree(ROOT / 'h1', mirror / 'h1')
             shutil.copytree(ROOT / 'qualification/h1_n1', mirror / 'qualification/h1_n1')
-            # Normalize CRLF to LF for Windows checkouts so pinned LF hashes match.
+            # Normalize CRLF to LF for Windows checkouts so pinned LF hashes match
+            # (keep h1/study.py normalized in the scratch mirror per N-02).
             mirror_pins = mirror / 'qualification/h1_n1/SOURCE-PINS.json'
             mirror_pins.write_bytes(pins_lf)
             for rel in pins['readonlySha256']:
@@ -128,48 +142,98 @@ class AuditCIScopeTests(unittest.TestCase):
                 dst.write_bytes((ROOT / rel).read_bytes().replace(b'\r\n', b'\n'))
 
             agents_bytes = git_agents.stdout if git_agents.returncode == 0 else None
-            if agents_bytes is not None:
-                if os.name == 'posix':
-                    ok = verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
-                    self.assertEqual(ok['planStructuralChecks'], 'PASS')
-                    self.assertFalse(ok['nativeExecuted'])
-                    self.assertFalse(ok['nativeQualified'])
-                    self.assertEqual(ok['maintenanceVerification']['sourcePinsManifestSha256Verified'],
-                                     SOURCE_PINS_SHA256)
-                    self.assertTrue(ok['maintenanceVerification']['livePlanAndNonAgentsPinsVerified'])
+            study_bytes = git_study.stdout if git_study.returncode == 0 else None
+            self.assertIsNotNone(agents_bytes)
+            self.assertIsNotNone(study_bytes)
 
-                plan_path = mirror / 'qualification/h1_n1/plan.json'
-                original_plan = plan_path.read_bytes()
-                for label, mutate, expected_err in (
-                    ('native_permission', lambda p: p['authority'].__setitem__('nativeExecutionApproved', True),
-                     'only planning authorized'),
-                    ('missing_blocker', lambda p: p['executionBlockers'].pop(), 'unresolved gates omitted'),
-                    ('weakened_margin', lambda p: p['acceptance'].__setitem__('referenceErrorFractionMaximum', 0.02),
-                     'numerical bounds'),
-                ):
-                    with self.subTest(mutation=label):
-                        data = json.loads(original_plan.decode('utf-8'))
-                        mutate(data)
-                        plan_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
-                        with self.assertRaisesRegex(ValueError, expected_err):
-                            verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
-                        plan_path.write_bytes(original_plan)
+            expected_study_pin = pins['readonlySha256']['h1/study.py']
+            expected_live_study = study_bytes.replace(AUTHORIZED_STUDY_OLD_LINE, AUTHORIZED_STUDY_NEW_LINE, 1)
+            expected_live_sha = sha256(expected_live_study).hexdigest()
 
-            # Mutating any non-AGENTS pinned file alone must fail closed with source drift.
+            # G3 stage-hash inspection (both POSIX and Windows): staged h1/study.py has historical pin bytes
+            # while live mirror/h1/study.py matches the bounded authorized F-06 delta.
+            prepare_stage(
+                mirror,
+                stage_check,
+                pins,
+                historical_agents=agents_bytes,
+                historical_study=study_bytes,
+            )
+            self.assertEqual(sha256((stage_check / 'h1/study.py').read_bytes()).hexdigest(), expected_study_pin)
+            self.assertEqual(sha256((mirror / 'h1/study.py').read_bytes()).hexdigest(), expected_live_sha)
+
+            if os.name == 'posix':
+                ok = verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+                self.assertEqual(ok['planStructuralChecks'], 'PASS')
+                self.assertFalse(ok['nativeExecuted'])
+                self.assertFalse(ok['nativeQualified'])
+                mv = ok['maintenanceVerification']
+                self.assertEqual(mv['sourcePinsManifestSha256Verified'], SOURCE_PINS_SHA256)
+                self.assertEqual(mv['historicalPinnedFile'], 'AGENTS.md')
+                self.assertEqual(mv['historicalPinnedFiles'], list(HISTORICAL_DRIFT_EXEMPT))
+                self.assertEqual(mv['historicalStudySha256Verified'], expected_study_pin)
+                self.assertEqual(mv['liveStudySha256'], expected_live_sha)
+                self.assertTrue(mv['liveStudyMatchesAuthorizedDelta'])
+                self.assertTrue(mv['liveStudyDiffersFromPin'])
+                self.assertTrue(mv['livePlanAndNonAgentsPinsVerified'])
+            else:
+                # Documented Windows stop: live pin & bounded-delta checks pass, then frozen
+                # check_plan.py:310 executes staged historical h1/study.py (G3) which hits F-06.
+                with self.assertRaisesRegex(ValueError, r'Refusal: path: portable relative path required'):
+                    verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+
+            # (e) Existing plan-mutation probes (fail in check_plan.py before load_study).
+            plan_path = mirror / 'qualification/h1_n1/plan.json'
+            original_plan = plan_path.read_bytes()
+            for label, mutate, expected_err in (
+                ('native_permission', lambda p: p['authority'].__setitem__('nativeExecutionApproved', True),
+                 'only planning authorized'),
+                ('missing_blocker', lambda p: p['executionBlockers'].pop(), 'unresolved gates omitted'),
+                ('weakened_margin', lambda p: p['acceptance'].__setitem__('referenceErrorFractionMaximum', 0.02),
+                 'numerical bounds'),
+            ):
+                with self.subTest(mutation=label):
+                    data = json.loads(original_plan.decode('utf-8'))
+                    mutate(data)
+                    plan_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+                    with self.assertRaisesRegex(ValueError, expected_err):
+                        verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+                    plan_path.write_bytes(original_plan)
+
+            # (c) Historical h1/study.py not matching its pin (injected bytes) must be refused.
+            with self.assertRaisesRegex(ValueError, f'historical h1/study.py at {BASELINE_COMMIT} does not match'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes + b'\n')
+
+            # (d) Live h1/study.py altered beyond the authorized 1-line F-06 delta must be refused.
+            live_study = mirror / 'h1/study.py'
+            original_live_study = live_study.read_bytes()
+            live_study.write_bytes(original_live_study + b'# extra\n')
+            with self.assertRaisesRegex(ValueError, 'source drift: h1/study.py beyond the authorized F-06 delta'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+            live_study.write_bytes(original_live_study)
+
+            # (a) Mutating another pinned file (h1/model.py and FREEZE.md) must fail closed with source drift.
+            model_py = mirror / 'h1/model.py'
+            original_model = model_py.read_bytes()
+            model_py.write_bytes(original_model + b'# tamper\n')
+            with self.assertRaisesRegex(ValueError, 'source drift: h1/model.py'):
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+            model_py.write_bytes(original_model)
+
             c1 = mirror / 'qualification/h1_c1/FREEZE.md'
             original_c1 = c1.read_bytes()
             tampered_c1 = original_c1 + b'tamper\n'
             c1.write_bytes(tampered_c1)
             with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_c1/FREEZE.md'):
-                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
 
-            # Dual tamper: altering BOTH a protected file AND updating SOURCE-PINS.json
+            # (b) Dual tamper: altering BOTH a protected file AND updating SOURCE-PINS.json
             # to match must still fail closed on manifest digest drift.
             rehashed = json.loads(pins_lf.decode('utf-8'))
             rehashed['readonlySha256']['qualification/h1_c1/FREEZE.md'] = sha256(tampered_c1).hexdigest()
             mirror_pins.write_text(json.dumps(rehashed, indent=2) + '\n', encoding='utf-8')
             with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_n1/SOURCE-PINS.json'):
-                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
 
             # Removing a protected entry from SOURCE-PINS.json must also fail closed.
             c1.write_bytes(original_c1)
@@ -177,7 +241,25 @@ class AuditCIScopeTests(unittest.TestCase):
             del pruned['readonlySha256']['qualification/h1_c1/FREEZE.md']
             mirror_pins.write_text(json.dumps(pruned, indent=2) + '\n', encoding='utf-8')
             with self.assertRaisesRegex(ValueError, 'source drift: qualification/h1_n1/SOURCE-PINS.json'):
-                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes)
+                verify_n1(mirror, run_tests=False, agents_bytes=agents_bytes, study_bytes=study_bytes)
+
+    def test_f06_live_study_differs_from_baseline_by_exact_single_line(self):
+        git_study = subprocess.run(
+            ['git', '-C', str(ROOT), 'show', f'{BASELINE_COMMIT}:h1/study.py'],
+            capture_output=True, check=False,
+        )
+        self.assertEqual(git_study.returncode, 0, git_study.stderr.decode(errors='replace'))
+        historical = git_study.stdout
+        live = (ROOT / 'h1/study.py').read_bytes()
+        self.assertEqual(historical.count(AUTHORIZED_STUDY_OLD_LINE), 1)
+        hist_lines = historical.splitlines(keepends=True)
+        live_lines = live.splitlines(keepends=True)
+        self.assertEqual(len(hist_lines), len(live_lines))
+        diffs = [(i + 1, a, b) for i, (a, b) in enumerate(zip(hist_lines, live_lines)) if a != b]
+        self.assertEqual(len(diffs), 1)
+        self.assertEqual(diffs[0][1], AUTHORIZED_STUDY_OLD_LINE)
+        self.assertEqual(diffs[0][2], AUTHORIZED_STUDY_NEW_LINE)
+        self.assertEqual(live, historical.replace(AUTHORIZED_STUDY_OLD_LINE, AUTHORIZED_STUDY_NEW_LINE, 1))
 
     def test_f09_ci_workflow_map_and_main_acceptance_smoke_fixtures(self):
         main_ci = (ROOT / '.github/workflows/main-offline-acceptance-ci.yml').read_text(encoding='utf-8')
