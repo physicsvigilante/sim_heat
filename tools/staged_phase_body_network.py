@@ -20,6 +20,7 @@ from pathlib import Path
 from qualification.h1_n13.conduction import ZERO, Box
 from tools.body_phase_bath_exchange import exp_neg_interval
 from tools.join_thermal_networks import bounds
+from simheat.laws import validate_terminal_law
 from tools.offline_investigation import PinnedSourceRef, _expect_exact_keys, validate_pinned_law
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS
 from tools.radiating_surface import decimal_input, physical_port
@@ -283,8 +284,9 @@ def solve_from_law(
     *,
     maintained_temperatures_k=None,
 ):
-    """Solve multi-stage sensible <-> phase-change transient on a validated pinned network."""
-    provenance = validate_pinned_law(law)
+    """Solve multi-stage sensible <-> phase-change transient on a validated terminal network."""
+    resolved_law, provenance = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
     terminals = list(law["terminals"])
     if port not in terminals:
         raise ValueError(f"substance port {port!r} is not in pinned network terminals {terminals}")
@@ -294,9 +296,15 @@ def solve_from_law(
         solid_kg, liquid_kg, duration_s,
     )
 
-    source_ref_temps = {t: str(law["imposedTemperaturesK"][t]) for t in terminals}
+    source_ref_temps = (
+        {t: str(resolved_law.reference_temperatures_k[t]) for t in terminals}
+        if resolved_law.reference_temperatures_k is not None
+        else None
+    )
     other_ports = [t for t in terminals if t != port]
     if maintained_temperatures_k is None:
+        if source_ref_temps is None:
+            raise ValueError("maintained_temperatures_k is required when derived law has no reference temperatures")
         maintained = {t: source_ref_temps[t] for t in other_ports}
     else:
         if not isinstance(maintained_temperatures_k, dict) or set(maintained_temperatures_k) != set(other_ports):
@@ -305,7 +313,7 @@ def solve_from_law(
         for t in other_ports:
             maintained[t] = str(decimal_input(maintained_temperatures_k[t], f"maintained temperature at {t}"))
 
-    effective_imposed = {**source_ref_temps, **maintained}
+    effective_imposed = {port: str(t0), **maintained}
     (eq_lo, eq_hi), (r_lo, r_hi) = physical_port({**law, "imposedTemperaturesK": effective_imposed}, port)
 
     total_mass = solid0 + liquid0
@@ -401,11 +409,21 @@ def solve_from_law(
                 "temperatureK": maintained[t],
             }
 
+    source_identity = (
+        {k: provenance[k] for k in SOURCE_HASH_KEYS}
+        if all(k in provenance for k in SOURCE_HASH_KEYS)
+        else {
+            "derivedLawSchema": provenance["derivedLawSchema"],
+            "derivedLawSha256": provenance["derivedLawSha256"],
+            "derivedLawLineage": provenance["derivedLawLineage"],
+        }
+    )
+
     return {
         "schema": STAGED_SCHEMA,
         "evidence": {
             "category": EVIDENCE_CATEGORY,
-            "sourceIdentity": {k: provenance[k] for k in SOURCE_HASH_KEYS},
+            "sourceIdentity": source_identity,
             **{k: False for k in OFFLINE_FLAG_KEYS},
         },
         "network": {

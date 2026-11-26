@@ -4,6 +4,7 @@ from fractions import Fraction as F
 import json
 
 from qualification.h1_n13.conduction import ZERO, Box, interval
+from simheat.laws import validate_terminal_law
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
 from tools.offline_provenance import offline_provenance
@@ -107,8 +108,23 @@ def _bisect_threshold(eval_fn, target, lo, hi, increasing=True, steps=64, lo_pro
 
 def solve_from_law(law, phase_port, body_port, transition_k, latent_heat_j_per_kg,
                    solid_kg, liquid_kg, capacity_j_per_k, initial_k, duration_s):
-    if phase_port == body_port or not {phase_port, body_port} <= set(law["terminals"]):
+    raw_terms = law.terminals if hasattr(law, "terminals") else (law.get("terminals") if isinstance(law, dict) else None)
+    if not raw_terms or phase_port == body_port or not {phase_port, body_port} <= set(raw_terms):
         raise ValueError("distinct phase and body ports required in the pinned network")
+    # Preserve explicit coupling diagnostic before full passivity check when the pair conductance is zero.
+    if isinstance(law, dict) and isinstance(law.get("supplyResponseBoundsWPerK"), dict):
+        row_p_raw = law["supplyResponseBoundsWPerK"].get(phase_port)
+        if isinstance(row_p_raw, dict) and body_port in row_p_raw:
+            try:
+                if (-interval(row_p_raw[body_port])).span()[0] <= 0:
+                    raise ValueError("phase bath and body port are not thermally coupled")
+            except (TypeError, ValueError) as exc:
+                if "not thermally coupled" in str(exc):
+                    raise
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("body_phase_bath_exchange requires imposedTemperaturesK on the law")
     transition, latent, solid, liquid, duration = phase_inputs(
         transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
     capacity = decimal_input(capacity_j_per_k, "heat capacity")

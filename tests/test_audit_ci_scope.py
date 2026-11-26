@@ -296,6 +296,24 @@ class AuditCIScopeTests(unittest.TestCase):
                     self.assertIs(out[flag], False)
                     self.assertIs(out['evidence'][flag], False)
 
+    def test_m03_windows_offline_ci_workflow_and_map(self):
+        win_ci = (ROOT / '.github/workflows/windows-offline-ci.yml').read_text(encoding='utf-8')
+        ci_map = (ROOT / 'docs/CI_WORKFLOW_MAP.md').read_text(encoding='utf-8')
+        self.assertIn('`windows-offline-ci.yml`', ci_map)
+        self.assertIn('runs-on: windows-latest', win_ci)
+        self.assertIn("python-version: '3.13.5'", win_ci)
+        self.assertIn('--only-binary=:all: -r requirements-h1-ci.txt', win_ci)
+        for required in (
+            'tests/test_h1_windows_nested_paths.py',
+            'tests/test_m03_physical_composability.py',
+            'tests/test_audit_ci_scope.py',
+            'tools/render_product_docs.py --check',
+            'git ls-files --eol',
+        ):
+            self.assertIn(required, win_ci)
+        for forbidden in ('omc ', 'apt-get', 'docker', 'choco install openmodelica'):
+            self.assertNotIn(forbidden, win_ci.lower())
+
 
 if __name__ == '__main__':
     unittest.main()

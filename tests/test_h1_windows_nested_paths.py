@@ -50,7 +50,7 @@ class H1WindowsNestedPathsTests(unittest.TestCase):
         self.assertIn("portable relative path required", str(ctx.exception))
 
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve(strict=True)
             shutil.copytree(CASES / "D2", root / "D2")
             shutil.copytree(CASES / "D2_K2", root / "D2_K2")
 

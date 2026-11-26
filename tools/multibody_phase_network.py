@@ -23,6 +23,7 @@ from qualification.h1_n13.conduction import ONE, ZERO, Box, step_matrix
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
 from tools.multiport_thermal_network import _symmetric_conductances
+from simheat.laws import validate_terminal_law
 from tools.offline_investigation import PinnedSourceRef, _expect_exact_keys, validate_pinned_law
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS
 from tools.radiating_surface import decimal_input
@@ -673,7 +674,8 @@ def solve_from_law(
     _validate_initial_steps(initial_steps)
     _validate_refinement_budget(max_prune_refinements, "max_prune_refinements")
     _validate_refinement_budget(max_bisect_refinements, "max_bisect_refinements")
-    provenance = validate_pinned_law(law)
+    resolved_law, provenance = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
     terminals = list(law["terminals"])
     parsed, body_ports, phase_ports, maintained_ports = _parse_ports(terminals, ports)
     duration = decimal_input(duration_s, "duration")
@@ -717,7 +719,11 @@ def solve_from_law(
         }
         exhausted_at_start_ports = set()
 
-    source_ref_temps = {t: str(law["imposedTemperaturesK"][t]) for t in terminals}
+    source_ref_temps = (
+        {t: str(resolved_law.reference_temperatures_k[t]) for t in terminals}
+        if resolved_law.reference_temperatures_k is not None
+        else None
+    )
     port_kinds = {t: parsed[t]["kind"] for t in terminals}
     active_bcs = {}
     ports_out = {}
@@ -821,11 +827,21 @@ def solve_from_law(
             "modeledDurationBoundsS": [str(mod_lo), str(mod_hi)],
         }
 
+    source_identity = (
+        {k: provenance[k] for k in SOURCE_HASH_KEYS}
+        if all(k in provenance for k in SOURCE_HASH_KEYS)
+        else {
+            "derivedLawSchema": provenance["derivedLawSchema"],
+            "derivedLawSha256": provenance["derivedLawSha256"],
+            "derivedLawLineage": provenance["derivedLawLineage"],
+        }
+    )
+
     return {
         "schema": MULTIBODY_SCHEMA,
         "evidence": {
             "category": EVIDENCE_CATEGORY,
-            "sourceIdentity": {k: provenance[k] for k in SOURCE_HASH_KEYS},
+            "sourceIdentity": source_identity,
             **{k: False for k in OFFLINE_FLAG_KEYS},
         },
         "network": {
