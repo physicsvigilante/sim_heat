@@ -563,8 +563,9 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
         self.assertEqual(r1["unsupportedMechanismPair"], ["steady_mode", "sensible_body"])
         self.assertIs(r1["nativeExecuted"], False)
 
-        # 2. transient + radial_shell + sensible_body -> unsupported_regime
-        r2 = solve_system({
+        # 2. transient + first_exhaustion + radial_shell -> unsupported_regime
+        #    (while continuation='auto' now solves via M07 radiative_transient!)
+        r2_sys = {
             "schema": THERMAL_SYSTEM_SCHEMA,
             "id": "u2",
             "conduction": base_rods,
@@ -576,10 +577,14 @@ class M03PhysicalComposabilityTests(unittest.TestCase):
                 },
                 "b": {"kind": "sensible_body", "heatCapacityJPerK": "500", "initialTemperatureK": "350"},
             },
-            "solve": {"mode": "transient", "durationS": "10"},
-        })
+            "solve": {"mode": "transient", "continuation": "first_exhaustion", "durationS": "10"},
+        }
+        r2 = solve_system(r2_sys)
         self.assertEqual(r2["status"], "unsupported_regime")
-        self.assertEqual(r2["unsupportedMechanismPair"], ["radial_shell", "sensible_body"])
+        self.assertEqual(r2["unsupportedMechanismPair"], ["first_exhaustion", "radial_shell"])
+        r2_auto = solve_system({**r2_sys, "solve": {"mode": "transient", "durationS": "10"}})
+        self.assertEqual(r2_auto["backend"], "radiative_transient")
+        self.assertEqual(r2_auto["status"], "complete")
 
         # 3. transient + first_exhaustion + subcooled phase_substance -> unsupported_regime
         #    (while continuation='auto' now solves via M04 enthalpy continuation!)

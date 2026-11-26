@@ -143,7 +143,7 @@ Models a growing or melting solid phase-change layer in the quasi-steady conduct
 | `steady` + `sensible_body` (or non-coexisting `phase_substance`, or nonzero `heatInputW`, or `stefan_layer`) | `unsupported_regime` | Structured refusal (`C = 0 != t -> inf`, or moving front requires transient mode). |
 | `transient` + 1 `stefan_layer` + `maintained` only (optional rod `generatedPowerW`) | `stefan` | Certified quasi-steady planar / cylindrical / spherical Stefan moving-boundary solver (exact rational `isqrt` + monotone outward bisection). |
 | `transient` + `stefan_layer` + (`sensible_body`, `phase_substance`, `exterior_surface`, `radial_shell`, or multiple `stefan_layer`) | `unsupported_regime` | Structured refusal naming the exact unsupported mechanism pair. |
-| `transient` + (`exterior_surface` or `radial_shell`) | `unsupported_regime` | Nonlinear radiating transient is explicitly out of scope (deferred). |
+| `transient` + (`exterior_surface` or `radial_shell`) + (`sensible_body` or `phase_substance` with `c_s`, `c_l`; optional `maintained`, `heatInputW`, rod `generatedPowerW`) | `radiative_transient` | Certified cooperative tangent/secant Metzler comparison ODE integrator for Newton convection + Stefan-Boltzmann $T^4$ radiation with sequential `solid` ↔ `plateau` ↔ `liquid` phase continuation (`first_exhaustion` or zero-storage `maintained`-only returns `unsupported_regime`). |
 | `transient` + 1 `phase_substance` (with `c_s`, `c_l`, `heatInputW=0`, optional rod `generatedPowerW`) + `maintained` only | `staged` | Exact closed-form 3-stage rational exponential/logarithm enclosure. |
 | `transient` + `sensible_body` + coexisting `phase_substance` (without `c_s`/`c_l` or `continuation: "first_exhaustion"`, zero rod generation) | `multibody` | Coupled multi-body transient stopping at certified first exhaustion (`first_exhaustion` + rod generation returns `unsupported_regime`). |
 | `transient` + `sensible_body` / multiple `phase_substance` (with `c_s`, `c_l`) or nonzero `heatInputW` or rod `generatedPowerW` | `enthalpy` | Certified sequential `solid` ↔ `plateau` ↔ `liquid` continuation with reversals, exact symmetry-tie proofs, energy conservation checks, and honest `mode_sequence_uncertain` stops. |
@@ -154,7 +154,7 @@ Models a growing or melting solid phase-change layer in the quasi-steady conduct
 ## 6. Result Envelope (`sim_heat.thermal_result/1`)
 
 `solve_system` always returns a unified JSON envelope containing:
-- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"staged"`, `"multibody"`, `"enthalpy"`, `"stefan"`, or `null` when `unsupported_regime`).
+- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"staged"`, `"multibody"`, `"enthalpy"`, `"stefan"`, `"radiative_transient"`, or `null` when `unsupported_regime`).
 - `status`: backend outcome (`"resolved"`, `"complete"`, `"coexisting"`, `"exhausted"`, `"growing"`, `"melting"`, `"completely_frozen"`, `"completely_melted"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`, etc.).
 - `terminationReason`: canonical termination code (`"converged"`, `"exact_linear"`, `"sweep_limit"`, `"resolved"`, `"refinement_budget"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`).
 - `achievedWidths`: achieved rational enclosure widths (`maxTemperatureWidthK`, `maxFinalTemperatureWidthK`, `finalThicknessWidthM`, `modeledDurationWidthS`, etc.).

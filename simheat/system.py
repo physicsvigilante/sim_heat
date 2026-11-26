@@ -33,6 +33,7 @@ from simheat.laws import (
     ensure_derived_law,
     join_laws,
 )
+from simheat.radiative_transient import solve_radiative_transient
 from simheat.rod_gen import RodGenerationModel, build_rod_generation_model
 from simheat.stefan import parse_stefan_spec, solve_stefan_from_law
 from tools.multibody_phase_network import solve_from_law as solve_multibody
@@ -646,14 +647,30 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
             )
         return "stefan", None, None
 
+    def _require_phase_heats(port_list: list[str]) -> None:
+        for p_name in port_list:
+            p = system.attachments[p_name]
+            if p["c_s"] is None or p["c_l"] is None:
+                raise ValueError(
+                    f"enthalpy continuation at {p_name!r} requires solidSpecificHeatJPerKgK and liquidSpecificHeatJPerKgK"
+                )
+
     if exteriors:
         ext_kind = kinds_by_port[exteriors[0]]
-        partner = "sensible_body" if bodies else ("phase_substance" if phases else "transient_mode")
-        return (
-            None,
-            [ext_kind, partner],
-            f"Coupled transient {ext_kind} + {partner} requires a nonlinear transient integrator (deferred beyond M04).",
-        )
+        if not bodies and not phases:
+            return (
+                None,
+                [ext_kind, "transient_mode"],
+                f"Transient {ext_kind} solve requires at least one sensible_body or phase_substance attachment (C = 0 != t -> inf).",
+            )
+        if system.continuation == "first_exhaustion":
+            return (
+                None,
+                ["first_exhaustion", ext_kind],
+                f"first_exhaustion mode does not support {ext_kind}; use continuation='auto' or 'staged' for radiative_transient.",
+            )
+        _require_phase_heats(phases)
+        return "radiative_transient", None, None
 
     if system.continuation == "first_exhaustion":
         if non_coex_phases:
@@ -678,14 +695,6 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
             return "multibody", None, None
         if phases:
             return "multiport", None, None
-
-    def _require_phase_heats(port_list: list[str]) -> None:
-        for p_name in port_list:
-            p = system.attachments[p_name]
-            if p["c_s"] is None or p["c_l"] is None:
-                raise ValueError(
-                    f"enthalpy continuation at {p_name!r} requires solidSpecificHeatJPerKgK and liquidSpecificHeatJPerKgK"
-                )
 
     all_phases_have_heats = bool(phases) and all(
         system.attachments[t]["c_s"] is not None and system.attachments[t]["c_l"] is not None
@@ -797,7 +806,7 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
             )
         elif kind == "phase_substance":
             p_term = f" + ({att['heatInputW']} W)" if att["heat_input"] != 0 else ""
-            if backend in ("staged", "enthalpy"):
+            if backend in ("staged", "enthalpy", "radiative_transient"):
                 m_tot = att["solid"] + att["liquid"]
                 terminal_eqs[t] = (
                     f"Piecewise enthalpy H[{t}] (M = {m_tot} kg, T_tr = {att['transitionTemperatureK']} K, "
@@ -886,9 +895,10 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
             rhs = "sum_n P_n * t_stop J"
         else:
             rhs = "0 J"
+        ext_term = " + sum_exteriors E_out,e" if backend == "radiative_transient" else ""
         conservation = (
             "Global transient energy ledger on [0, t_stop]: "
-            f"sum_bodies C_i*(T_i(t_stop) - T_i(0)) + sum_phases DeltaH_k + sum_maintained E_in,m = {rhs}"
+            f"sum_bodies C_i*(T_i(t_stop) - T_i(0)) + sum_phases DeltaH_k + sum_maintained E_in,m{ext_term} = {rhs}"
         )
 
     lines = list(conduction_lines) + ["Terminal constitutive equations:"]
@@ -1023,6 +1033,59 @@ def _to_enthalpy_ports(system: ThermalSystem) -> dict[str, dict[str, Any]]:
     return ports
 
 
+def _to_radiative_transient_ports(system: ThermalSystem) -> dict[str, dict[str, Any]]:
+    ports: dict[str, dict[str, Any]] = {}
+    for t in system.derived_law.terminals:
+        att = system.attachments[t]
+        kind = att["kind"]
+        if kind == "maintained":
+            ports[t] = {"kind": "maintained", "temperatureK": att["temperatureK"]}
+        elif kind == "sensible_body":
+            entry: dict[str, Any] = {
+                "kind": "sensible_body",
+                "heatCapacityJPerK": att["heatCapacityJPerK"],
+                "initialTemperatureK": att["initialTemperatureK"],
+            }
+            if att["heat_input"] != 0:
+                entry["heatInputW"] = att["heatInputW"]
+            ports[t] = entry
+        elif kind == "phase_substance":
+            entry = {
+                "kind": "phase_substance",
+                "transitionTemperatureK": att["transitionTemperatureK"],
+                "specificLatentHeatJPerKg": att["specificLatentHeatJPerKg"],
+                "solidSpecificHeatJPerKgK": att["solidSpecificHeatJPerKgK"],
+                "liquidSpecificHeatJPerKgK": att["liquidSpecificHeatJPerKgK"],
+                "initialSolidKg": att["initialSolidKg"],
+                "initialLiquidKg": att["initialLiquidKg"],
+                "initialTemperatureK": att["initialTemperatureK"],
+            }
+            if att["heat_input"] != 0:
+                entry["heatInputW"] = att["heatInputW"]
+            ports[t] = entry
+        elif kind == "exterior_surface":
+            entry = {
+                "kind": "exterior_surface",
+                "areaM2": att["areaM2"],
+                "enclosureTemperatureK": att["enclosureTemperatureK"],
+                "emissivity": att["emissivity"],
+                "sigmaWPerM2K4": att["sigmaWPerM2K4"],
+            }
+            if "airTemperatureK" in att:
+                entry["airTemperatureK"] = att["airTemperatureK"]
+                entry["convectionCoefficientWPerM2K"] = att["convectionCoefficientWPerM2K"]
+            ports[t] = entry
+        elif kind == "radial_shell":
+            ports[t] = {
+                "kind": "radial_shell",
+                "geometry": att["geometry"],
+                "exterior": att["exterior"],
+            }
+        else:
+            raise ValueError(f"internal error: unsupported radiative_transient attachment kind {kind!r}")
+    return ports
+
+
 def _extract_terminal_temps(
     sys_obj: ThermalSystem, backend: str, raw: dict[str, Any]
 ) -> dict[str, tuple[Fraction, Fraction]]:
@@ -1040,6 +1103,19 @@ def _extract_terminal_temps(
             if p["kind"] == "maintained":
                 v = Fraction(p["temperatureK"])
                 temps[t] = (v, v)
+            else:
+                b = p["finalTemperatureBoundsK"]
+                temps[t] = (Fraction(b[0]), Fraction(b[1]))
+        return temps
+    if backend == "radiative_transient":
+        for t in sys_obj.derived_law.terminals:
+            p = raw["ports"][t]
+            if p["kind"] == "maintained":
+                v = Fraction(p["temperatureK"])
+                temps[t] = (v, v)
+            elif p["kind"] == "radial_shell":
+                b = p["innerFaceTemperatureBoundsK"]
+                temps[t] = (Fraction(b[0]), Fraction(b[1]))
             else:
                 b = p["finalTemperatureBoundsK"]
                 temps[t] = (Fraction(b[0]), Fraction(b[1]))
@@ -1225,6 +1301,33 @@ def solve_system(
             sys_obj.duration_s,
             initial_steps=sys_obj.initial_steps,
             max_events=sys_obj.max_events,
+            terminal_injections_w=inj_arg,
+            total_generated_power_w=gen_tot_arg,
+        )
+        meta = raw["solverMetadata"]
+        return _with_rod_gen(
+            {
+                **base_envelope,
+                "status": raw["status"],
+                "terminationReason": meta["terminationReason"],
+                "achievedWidths": {
+                    "maxFinalTemperatureWidthK": meta["maxFinalTemperatureWidthK"],
+                    "modeledDurationWidthS": meta["modeledDurationWidthS"],
+                },
+                "backendResult": raw,
+            },
+            raw,
+        )
+
+    if backend == "radiative_transient":
+        rt_ports = _to_radiative_transient_ports(sys_obj)
+        raw = solve_radiative_transient(
+            sys_obj.derived_law,
+            rt_ports,
+            sys_obj.duration_s,
+            initial_steps=sys_obj.initial_steps,
+            max_events=sys_obj.max_events,
+            max_sweeps=sys_obj.max_sweeps,
             terminal_injections_w=inj_arg,
             total_generated_power_w=gen_tot_arg,
         )
