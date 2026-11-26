@@ -135,8 +135,9 @@ class LatentBathTests(TestCase):
         wide_law = {
             **law_star,
             "supplyResponseBoundsWPerK": {
-                **law_star["supplyResponseBoundsWPerK"],
+                "warm": {"warm": ["2", "4"], "middle": ["-3", "-1"], "cool": ["-1", "-1"]},
                 "middle": {"warm": ["-3", "-1"], "middle": ["4", "8"], "cool": ["-5", "-3"]},
+                "cool": {"warm": ["-1", "-1"], "middle": ["-5", "-3"], "cool": ["4", "6"]},
             },
         }
         with self.assertRaisesRegex(ValueError, "latent heat-flow direction is unresolved"):

@@ -4,6 +4,7 @@ from fractions import Fraction as F
 import json
 
 from qualification.h1_n13.conduction import ZERO, interval
+from simheat.laws import validate_terminal_law
 from tools.latent_heat_bath import phase_inputs, plateau_state, reservoir_inflows
 from tools.radiating_radial_layers import solve
 from tools.terminal_response import investigate as terminal_response
@@ -12,6 +13,10 @@ from tools.terminal_response import investigate as terminal_response
 def bath_inflow_from_law(law, phase_port, surface_port, transition, inner_radius_m, layers,
                          enclosure_k, emissivity, sigma, cylinder_length_m=None, *,
                          air_k=None, h_w_per_m2_k=None):
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("radial_phase_bath requires imposedTemperaturesK on the law")
     if phase_port == surface_port or not {phase_port, surface_port} <= set(law["terminals"]):
         raise ValueError("distinct phase and shell ports required in the pinned network")
     maintained = {**law["imposedTemperaturesK"], phase_port: str(transition)}

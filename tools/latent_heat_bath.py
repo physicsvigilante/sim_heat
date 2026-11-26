@@ -4,6 +4,7 @@ from fractions import Fraction
 import json
 
 from qualification.h1_n13.conduction import ZERO, interval
+from simheat.laws import validate_terminal_law
 from tools.loaded_thermal_ports import link_conductance
 from tools.offline_provenance import offline_provenance
 from tools.radiating_surface import decimal_input, exterior_parameters, physical_port, surface_balance
@@ -72,6 +73,10 @@ def reservoir_inflows(law, surface_port, temperatures):
 
 
 def plateau(law, port, transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, exterior=None, surface_port=None):
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("latent_heat_bath requires imposedTemperaturesK on the law")
     phase = phase_inputs(
         transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s, allow_pure=True
     )

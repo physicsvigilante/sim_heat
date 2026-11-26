@@ -4,6 +4,7 @@ from fractions import Fraction as F
 import json
 
 from qualification.h1_n13.conduction import ZERO, Box, interval
+from simheat.laws import validate_terminal_law
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs, reservoir_inflows
 from tools.offline_provenance import offline_provenance
@@ -31,6 +32,19 @@ def solve_from_law(law, phase_port, surface_port, transition_k, latent_heat_j_pe
                    solid_kg, liquid_kg, duration_s, melted_mass_kg,
                    inner_radius_m, layers, air_k, enclosure_k, emissivity, sigma,
                    cylinder_length_m=None):
+    if phase_port != surface_port and isinstance(law, dict) and isinstance(law.get("supplyResponseBoundsWPerK"), dict):
+        row_p_raw = law["supplyResponseBoundsWPerK"].get(phase_port)
+        if isinstance(row_p_raw, dict) and surface_port in row_p_raw:
+            try:
+                if (-interval(row_p_raw[surface_port])).span()[0] <= 0:
+                    raise ValueError("phase bath and shell port are not thermally coupled")
+            except (TypeError, ValueError) as exc:
+                if "not thermally coupled" in str(exc):
+                    raise
+    resolved_law, _ = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
+    if "imposedTemperaturesK" not in law:
+        raise ValueError("phase_film_calibration requires imposedTemperaturesK on the law")
     transition, latent, solid, liquid, duration = phase_inputs(
         transition_k, latent_heat_j_per_kg, solid_kg, liquid_kg, duration_s)
     if duration <= 0:

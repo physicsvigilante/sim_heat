@@ -19,6 +19,7 @@ from pathlib import Path
 from qualification.h1_n13.conduction import ZERO, Box
 from tools.join_thermal_networks import bounds
 from tools.latent_heat_bath import phase_inputs
+from simheat.laws import validate_terminal_law
 from tools.offline_investigation import PinnedSourceRef, _expect_exact_keys, validate_pinned_law
 from tools.offline_provenance import OFFLINE_FLAG_KEYS, SOURCE_HASH_KEYS
 from tools.radiating_surface import decimal_input
@@ -627,10 +628,11 @@ def _intersect_boxes(boxes, label):
 
 
 def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
-    """Compose and solve a multi-port steady thermal network over a validated pinned law."""
+    """Compose and solve a multi-port steady thermal network over a validated terminal law."""
     if isinstance(max_sweeps, bool) or not isinstance(max_sweeps, int) or max_sweeps < 1:
         raise ValueError("max_sweeps must be a positive integer")
-    provenance = validate_pinned_law(law)
+    resolved_law, provenance = validate_terminal_law(law)
+    law = resolved_law.to_engine_law()
     terminals = list(law["terminals"])
     parsed_ports, has_phase = _parse_port_specs(terminals, ports)
 
@@ -899,7 +901,11 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
         }
 
     # Build explicit per-port output records and active boundary conditions.
-    source_ref_temps = {t: str(law["imposedTemperaturesK"][t]) for t in terminals}
+    source_ref_temps = (
+        {t: str(resolved_law.reference_temperatures_k[t]) for t in terminals}
+        if resolved_law.reference_temperatures_k is not None
+        else None
+    )
     port_kinds = {t: parsed_ports[t]["kind"] for t in terminals}
     active_bcs = {}
     ports_out = {}
@@ -981,11 +987,21 @@ def solve_from_law(law, ports, *, duration_s=None, max_sweeps=120):
                 **exterior_splits[name],
             }
 
+    source_identity = (
+        {k: provenance[k] for k in SOURCE_HASH_KEYS}
+        if all(k in provenance for k in SOURCE_HASH_KEYS)
+        else {
+            "derivedLawSchema": provenance["derivedLawSchema"],
+            "derivedLawSha256": provenance["derivedLawSha256"],
+            "derivedLawLineage": provenance["derivedLawLineage"],
+        }
+    )
+
     return {
         "schema": MULTIPORT_SCHEMA,
         "evidence": {
             "category": EVIDENCE_CATEGORY,
-            "sourceIdentity": {k: provenance[k] for k in SOURCE_HASH_KEYS},
+            "sourceIdentity": source_identity,
             **{k: False for k in OFFLINE_FLAG_KEYS},
         },
         "network": {
