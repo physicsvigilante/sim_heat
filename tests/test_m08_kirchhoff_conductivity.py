@@ -872,6 +872,134 @@ class TestM08KirchhoffConductivity(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    # ------------------------------------------------------------------
+    # 9. Review regressions M08-R01 & M08-R02 (phase_bath status & exhaustedPhase)
+    # ------------------------------------------------------------------
+    def test_m08_r01_r02_phase_bath_post_exhaustion_and_exhausted_phase(self) -> None:
+        # 9a. Two active baths + one equilibrium bath: b1 exhausts at 4/21 s, duration=10 s
+        res = solve_system({
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m08_r01_multi_bath",
+            "nodes": ["hot", "b1", "b2", "eq"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["hot", "b1", "b2", "eq"],
+                "rods": {
+                    "r1": {"kind": "rod_area", "a": "hot", "b": "b1", "k": "50", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"},
+                    "r2": {"kind": "rod_area", "a": "hot", "b": "b2", "k": "50", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"},
+                    "r3": {"kind": "rod_area", "a": "b2", "b": "eq", "k": "10", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"},
+                },
+            },
+            "attachments": {
+                "hot": {"kind": "maintained", "temperatureK": "400"},
+                "b1": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "1",
+                    "initialLiquidKg": "0.5",
+                },
+                "b2": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "5",
+                    "initialLiquidKg": "0.5",
+                },
+                "eq": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "2",
+                    "initialLiquidKg": "2",
+                },
+            },
+            "solve": {"mode": "steady", "durationS": "10"},
+        })
+        self.assertEqual(res["backend"], "kirchhoff")
+        self.assertEqual(res["status"], "exhausted")
+        raw = res["backendResult"]
+        self.assertFalse(raw["phaseSystem"]["postExhaustionModeled"])
+        self.assertEqual(raw["phaseSystem"]["firstExhaustedPorts"], ["b1"])
+        # Primary exhausted bath
+        self.assertEqual(raw["ports"]["b1"]["plateauStatusAtModeledStop"], "exhausted")
+        self.assertEqual(raw["ports"]["b1"]["plateauStatusAtRequestedDuration"], "exhausted")
+        self.assertEqual(raw["ports"]["b1"]["exhaustedPhase"], "solid")
+        # Secondary active bath MUST NOT claim exhausted past modeled stop
+        self.assertEqual(raw["ports"]["b2"]["plateauStatusAtModeledStop"], "coexisting")
+        self.assertEqual(raw["ports"]["b2"]["plateauStatusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+        self.assertIsNone(raw["ports"]["b2"]["exhaustedPhase"])
+        # Secondary equilibrium bath MUST ALSO report not_modeled_after_system_exhaustion
+        self.assertEqual(raw["ports"]["eq"]["plateauStatusAtModeledStop"], "coexisting")
+        self.assertEqual(raw["ports"]["eq"]["plateauStatusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+        self.assertIsNone(raw["ports"]["eq"]["exhaustedPhase"])
+
+        # 9b. Pure-phase start (b1 exhaustedAtStart=True -> modeledDuration=[0, 0]): b2 must stay unmodeled post-stop
+        res_start = solve_system({
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m08_r01_exhausted_at_start",
+            "nodes": ["hot", "b1", "b2"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["hot", "b1", "b2"],
+                "rods": {
+                    "r1": {"kind": "rod_area", "a": "hot", "b": "b1", "k": "50", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"},
+                    "r2": {"kind": "rod_area", "a": "hot", "b": "b2", "k": "50", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"},
+                },
+            },
+            "attachments": {
+                "hot": {"kind": "maintained", "temperatureK": "400"},
+                "b1": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "0",
+                    "initialLiquidKg": "1",
+                },
+                "b2": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "300",
+                    "specificLatentHeatJPerKg": "1000",
+                    "initialSolidKg": "5",
+                    "initialLiquidKg": "0.5",
+                },
+            },
+            "solve": {"mode": "steady", "durationS": "10"},
+        })
+        raw_s = res_start["backendResult"]
+        self.assertTrue(raw_s["phaseSystem"]["exhaustedAtStart"])
+        self.assertEqual(raw_s["phaseSystem"]["modeledDurationBoundsS"], ["0", "0"])
+        self.assertEqual(raw_s["ports"]["b1"]["exhaustedPhase"], "solid")
+        self.assertEqual(raw_s["ports"]["b2"]["plateauStatusAtRequestedDuration"], "not_modeled_after_system_exhaustion")
+        self.assertIsNone(raw_s["ports"]["b2"]["exhaustedPhase"])
+
+        # 9c. Single coexisting bath (M08-R02): exhaustedPhase MUST be None while coexisting
+        res_coex = solve_system({
+            "schema": THERMAL_SYSTEM_SCHEMA,
+            "id": "m08_r02_coexisting_none",
+            "nodes": ["hot", "ice"],
+            "conduction": {
+                "kind": "rods",
+                "terminals": ["hot", "ice"],
+                "rods": {"r": {"kind": "rod_area", "a": "hot", "b": "ice", "k": "50", "L": "1", "A": "1", "alphaPerK": "0.001", "referenceTemperatureK": "300"}},
+            },
+            "attachments": {
+                "hot": {"kind": "maintained", "temperatureK": "400"},
+                "ice": {
+                    "kind": "phase_substance",
+                    "transitionTemperatureK": "273.15",
+                    "specificLatentHeatJPerKg": "334000",
+                    "initialSolidKg": "10",
+                    "initialLiquidKg": "0.5",
+                },
+            },
+            "solve": {"mode": "steady", "durationS": "1"},
+        })
+        raw_c = res_coex["backendResult"]
+        self.assertEqual(raw_c["ports"]["ice"]["plateauStatusAtModeledStop"], "coexisting")
+        self.assertEqual(raw_c["ports"]["ice"]["plateauStatusAtRequestedDuration"], "coexisting")
+        self.assertIsNone(raw_c["ports"]["ice"]["exhaustedPhase"])
+
 
 if __name__ == "__main__":
     unittest.main()

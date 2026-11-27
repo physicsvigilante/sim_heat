@@ -1324,6 +1324,12 @@ def solve_kirchhoff_steady(
                 exh_phase = None
                 exh_at_start = False
             else:
+                if termination_reason == "sweep_limit":
+                    raise ValueError(
+                        f"phase_bath {name!r} inflow straddles zero at solver sweep_limit "
+                        f"(max_sweeps={max_sweeps}, maxTemperatureWidthK={max_temp_width}, "
+                        f"maxHeatRateWidthW={max_heat_width}, bathInflowWidthW={q_hi - q_lo})"
+                    )
                 raise ValueError(f"latent heat-flow direction is unresolved at phase_bath {name!r}")
             bath_meta[name] = {
                 "process": proc,
@@ -1377,26 +1383,25 @@ def solve_kirchhoff_steady(
 
                 conv_vals = [_clip(q, t) for q in (q_lo, q_hi) for t in (mod_lo, mod_hi)]
                 mlo, mhi = min(conv_vals), max(conv_vals)
-                if m["t_lo"] is None:
-                    stop_status = req_status = "coexisting"
+                if m["t_lo"] is None or mod_hi < m["t_lo"]:
+                    stop_status = "coexisting"
+                elif mod_lo >= m["t_hi"]:
+                    stop_status = "exhausted"
                 else:
-                    stop_status = (
-                        "exhausted"
-                        if mod_lo >= m["t_hi"]
-                        else ("coexisting" if mod_hi < m["t_lo"] else "exhaustion_time_uncertain")
-                    )
-                    req_status = (
-                        "exhausted"
-                        if duration >= m["t_hi"]
-                        else ("coexisting" if duration < m["t_lo"] else "exhaustion_time_uncertain")
-                    )
+                    stop_status = "exhaustion_time_uncertain"
+                if sys_status == "coexisting":
+                    req_status = "coexisting"
+                elif sys_status == "exhausted" and name in first_exhausted_ports:
+                    req_status = stop_status
+                else:
+                    req_status = "not_modeled_after_system_exhaustion"
 
             rem_s = [str(solid - mhi), str(solid - mlo)]
             rem_l = [str(liquid + mlo), str(liquid + mhi)]
             lat_e = [str(mlo * latent), str(mhi * latent)]
             phase_details[name] = {
                 "process": m["process"],
-                "exhaustedPhase": m["exh_phase"],
+                "exhaustedPhase": m["exh_phase"] if stop_status == "exhausted" else None,
                 "exhaustedAtStart": m["exhausted_at_start"],
                 "individualExhaustionTimeBoundsS": None if m["t_lo"] is None else [str(m["t_lo"]), str(m["t_hi"])],
                 "plateauStatusAtModeledStop": stop_status,
