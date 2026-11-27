@@ -28,7 +28,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          python -B -m unittest tests/test_h1_windows_nested_paths.py tests/test_m03_physical_composability.py tests/test_m04_enthalpy_continuation.py tests/test_m05_lesson_loopback.py tests/test_m06_stefan_and_rod_generation.py tests/test_m07_radiative_transient.py tests/test_audit_ci_scope.py -v
+          python -B -m unittest tests/test_h1_windows_nested_paths.py tests/test_m03_physical_composability.py tests/test_m04_enthalpy_continuation.py tests/test_m05_lesson_loopback.py tests/test_m06_stefan_and_rod_generation.py tests/test_m07_radiative_transient.py tests/test_m08_kirchhoff_conductivity.py tests/test_audit_ci_scope.py -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -B tools/render_product_docs.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

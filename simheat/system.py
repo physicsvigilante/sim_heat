@@ -27,6 +27,11 @@ from simheat.enthalpy import (
     signed_decimal_input,
     solve_enthalpy_continuation,
 )
+from simheat.kirchhoff import (
+    KirchhoffRodModel,
+    build_kirchhoff_model,
+    solve_kirchhoff_steady,
+)
 from simheat.laws import (
     DERIVED_LAW_SCHEMA,
     DerivedLaw,
@@ -65,7 +70,7 @@ def _resolve_conduction(
     base_dir: Path | None = None,
     system_id: str | None = None,
     allow_rod_generation: bool = True,
-) -> tuple[DerivedLaw, RodGenerationModel | None]:
+) -> tuple[DerivedLaw, RodGenerationModel | None, KirchhoffRodModel | None]:
     """Recursively resolve a declarative conduction specification into a certified ``DerivedLaw``."""
     if not isinstance(spec, dict):
         raise ValueError("conduction specification must be a mapping")
@@ -87,6 +92,7 @@ def _resolve_conduction(
             raise ValueError("conduction(rods).rods must be a mapping")
         passive_rods: dict[str, dict[str, Any]] = {}
         has_gen = False
+        has_kirchhoff = False
         for r_name, r_spec in rods.items():
             if not isinstance(r_spec, dict):
                 raise ValueError(f"rods[{r_name}] must be a mapping")
@@ -99,12 +105,32 @@ def _resolve_conduction(
                             "author the connected rod graph directly in conduction.rods"
                         )
                     has_gen = True
-                passive_rods[r_name] = {k: v for k, v in r_spec.items() if k != "generatedPowerW"}
-            else:
-                passive_rods[r_name] = r_spec
+            if "alphaPerK" in r_spec:
+                a_val = signed_decimal_input(r_spec["alphaPerK"], f"rods[{r_name}].alphaPerK")
+                if a_val != 0:
+                    if not allow_rod_generation:
+                        raise ValueError(
+                            "temperature-dependent rod alphaPerK inside conduction.join is not supported; "
+                            "author the connected rod graph directly in conduction.rods"
+                        )
+                    if "referenceTemperatureK" not in r_spec:
+                        raise ValueError(
+                            f"rods[{r_name}].referenceTemperatureK is required whenever alphaPerK is nonzero"
+                        )
+                    has_kirchhoff = True
+            if "referenceTemperatureK" in r_spec:
+                decimal_input(r_spec["referenceTemperatureK"], f"rods[{r_name}].referenceTemperatureK")
+            passive_rods[r_name] = {
+                k: v
+                for k, v in r_spec.items()
+                if k not in ("generatedPowerW", "alphaPerK", "referenceTemperatureK")
+            }
         law = DerivedLaw.from_rods(nodes, passive_rods, terminals=terminals, law_id=spec.get("lawId") or system_id)
+        if has_kirchhoff:
+            km = build_kirchhoff_model(list(nodes), list(law.terminals), rods)
+            return law, None, km
         rod_gen = build_rod_generation_model(list(nodes), list(law.terminals), rods) if has_gen else None
-        return law, rod_gen
+        return law, rod_gen, None
 
     if kind == "h1_study":
         _expect_exact_keys(
@@ -128,11 +154,12 @@ def _resolve_conduction(
                 law_id=spec.get("lawId"),
             ),
             None,
+            None,
         )
 
     if kind == "derived_law":
         _expect_exact_keys(spec, required=("kind", "law"), label="conduction(derived_law)")
-        return ensure_derived_law(spec["law"]), None
+        return ensure_derived_law(spec["law"]), None, None
 
     if kind == "derived_law_ref":
         _expect_exact_keys(
@@ -144,7 +171,7 @@ def _resolve_conduction(
         law_p = Path(spec["path"])
         if base_dir is not None and not law_p.is_absolute():
             law_p = base_dir / law_p
-        return DerivedLaw.from_file(law_p, expected_sha256=spec.get("sha256")), None
+        return DerivedLaw.from_file(law_p, expected_sha256=spec.get("sha256")), None, None
 
     if kind == "join":
         _expect_exact_keys(
@@ -153,8 +180,8 @@ def _resolve_conduction(
             optional=("leftPrefix", "rightPrefix", "lawId"),
             label="conduction(join)",
         )
-        left_law, _ = _resolve_conduction(spec["left"], base_dir=base_dir, allow_rod_generation=False)
-        right_law, _ = _resolve_conduction(spec["right"], base_dir=base_dir, allow_rod_generation=False)
+        left_law, _, _ = _resolve_conduction(spec["left"], base_dir=base_dir, allow_rod_generation=False)
+        right_law, _, _ = _resolve_conduction(spec["right"], base_dir=base_dir, allow_rod_generation=False)
         return (
             join_laws(
                 left_law,
@@ -164,6 +191,7 @@ def _resolve_conduction(
                 right_prefix=spec.get("rightPrefix", "right"),
                 law_id=spec.get("lawId") or system_id,
             ),
+            None,
             None,
         )
 
@@ -416,12 +444,14 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw_layers, list) or not (1 <= len(raw_layers) <= 32):
         raise ValueError(f"attachments[{name}].geometry.layers must be a list of 1 to 32 layer mappings")
     norm_layers = []
+    has_kirchhoff_shell = False
     for idx, layer in enumerate(raw_layers):
         if not isinstance(layer, dict):
             raise ValueError(f"attachments[{name}].geometry.layers[{idx}] must be a mapping")
         _expect_exact_keys(
             layer,
             required=("outerRadiusM", "conductivityWPerMK"),
+            optional=("alphaPerK", "referenceTemperatureK"),
             label=f"attachments[{name}].geometry.layers[{idx}]",
         )
         r_out = decimal_input(layer["outerRadiusM"], f"layer {idx} outerRadiusM at {name}")
@@ -431,10 +461,26 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
                 f"attachments[{name}].geometry.layers[{idx}] requires strictly increasing outerRadiusM and positive conductivityWPerMK"
             )
         r_prev = r_out
-        norm_layers.append({
+        layer_entry: dict[str, Any] = {
             "outerRadiusM": _decimal_str(layer["outerRadiusM"]),
             "conductivityWPerMK": _decimal_str(layer["conductivityWPerMK"]),
-        })
+        }
+        if "alphaPerK" in layer:
+            a_val = signed_decimal_input(layer["alphaPerK"], f"layer {idx} alphaPerK at {name}")
+            if a_val != 0:
+                if "referenceTemperatureK" not in layer:
+                    raise ValueError(
+                        f"attachments[{name}].geometry.layers[{idx}].referenceTemperatureK is required whenever alphaPerK is nonzero"
+                    )
+                decimal_input(layer["referenceTemperatureK"], f"layer {idx} referenceTemperatureK at {name}")
+                layer_entry["alphaPerK"] = layer["alphaPerK"].strip()
+                layer_entry["referenceTemperatureK"] = _decimal_str(layer["referenceTemperatureK"])
+                has_kirchhoff_shell = True
+            elif "referenceTemperatureK" in layer:
+                decimal_input(layer["referenceTemperatureK"], f"layer {idx} referenceTemperatureK at {name}")
+        elif "referenceTemperatureK" in layer:
+            decimal_input(layer["referenceTemperatureK"], f"layer {idx} referenceTemperatureK at {name}")
+        norm_layers.append(layer_entry)
     norm_geom["layers"] = norm_layers
 
     _expect_exact_keys(
@@ -462,7 +508,7 @@ def _parse_attachment(name: str, spec: dict[str, Any]) -> dict[str, Any]:
         decimal_input(ext["convectionCoefficientWPerM2K"], f"h at {name}")
         norm_ext["airTemperatureK"] = _decimal_str(ext["airTemperatureK"])
         norm_ext["convectionCoefficientWPerM2K"] = _decimal_str(ext["convectionCoefficientWPerM2K"])
-    return {"kind": "radial_shell", "geometry": norm_geom, "exterior": norm_ext}
+    return {"kind": "radial_shell", "geometry": norm_geom, "exterior": norm_ext, "has_kirchhoff": has_kirchhoff_shell}
 
 
 @dataclass(frozen=True)
@@ -480,6 +526,12 @@ class ThermalSystem:
     observations: tuple[str, ...]
     max_events: int = DEFAULT_MAX_EVENTS
     rod_generation: RodGenerationModel | None = None
+    kirchhoff_model: KirchhoffRodModel | None = None
+    has_kirchhoff_shell: bool = False
+
+    @property
+    def has_kirchhoff(self) -> bool:
+        return self.kirchhoff_model is not None or self.has_kirchhoff_shell
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], *, base_dir: str | Path | None = None) -> ThermalSystem:
@@ -502,7 +554,7 @@ class ThermalSystem:
         if isinstance(conduction, dict) and conduction.get("kind") in (None, "rods") and "terminals" not in conduction:
             if isinstance(payload["attachments"], dict):
                 conduction = {**conduction, "terminals": sorted(payload["attachments"].keys())}
-        derived_law, rod_generation = _resolve_conduction(
+        derived_law, rod_generation, kirchhoff_model = _resolve_conduction(
             conduction,
             top_nodes=top_nodes,
             base_dir=base_path,
@@ -516,6 +568,10 @@ class ThermalSystem:
                 f"must match conduction terminals {list(derived_law.terminals)}"
             )
         attachments = {t: _parse_attachment(t, raw_att[t]) for t in derived_law.terminals}
+        has_kirchhoff_shell = any(
+            att["kind"] == "radial_shell" and att.get("has_kirchhoff", False)
+            for att in attachments.values()
+        )
 
         solve = payload["solve"]
         if not isinstance(solve, dict):
@@ -565,6 +621,8 @@ class ThermalSystem:
             observations=obs,
             max_events=max_events,
             rod_generation=rod_generation,
+            kirchhoff_model=kirchhoff_model,
+            has_kirchhoff_shell=has_kirchhoff_shell,
         )
 
     @classmethod
@@ -616,9 +674,18 @@ def _classify_dispatch(system: ThermalSystem) -> tuple[str | None, list[str] | N
                 ["steady_mode", "heat_input"],
                 "Steady multiport solves do not accept prescribed heatInputW power injections.",
             )
+        if system.has_kirchhoff:
+            return "kirchhoff", None, None
         return "multiport", None, None
 
     # transient mode
+    if system.has_kirchhoff:
+        return (
+            None,
+            ["transient_mode", "temperature_dependent_conductivity"],
+            "Temperature-dependent conductivity k(T) via exact Kirchhoff potential is supported in steady mode only; "
+            "nonlinear transient k(T) PDE integration is not yet modeled.",
+        )
     if stefans:
         if len(stefans) > 1:
             return (
@@ -758,35 +825,58 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
     backend, unsup_pair, unsup_reason = _classify_dispatch(sys_obj)
 
     terms = list(law.terminals)
-    conduction_lines = [
-        f"Conduction network ({law.lineage.get('kind')}): terminals = {terms}",
-        "Sign convention: Q_supply[i] = sum_j W[i][j] * T[j]  (W, positive INTO conduction network)",
-    ]
-    if law.lineage.get("eliminatedJunctions"):
-        conduction_lines.append(
-            f"Schur/Kron eliminated internal junctions: {law.lineage['eliminatedJunctions']}"
-        )
-    if law.lineage.get("kind") == "schur_join":
-        conduction_lines.append(
-            f"Schur-complement joined contacts: {law.lineage['contacts']}"
-        )
-    for i in terms:
-        row_terms = []
-        for j in terms:
-            lo, hi = law.matrix[i][j]
-            coeff = str(lo) if lo == hi else f"[{lo}, {hi}]"
-            row_terms.append(f"({coeff})*T[{j}]")
-        conduction_lines.append(f"  Q_supply[{i}] = " + " + ".join(row_terms))
-    if sys_obj.rod_generation is not None:
-        rg = sys_obj.rod_generation
-        conduction_lines.append(
-            f"Uniform rod heat generation (total P_gen = {rg.total_generated_power_w} W) "
-            "Norton-reduced to terminal injections I_Norton[i] (positive into terminal):"
-        )
+    km = sys_obj.kirchhoff_model
+    if km is not None:
+        conduction_lines = [
+            f"Nonlinear Kirchhoff rod network: nodes = {list(km.nodes)}, terminals = {terms}",
+            "Conductivity law: k_r(T) = k0_r * (1 + alpha_r * (T - T_ref,r)), psi_r(T) = (T - T_ref,r) + (alpha_r/2)*(T - T_ref,r)^2",
+            "Sign convention: Q_{a -> r} = g_r * (psi_r(T[a]) - psi_r(T[b])) - P_r/2  (W, positive into rod r from node a)",
+        ]
+        if km.junctions:
+            conduction_lines.append(
+                f"Internal storage-free Kirchhoff junctions (sum Q = 0): {list(km.junctions)}"
+            )
+        for e in km.edges:
+            g_str = str(e.g_lo) if e.g_lo == e.g_hi else f"[{e.g_lo}, {e.g_hi}]"
+            p_str = f" - ({e.power_w}/2)" if e.power_w > 0 else ""
+            conduction_lines.append(
+                f"  rod {e.name} ({e.a} -> {e.b}): g_0 = {g_str} W/K, alpha = {e.alpha} 1/K, T_ref = {e.t_ref} K, "
+                f"Q = ({g_str})*(psi(T[{e.a}]) - psi(T[{e.b}])){p_str}"
+            )
+        if km.total_generated_power_w > 0:
+            conduction_lines.append(
+                f"Uniform rod heat generation total P_gen = {km.total_generated_power_w} W (retained directly in Kirchhoff rod balances)"
+            )
+    else:
+        conduction_lines = [
+            f"Conduction network ({law.lineage.get('kind')}): terminals = {terms}",
+            "Sign convention: Q_supply[i] = sum_j W[i][j] * T[j]  (W, positive INTO conduction network)",
+        ]
+        if law.lineage.get("eliminatedJunctions"):
+            conduction_lines.append(
+                f"Schur/Kron eliminated internal junctions: {law.lineage['eliminatedJunctions']}"
+            )
+        if law.lineage.get("kind") == "schur_join":
+            conduction_lines.append(
+                f"Schur-complement joined contacts: {law.lineage['contacts']}"
+            )
         for i in terms:
-            ilo, ihi = rg.terminal_injections_w[i]
-            val = str(ilo) if ilo == ihi else f"[{ilo}, {ihi}]"
-            conduction_lines.append(f"  I_Norton[{i}] = {val} W")
+            row_terms = []
+            for j in terms:
+                lo, hi = law.matrix[i][j]
+                coeff = str(lo) if lo == hi else f"[{lo}, {hi}]"
+                row_terms.append(f"({coeff})*T[{j}]")
+            conduction_lines.append(f"  Q_supply[{i}] = " + " + ".join(row_terms))
+        if sys_obj.rod_generation is not None:
+            rg = sys_obj.rod_generation
+            conduction_lines.append(
+                f"Uniform rod heat generation (total P_gen = {rg.total_generated_power_w} W) "
+                "Norton-reduced to terminal injections I_Norton[i] (positive into terminal):"
+            )
+            for i in terms:
+                ilo, ihi = rg.terminal_injections_w[i]
+                val = str(ilo) if ilo == ihi else f"[{ilo}, {ihi}]"
+                conduction_lines.append(f"  I_Norton[{i}] = {val} W")
 
     terminal_eqs: dict[str, str] = {}
     for t in terms:
@@ -863,20 +953,36 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
                 if "airTemperatureK" in e
                 else ""
             )
-            terminal_eqs[t] = (
-                f"Q_out[{t}] = -Q_supply[{t}]{norton_term} = G_shell({g.get('kind')}, r_in={g.get('innerRadiusM')}, "
-                f"{len(g.get('layers', []))} layers)*(T[{t}] - T_s[{t}]) = "
-                f"A_out[{t}]*[{h_term}{e.get('emissivity')}*{e.get('sigmaWPerM2K4')}*"
-                f"(T_s[{t}]^4 - {e.get('enclosureTemperatureK')}^4)] (outward positive)"
-            )
+            if att.get("has_kirchhoff"):
+                terminal_eqs[t] = (
+                    f"Q_out[{t}] = -Q_supply[{t}]{norton_term} = KirchhoffShell({g.get('kind')}, r_in={g.get('innerRadiusM')}, "
+                    f"{len(g.get('layers', []))} layers, k_l(T) = k0*(1 + alpha*(T - T_ref))) = "
+                    f"A_out[{t}]*[{h_term}{e.get('emissivity')}*{e.get('sigmaWPerM2K4')}*"
+                    f"(T_s[{t}]^4 - {e.get('enclosureTemperatureK')}^4)] (outward positive)"
+                )
+            else:
+                terminal_eqs[t] = (
+                    f"Q_out[{t}] = -Q_supply[{t}]{norton_term} = G_shell({g.get('kind')}, r_in={g.get('innerRadiusM')}, "
+                    f"{len(g.get('layers', []))} layers)*(T[{t}] - T_s[{t}]) = "
+                    f"A_out[{t}]*[{h_term}{e.get('emissivity')}*{e.get('sigmaWPerM2K4')}*"
+                    f"(T_s[{t}]^4 - {e.get('enclosureTemperatureK')}^4)] (outward positive)"
+                )
 
     has_rod_gen = sys_obj.rod_generation is not None
+    km_power = km.total_generated_power_w if km is not None else Fraction(0)
     if sys_obj.mode == "steady":
-        conservation = (
-            f"Global steady conservation: sum_i Q_out[i] = {sys_obj.rod_generation.total_generated_power_w} W (rod heat generation)"
-            if has_rod_gen
-            else "Global steady conservation: sum_i Q_supply[i] = 0 W"
-        )
+        if km is not None:
+            conservation = (
+                f"Global steady Kirchhoff conservation: sum_i Q_out[i] = {km_power} W (rod heat generation)"
+                if km_power > 0
+                else "Global steady Kirchhoff conservation: sum_i Q_out[i] = 0 W"
+            )
+        else:
+            conservation = (
+                f"Global steady conservation: sum_i Q_out[i] = {sys_obj.rod_generation.total_generated_power_w} W (rod heat generation)"
+                if has_rod_gen
+                else "Global steady conservation: sum_i Q_supply[i] = 0 W"
+            )
     elif backend == "stefan":
         conservation = (
             "Quasi-steady Stefan moving-boundary latent balance: "
@@ -910,21 +1016,37 @@ def describe_equations(system: ThermalSystem | dict[str, Any]) -> dict[str, Any]
     else:
         lines.append(f"Selected certified backend: {backend}")
 
-    conduction_summary: dict[str, Any] = {
-        "lineageKind": law.lineage.get("kind"),
-        "exactPointLaw": law.is_exact_point,
-        "signConvention": "Q_supply[i] = sum_j W[i][j] * T[j] positive into network",
-        "eliminatedJunctions": list(law.lineage.get("eliminatedJunctions", ())),
-        "contacts": [dict(c) for c in law.lineage.get("contacts", ())],
-    }
-    if sys_obj.rod_generation is not None:
-        conduction_summary["rodGenerationTotalPowerW"] = str(sys_obj.rod_generation.total_generated_power_w)
+    if km is not None:
+        conduction_summary: dict[str, Any] = {
+            "lineageKind": "kirchhoff_rod_graph",
+            "nonlinearConductivity": True,
+            "nonlinearShellConductivity": sys_obj.has_kirchhoff_shell,
+            "exactPointLaw": km.is_exact_point,
+            "kirchhoffModelSha256": km.content_sha256,
+            "signConvention": "Q_{a -> r} = g_r * (psi_r(T[a]) - psi_r(T[b])) - P_r/2 positive into rod r",
+            "internalJunctions": list(km.junctions),
+            "contacts": [],
+        }
+        if km.total_generated_power_w > 0:
+            conduction_summary["rodGenerationTotalPowerW"] = str(km.total_generated_power_w)
+    else:
+        conduction_summary = {
+            "lineageKind": law.lineage.get("kind"),
+            "nonlinearConductivity": False,
+            "nonlinearShellConductivity": sys_obj.has_kirchhoff_shell,
+            "exactPointLaw": law.is_exact_point,
+            "signConvention": "Q_supply[i] = sum_j W[i][j] * T[j] positive into network",
+            "eliminatedJunctions": list(law.lineage.get("eliminatedJunctions", ())),
+            "contacts": [dict(c) for c in law.lineage.get("contacts", ())],
+        }
+        if sys_obj.rod_generation is not None:
+            conduction_summary["rodGenerationTotalPowerW"] = str(sys_obj.rod_generation.total_generated_power_w)
 
     return {
         "systemId": sys_obj.system_id,
         "mode": sys_obj.mode,
         "terminals": terms,
-        "derivedLawSha256": law.content_sha256,
+        "derivedLawSha256": None if km is not None else law.content_sha256,
         "selectedBackend": backend,
         "unsupportedRegime": None if unsup_pair is None else {"pair": unsup_pair, "reason": unsup_reason},
         "conductionSummary": conduction_summary,
@@ -1091,7 +1213,7 @@ def _extract_terminal_temps(
 ) -> dict[str, tuple[Fraction, Fraction]]:
     """Extract certified terminal temperature spans (lo, hi) from any backend result."""
     temps: dict[str, tuple[Fraction, Fraction]] = {}
-    if backend == "multiport":
+    if backend in ("multiport", "kirchhoff"):
         for t in sys_obj.derived_law.terminals:
             p = raw["ports"][t]
             b = p["innerFaceTemperatureBoundsK"] if p["kind"] == "radial_shell" else p["temperatureBoundsK"]
@@ -1158,13 +1280,24 @@ def solve_system(
             raise ValueError("rod_probe position fraction must be in [0, 1]")
         parsed_probe = (r_name, x_val)
 
-    law_summary = {
-        "schema": DERIVED_LAW_SCHEMA,
-        "contentSha256": sys_obj.derived_law.content_sha256,
-        "terminals": list(sys_obj.derived_law.terminals),
-        "exactPointLaw": sys_obj.derived_law.is_exact_point,
-        "lineage": sys_obj.derived_law.to_dict()["lineage"],
-    }
+    km = sys_obj.kirchhoff_model
+    if km is not None:
+        law_summary: dict[str, Any] = {
+            "schema": None,
+            "nonlinearKirchhoff": True,
+            "kirchhoffModelSha256": km.content_sha256,
+            "terminals": list(km.terminals),
+            "exactPointLaw": km.is_exact_point,
+            "lineage": {"kind": "kirchhoff_rod_graph", "internalJunctions": list(km.junctions)},
+        }
+    else:
+        law_summary = {
+            "schema": DERIVED_LAW_SCHEMA,
+            "contentSha256": sys_obj.derived_law.content_sha256,
+            "terminals": list(sys_obj.derived_law.terminals),
+            "exactPointLaw": sys_obj.derived_law.is_exact_point,
+            "lineage": sys_obj.derived_law.to_dict()["lineage"],
+        }
     base_envelope: dict[str, Any] = {
         "schema": RESULT_ENVELOPE_SCHEMA,
         "systemId": sys_obj.system_id,
@@ -1187,8 +1320,10 @@ def solve_system(
         }
 
     rg = sys_obj.rod_generation
-    if parsed_probe is not None and rg is None:
-        raise ValueError("rod_probe requires a conduction.rods network with positive generatedPowerW")
+    if parsed_probe is not None and rg is None and not (backend == "kirchhoff" and km is not None):
+        raise ValueError(
+            "rod_probe requires a conduction.rods network with positive generatedPowerW or Kirchhoff conductivity"
+        )
     inj_arg = None if rg is None else rg.terminal_injections_w
     gen_tot_arg = None if rg is None else rg.total_generated_power_w
 
@@ -1198,6 +1333,43 @@ def solve_system(
         term_temps = _extract_terminal_temps(sys_obj, backend, raw)
         env["rodGenerationSummary"] = rg.recover_profiles(term_temps, probe=parsed_probe)
         return env
+
+    if backend == "kirchhoff":
+        mp_ports = _to_multiport_ports(sys_obj)
+        if km is not None:
+            raw = solve_kirchhoff_steady(
+                km,
+                mp_ports,
+                duration_s=sys_obj.duration_s,
+                max_sweeps=sys_obj.max_sweeps,
+                rod_probe=parsed_probe,
+            )
+        else:
+            raw = solve_kirchhoff_steady(
+                sys_obj.derived_law,
+                mp_ports,
+                duration_s=sys_obj.duration_s,
+                max_sweeps=sys_obj.max_sweeps,
+                terminal_injections_w=inj_arg,
+                total_generated_power_w=gen_tot_arg,
+            )
+        meta = raw["solverMetadata"]
+        ps = raw.get("phaseSystem")
+        status = ps["plateauStatus"] if ps is not None else "resolved"
+        widths = {
+            "maxTemperatureWidthK": meta["maxTemperatureWidthK"],
+            "maxHeatRateWidthW": meta["maxHeatRateWidthW"],
+        }
+        env: dict[str, Any] = {
+            **base_envelope,
+            "status": status,
+            "terminationReason": meta["terminationReason"],
+            "achievedWidths": widths,
+            "backendResult": raw,
+        }
+        if "kirchhoffSummary" in raw:
+            env["kirchhoffSummary"] = raw["kirchhoffSummary"]
+        return _with_rod_gen(env, raw)
 
     if backend == "multiport":
         mp_ports = _to_multiport_ports(sys_obj)

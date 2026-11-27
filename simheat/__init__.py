@@ -57,6 +57,14 @@ _RADIATIVE_TRANSIENT_EXPORTS = (
     "solve_radiative_transient",
 )
 
+_KIRCHHOFF_EXPORTS = (
+    "KIRCHHOFF_STEADY_SCHEMA",
+    "KirchhoffEdge",
+    "KirchhoffRodModel",
+    "build_kirchhoff_model",
+    "solve_kirchhoff_steady",
+)
+
 
 def __getattr__(name: str):
     if name in _SYSTEM_EXPORTS:
@@ -79,6 +87,10 @@ def __getattr__(name: str):
         from simheat import radiative_transient
 
         return getattr(radiative_transient, name)
+    if name in _KIRCHHOFF_EXPORTS:
+        from simheat import kirchhoff
+
+        return getattr(kirchhoff, name)
     raise AttributeError(f"module 'simheat' has no attribute {name!r}")
 
 
@@ -90,6 +102,9 @@ __all__ = [
     "ENTHALPY_CONTINUATION_SCHEMA",
     "ExactBindings",
     "JOINED_LAW_SCHEMA",
+    "KIRCHHOFF_STEADY_SCHEMA",
+    "KirchhoffEdge",
+    "KirchhoffRodModel",
     "ONE",
     "PINNED_LAW_SCHEMA",
     "RADIATIVE_TRANSIENT_SCHEMA",
@@ -103,6 +118,7 @@ __all__ = [
     "ZERO",
     "apply",
     "bounded_centre",
+    "build_kirchhoff_model",
     "build_rod_generation_model",
     "ceil_fraction",
     "describe_equations",
@@ -115,6 +131,7 @@ __all__ = [
     "pi_rational_enclosure",
     "product",
     "solve_enthalpy_continuation",
+    "solve_kirchhoff_steady",
     "solve_radiative_transient",
     "solve_stefan_from_law",
     "solve_system",

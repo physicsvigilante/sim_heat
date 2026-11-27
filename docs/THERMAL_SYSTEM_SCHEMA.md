@@ -12,7 +12,7 @@ All physical inputs are authored **once** in SI units (no separate `facts.json` 
 - **Unsigned SI decimal strings** (all standard positive/nonnegative physical fields): JSON strings containing only digits and an optional decimal point (e.g. `"273.15"`, `"0.01"`, `"0.0000000567"`, `"0"`).
   - **Forbidden on physical fields:** JSON numbers (`273.15`), scientific notation (`"5.67e-8"`), fractions (`"1/2"`), leading `"+"` or `"-"`, or surrounding whitespace.
   - **Note on solver integer controls:** `solve.maxSweeps`, `solve.initialSteps`, and `solve.maxEvents` are JSON **integers** (not strings), whereas `solve.durationS` is an unsigned SI decimal string.
-- **Signed SI decimal strings** (`heatInputW` only): JSON string with optional single leading `"-"` followed by an unsigned SI decimal (e.g. `"300"`, `"-50.5"`, `"0"`). No leading `"+"`, no scientific notation, no surrounding whitespace.
+- **Signed SI decimal strings** (`heatInputW` and `alphaPerK`): JSON string with optional single leading `"-"` followed by an unsigned SI decimal (e.g. `"300"`, `"-50.5"`, `"-0.0015"`, `"0"`). No leading `"+"`, no scientific notation, no surrounding whitespace.
 - **Interval parameters** (supported on rod parameters `k`, `L`, `A`, `d`): either an unsigned SI decimal string (exact point value) or `{"low": "<unsigned>", "high": "<unsigned>"}` with `0 < low <= high`.
 - **Sign conventions:**
   - Conduction network supply: `Q_supply[i] = sum_j W[i][j] * T[j]` (`W`, positive **into** the conduction network).
@@ -57,9 +57,10 @@ Every conduction specification reduces deterministically to a certified symmetri
 - **Optional keys:** `kind` (`"rods"`), `nodes` (list of all node names, including internal storage-free junctions; inherits top-level `nodes` if omitted at top level), `terminals` (list of exposed terminal node names; if omitted at top level, defaults to `sorted(attachments.keys())`), `lawId`.
 - **Connectivity:** All declared `nodes` must form **one single connected component** with at least 2 terminals. Every node not in `terminals` is eliminated automatically as an ideal storage-free junction (Schur/Kron reduction for exact point rods; certified monotone barrier + Rayleigh enclosure for interval rods).
 - **Allowed `rod_spec` kinds (exact keys only):**
-  - `rod_area`: `{"kind": "rod_area", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "A": <pos>, "generatedPowerW"?: <nonneg>}` ($G = k A / L$)
-  - `rod_circular`: `{"kind": "rod_circular", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "d": <pos>, "generatedPowerW"?: <nonneg>}` ($G = k (\pi d^2 / 4) / L$, using certified rational $\pi$ enclosure; note `d` is **diameter** in meters!)
-  - Optional `generatedPowerW` (unsigned SI decimal string $\ge 0$, default `"0"`, top-level `conduction(rods)` only — refused inside `conduction(join)`): models uniform volumetric heat generation along that rod (total rod power $P_r \ge 0$ W). Automatically Norton-reduced through eliminated internal junctions onto terminal heat injections $I_{\text{Norton},i}$ for all compatible backends (`multiport`, `enthalpy`, `staged`, `stefan`), and recovers certified internal junction temperatures and per-rod parabolic peak temperatures/positions in `rodGenerationSummary`.
+  - `rod_area`: `{"kind": "rod_area", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "A": <pos>, "generatedPowerW"?: <nonneg>, "alphaPerK"?: <signed>, "referenceTemperatureK"?: <nonneg>}` ($G_0 = k_0 A / L$)
+  - `rod_circular`: `{"kind": "rod_circular", "a": "<node>", "b": "<node>", "k": <pos>, "L": <pos>, "d": <pos>, "generatedPowerW"?: <nonneg>, "alphaPerK"?: <signed>, "referenceTemperatureK"?: <nonneg>}` ($G_0 = k_0 (\pi d^2 / 4) / L$, using certified rational $\pi$ enclosure; note `d` is **diameter** in meters!)
+  - Optional `generatedPowerW` (unsigned SI decimal string $\ge 0$, default `"0"`, top-level `conduction(rods)` only — refused inside `conduction(join)`): models uniform volumetric heat generation along that rod (total rod power $P_r \ge 0$ W). Automatically Norton-reduced through eliminated internal junctions onto terminal heat injections $I_{\text{Norton},i}$ for linear backends (`multiport`, `enthalpy`, `staged`, `stefan`, `radiative_transient`), or retained directly in Kirchhoff rod balances (`kirchhoff`), recovering certified internal junction temperatures and per-rod peak temperatures/positions.
+  - Optional `alphaPerK` (signed SI decimal string, `1/K`, default `"0"`, top-level `conduction(rods)` only — refused inside `conduction(join)`) and `referenceTemperatureK` (unsigned SI decimal string $\ge 0$, `K`, **required** whenever `alphaPerK != 0`): models affine temperature-dependent conductivity $k_r(T) = k_{0,r}(1 + \alpha_r(T - T_{\text{ref},r}))$ via exact Kirchhoff potential $\Phi_r(T) = k_{0,r}[(T - T_{\text{ref},r}) + \frac{\alpha_r}{2}(T - T_{\text{ref},r})^2]$ in steady mode (`backend: "kirchhoff"`). Strictly certifies $k_r(T) > 0$ at all nodes and heated-rod peaks.
 
 ### 3.2 Schur-Complement Network Join (`kind: "join"`)
 Joins two independent conduction subnetworks across one or more ideal thermal contacts (eliminating the joined contact nodes):
@@ -105,7 +106,7 @@ Enthalpy $H$ is measured relative to pure solid at $T_{\text{tr}}$: `solid` ($H 
 - `geometry`:
   - Sphere: `{"kind": "sphere", "innerRadiusM": <pos>, "layers": [...]}`
   - Cylinder: `{"kind": "cylinder", "innerRadiusM": <pos>, "cylinderLengthM": <pos>, "layers": [...]}`
-  - Each layer in `layers` (1 to 32 entries): `{"outerRadiusM": <pos>, "conductivityWPerMK": <pos>}` with strictly increasing `outerRadiusM > previous_radius`.
+  - Each layer in `layers` (1 to 32 entries): `{"outerRadiusM": <pos>, "conductivityWPerMK": <pos>, "alphaPerK"?: <signed>, "referenceTemperatureK"?: <nonneg>}` with strictly increasing `outerRadiusM > previous_radius` (`referenceTemperatureK` required whenever `alphaPerK != 0`).
 - `exterior`:
   - **Required:** `enclosureTemperatureK`, `emissivity` ($\in [0, 1]$), `sigmaWPerM2K4` ($> 0$).
   - **Optional (both or neither):** `airTemperatureK`, `convectionCoefficientWPerM2K`.
@@ -139,7 +140,9 @@ Models a growing or melting solid phase-change layer in the quasi-steady conduct
 
 | Mode & Attachments | Selected Backend | Notes |
 |---|---|---|
-| `steady` + (`maintained`, `exterior_surface`, `radial_shell`, coexisting `phase_substance` with `heatInputW=0`, optional rod `generatedPowerW`) | `multiport` | Exact linear solve for convection-only point systems; certified monotone Newton/interval sweeps for radiation/shells and heated rods. |
+| `steady` + (`maintained`, `exterior_surface`, `radial_shell`, coexisting `phase_substance` with `heatInputW=0`, optional rod `generatedPowerW`, all `alphaPerK == 0`) | `multiport` | Exact linear solve for convection-only point systems; certified monotone Newton/interval sweeps for radiation/shells and heated rods. |
+| `steady` + any nonzero `alphaPerK` on rods or `radial_shell` layers (with `maintained`, `exterior_surface`, `radial_shell`, coexisting `phase_substance`, optional rod `generatedPowerW`) | `kirchhoff` | Certified steady Kirchhoff M-function solver (`sim_heat.offline_kirchhoff_steady/1`) with exact rational barrier/monotone certification, strict $k(T) > 0$ domain proof across nodes and peaks, and `rod_probe` support. |
+| `transient` + any nonzero `alphaPerK` on rods or `radial_shell` layers | `unsupported_regime` | Structured refusal (`["transient_mode", "temperature_dependent_conductivity"]`); Kirchhoff $k(T)$ is steady-only in M08. |
 | `steady` + `sensible_body` (or non-coexisting `phase_substance`, or nonzero `heatInputW`, or `stefan_layer`) | `unsupported_regime` | Structured refusal (`C = 0 != t -> inf`, or moving front requires transient mode). |
 | `transient` + 1 `stefan_layer` + `maintained` only (optional rod `generatedPowerW`) | `stefan` | Certified quasi-steady planar / cylindrical / spherical Stefan moving-boundary solver (exact rational `isqrt` + monotone outward bisection). |
 | `transient` + `stefan_layer` + (`sensible_body`, `phase_substance`, `exterior_surface`, `radial_shell`, or multiple `stefan_layer`) | `unsupported_regime` | Structured refusal naming the exact unsupported mechanism pair. |
@@ -154,11 +157,12 @@ Models a growing or melting solid phase-change layer in the quasi-steady conduct
 ## 6. Result Envelope (`sim_heat.thermal_result/1`)
 
 `solve_system` always returns a unified JSON envelope containing:
-- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"staged"`, `"multibody"`, `"enthalpy"`, `"stefan"`, `"radiative_transient"`, or `null` when `unsupported_regime`).
+- `schema`: `"sim_heat.thermal_result/1"`, `systemId`, `mode`, `backend` (`"multiport"`, `"kirchhoff"`, `"staged"`, `"multibody"`, `"enthalpy"`, `"stefan"`, `"radiative_transient"`, or `null` when `unsupported_regime`).
 - `status`: backend outcome (`"resolved"`, `"complete"`, `"coexisting"`, `"exhausted"`, `"growing"`, `"melting"`, `"completely_frozen"`, `"completely_melted"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`, etc.).
 - `terminationReason`: canonical termination code (`"converged"`, `"exact_linear"`, `"sweep_limit"`, `"resolved"`, `"refinement_budget"`, `"mode_sequence_uncertain"`, `"unsupported_regime"`).
 - `achievedWidths`: achieved rational enclosure widths (`maxTemperatureWidthK`, `maxFinalTemperatureWidthK`, `finalThicknessWidthM`, `modeledDurationWidthS`, etc.).
-- `equations`: deterministic output of `describe_equations` (conduction matrix, optional rod Norton injections, terminal ODE/algebraic/enthalpy/Stefan equations, conservation ledger).
-- `rodGenerationSummary` (present whenever any rod specifies positive `generatedPowerW`): certified `totalGeneratedPowerW`, `terminalNortonInjectionsBoundsW`, `nodeTemperatureBoundsK` (including eliminated internal junctions), and per-rod parabolic `rodPeaks` (`peakTemperatureBoundsK`, `peakPositionFractionFromABounds`).
+- `equations`: deterministic output of `describe_equations` (conduction matrix or Kirchhoff rod equations, optional rod Norton injections, terminal ODE/algebraic/enthalpy/Stefan equations, conservation ledger).
+- `kirchhoffSummary` (present when `backend == "kirchhoff"` with `conduction(rods)`): certified `totalGeneratedPowerW`, `nodeTemperatureBoundsK` (including internal junctions), per-rod `conductivityBoundsWPerMK`, `heatCurrentAtATowardBBoundsW`, `peakTemperatureBoundsK`, `peakPositionFractionFromABounds`, and optional `probe`.
+- `rodGenerationSummary` (present whenever linear-conduction rods specify positive `generatedPowerW`): certified `totalGeneratedPowerW`, `terminalNortonInjectionsBoundsW`, `nodeTemperatureBoundsK` (including eliminated internal junctions), and per-rod parabolic `rodPeaks` (`peakTemperatureBoundsK`, `peakPositionFractionFromABounds`).
 - `backendResult`: full certified backend record (exact rational endpoint strings), or `null` for `unsupported_regime`.
 - Offline provenance flags (always `false`): `nativeExecuted`, `nativeQualified`, `independentlyCertifiedReference`, `runnerConsumable`.
